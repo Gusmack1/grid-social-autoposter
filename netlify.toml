@@ -22,3 +22,13 @@
   from = "/api/admin/*"
   to = "/.netlify/functions/admin/:splat"
   status = 200
+
+[[redirects]]
+  from = "/api/meta-auth"
+  to = "/.netlify/functions/meta-auth"
+  status = 200
+
+[[redirects]]
+  from = "/api/meta-callback"
+  to = "/.netlify/functions/meta-callback"
+  status = 200
