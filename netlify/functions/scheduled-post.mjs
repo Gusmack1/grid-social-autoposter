@@ -299,8 +299,9 @@ async function postToLinkedIn(client, message, imageUrl) {
 // Posts appear on Google Maps / Search listing
 // ═══════════════════════════════════════════════════════
 async function postToGoogleBusiness(client, message, imageUrl) {
-  const { googleBusinessId, googleAccessToken } = client;
-  if (!googleBusinessId || !googleAccessToken) {
+  const googleBusinessId = client.gbpId;
+    const googleAccessToken = client.gbpAccessToken;
+    if (!googleBusinessId || !googleAccessToken) {
     return { success: false, error: "Google Business credentials not configured" };
   }
 
@@ -326,10 +327,10 @@ async function postToGoogleBusiness(client, message, imageUrl) {
 
     // Add CTA button — "LEARN_MORE" works for most trade businesses
     // Can be customised later via client config
-    if (client.googleBusinessCta && client.googleBusinessCtaUrl) {
+    if (client.gbpCta && client.gbpCtaUrl) {
       postBody.callToAction = {
-        actionType: client.googleBusinessCta, // BOOK, ORDER, SHOP, SIGN_UP, LEARN_MORE, CALL
-        url: client.googleBusinessCtaUrl,
+        actionType: client.gbpCta, // BOOK, ORDER, SHOP, SIGN_UP, LEARN_MORE, CALL
+        url: client.gbpCtaUrl,
       };
     }
 
@@ -441,7 +442,7 @@ export default async (req) => {
 
   for (const client of clientList) {
     // Must have at least one platform token
-    const hasAnyToken = client.pageAccessToken || client.twitterAccessToken || client.linkedinAccessToken || client.googleAccessToken || client.tiktokAccessToken;
+    const hasAnyToken = client.pageAccessToken || client.twitterAccessToken || client.linkedinAccessToken || client.gbpAccessToken || client.tiktokAccessToken;
     if (!hasAnyToken) {
       console.log(`[scheduler] ${client.name}: No API tokens, skipping`);
       results.push({ client: client.name, status: "skipped", reason: "No API tokens" });
@@ -512,7 +513,7 @@ export default async (req) => {
     }
 
     // ── Google Business Profile ──
-    if (nextPost.platforms.includes("google_business") && client.googleAccessToken) {
+    if (nextPost.platforms.includes("google_business") && client.gbpAccessToken) {
       postResults.google_business = await postToGoogleBusiness(client, nextPost.caption, nextPost.imageUrl);
       console.log(`[scheduler] ${client.name} GBP:`, JSON.stringify(postResults.google_business));
     }
