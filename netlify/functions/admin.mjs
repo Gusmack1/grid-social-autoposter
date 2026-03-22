@@ -191,6 +191,28 @@ export default async (req) => {
       return json({ success: true, results });
     }
 
+    // ─── IMAGE UPLOAD (to GitHub repo) ───
+    if (action === "upload-image" && req.method === "POST") {
+      const body = await req.json();
+      const { filename, content } = body;
+      if (!filename || !content) return json({ error: "filename and content required" }, 400);
+      const ghToken = process.env.GITHUB_TOKEN;
+      if (!ghToken) return json({ error: "GITHUB_TOKEN not configured" }, 500);
+      try {
+        const r = await fetch(`https://api.github.com/repos/Gusmack1/grid-social-autoposter/contents/public/photos/${filename}`, {
+          method: "PUT",
+          headers: { "Authorization": `token ${ghToken}`, "Content-Type": "application/json", "User-Agent": "GridSocial" },
+          body: JSON.stringify({ message: `Upload ${filename}`, content }),
+        });
+        const d = await r.json();
+        if (r.ok) {
+          return json({ success: true, url: `https://grid-social-autoposter.netlify.app/photos/${filename}` });
+        } else {
+          return json({ error: d.message || "GitHub upload failed" }, 500);
+        }
+      } catch (e) { return json({ error: e.message }, 500); }
+    }
+
     // ─── CONFIG CHECK ───
     if (action === "config") {
       const clientList = (await clients.get("list", { type: "json" }).catch(() => null)) || [];
