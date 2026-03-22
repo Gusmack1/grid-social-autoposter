@@ -628,6 +628,7 @@ function App(){
                     </div>
                     <div style={{fontSize:11,color:"var(--muted)",marginTop:6}}>Added {new Date(c.createdAt).toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"})}</div>
                     {!c.pageAccessToken&&c.fbPageId&&<a href="/api/meta-auth" style={{display:"inline-flex",alignItems:"center",gap:6,marginTop:8,padding:"6px 14px",background:"#1877F2",color:"#fff",borderRadius:6,textDecoration:"none",fontWeight:600,fontSize:12,fontFamily:"inherit"}}>📘 Connect Facebook</a>}
+                    {!c.pageAccessToken&&!c.fbPageId&&<button onClick={()=>{setEditClient(c);setShowModal(true)}} style={{display:"inline-flex",alignItems:"center",gap:6,marginTop:8,padding:"6px 14px",background:"var(--accent)",color:"#fff",border:"none",borderRadius:6,fontWeight:600,fontSize:12,fontFamily:"inherit",cursor:"pointer"}}>🔗 Connect Platforms</button>}
                   </div>
                   <div style={{display:"flex",gap:6}}>
                     <button onClick={()=>{setEditClient(c);setShowModal(true)}} style={S.btn(false)}>Edit</button>
@@ -653,56 +654,145 @@ function App(){
 }
 
 function ClientModal({client,onSave,onClose,S}){
-  const [f,setF]=useState({name:client?.name||"",fbPageId:client?.fbPageId||"",igUserId:client?.igUserId||"",pageAccessToken:client?.pageAccessToken||"",twitterId:client?.twitterId||"",tiktokId:client?.tiktokId||"",linkedinId:client?.linkedinId||"",gbpId:client?.gbpId||""});
+  const [f,setF]=useState({
+    name:client?.name||"",fbPageId:client?.fbPageId||"",igUserId:client?.igUserId||"",pageAccessToken:client?.pageAccessToken||"",
+    twitterId:client?.twitterId||"",twitterApiKey:client?.twitterApiKey||"",twitterApiSecret:client?.twitterApiSecret||"",twitterAccessToken:client?.twitterAccessToken||"",twitterAccessSecret:client?.twitterAccessSecret||"",
+    tiktokId:client?.tiktokId||"",tiktokAccessToken:client?.tiktokAccessToken||"",
+    linkedinId:client?.linkedinId||"",linkedinAccessToken:client?.linkedinAccessToken||"",
+    gbpId:client?.gbpId||"",gbpAccessToken:client?.gbpAccessToken||""
+  });
+  const [showSection,setShowSection]=useState(null);
   const [showToken,setShowToken]=useState(false);
-  const platforms=[
-    {k:"fbPageId",l:"📘 Facebook Page ID",p:"Auto-filled via Connect Facebook button",g:"facebook"},
-    {k:"igUserId",l:"📸 Instagram Business ID",p:"Auto-filled via Connect Facebook button",g:"facebook"},
-    {k:"twitterId",l:"𝕏 Twitter / X Username",p:"e.g. @sornhandyman (without @)",g:"twitter"},
-    {k:"tiktokId",l:"🎵 TikTok Username",p:"e.g. sornhandyman",g:"tiktok"},
-    {k:"linkedinId",l:"💼 LinkedIn Page ID",p:"From your LinkedIn company page URL",g:"linkedin"},
-    {k:"gbpId",l:"📍 Google Business Profile ID",p:"From your GBP dashboard",g:"google"},
-  ];
-  const groups=[
-    {id:"facebook",label:"Meta (Facebook & Instagram)",color:"#1877F2"},
-    {id:"twitter",label:"X / Twitter",color:"#000"},
-    {id:"tiktok",label:"TikTok",color:"#ff0050"},
-    {id:"linkedin",label:"LinkedIn",color:"#0A66C2"},
-    {id:"google",label:"Google Business",color:"#4285F4"},
+  const toggle=(id)=>setShowSection(s=>s===id?null:id);
+  const connected=(fields)=>fields.some(k=>!!f[k]);
+  const sections=[
+    {id:"meta",label:"Facebook & Instagram",icon:"📘",color:"#1877F2",
+      status:connected(["fbPageId"])?"Connected":"Not connected",
+      fields:[
+        {k:"fbPageId",l:"Facebook Page ID",p:"Auto-filled when you Connect Facebook"},
+        {k:"igUserId",l:"Instagram Business ID",p:"Auto-filled when you Connect Facebook"},
+      ],
+      help:<div>
+        <p style={{fontSize:12,color:"var(--muted)",marginBottom:8}}>Works with any Facebook Page — personal or business. Connect to auto-fill Page ID, Instagram ID, and access token.</p>
+        <a href="/api/meta-auth" style={{display:"inline-flex",alignItems:"center",gap:6,padding:"8px 16px",background:"#1877F2",color:"#fff",borderRadius:6,textDecoration:"none",fontWeight:600,fontSize:13,fontFamily:"inherit"}}>📘 Connect Facebook Pages</a>
+        <p style={{fontSize:10,color:"var(--muted)",marginTop:8}}>You'll choose which pages to connect. Works with personal pages too — not just businesses.</p>
+      </div>,
+      tokenField:{k:"pageAccessToken",l:"Page Access Token",p:"Auto-filled via Connect, or paste manually"}
+    },
+    {id:"twitter",label:"X / Twitter",icon:"𝕏",color:"#000",
+      status:connected(["twitterAccessToken"])?"Connected":"Not connected",
+      fields:[
+        {k:"twitterId",l:"Username",p:"e.g. sornhandyman (without @)"},
+        {k:"twitterApiKey",l:"API Key",p:"From developer.x.com → App → Keys"},
+        {k:"twitterApiSecret",l:"API Secret",p:"From developer.x.com → App → Keys"},
+        {k:"twitterAccessToken",l:"Access Token",p:"From developer.x.com → App → Keys"},
+        {k:"twitterAccessSecret",l:"Access Token Secret",p:"From developer.x.com → App → Keys"},
+      ],
+      help:<div>
+        <p style={{fontSize:12,color:"var(--muted)",marginBottom:8}}>Requires an X/Twitter Developer account. Free tier allows posting.</p>
+        <a href="https://developer.x.com/en/portal/dashboard" target="_blank" style={{fontSize:12,color:"var(--accent)",textDecoration:"none"}}>→ Open X Developer Portal</a>
+        <ol style={{fontSize:11,color:"var(--muted)",marginTop:8,paddingLeft:16,lineHeight:1.8}}>
+          <li>Create a project and app at developer.x.com</li>
+          <li>Under Keys and Tokens, generate all 4 keys</li>
+          <li>Set app permissions to "Read and Write"</li>
+          <li>Paste the 4 values above</li>
+        </ol>
+      </div>
+    },
+    {id:"tiktok",label:"TikTok",icon:"🎵",color:"#ff0050",
+      status:connected(["tiktokAccessToken"])?"Connected":"Not connected",
+      fields:[
+        {k:"tiktokId",l:"Username",p:"e.g. sornhandyman"},
+        {k:"tiktokAccessToken",l:"Access Token",p:"From TikTok Developer Portal"},
+      ],
+      help:<div>
+        <p style={{fontSize:12,color:"var(--muted)",marginBottom:8}}>Requires a TikTok Developer account with Content Posting API access.</p>
+        <a href="https://developers.tiktok.com/" target="_blank" style={{fontSize:12,color:"var(--accent)",textDecoration:"none"}}>→ Open TikTok Developer Portal</a>
+        <ol style={{fontSize:11,color:"var(--muted)",marginTop:8,paddingLeft:16,lineHeight:1.8}}>
+          <li>Register as a developer at developers.tiktok.com</li>
+          <li>Create an app with Content Posting API scope</li>
+          <li>Complete OAuth to get access token</li>
+          <li>Paste the token above</li>
+        </ol>
+      </div>
+    },
+    {id:"linkedin",label:"LinkedIn",icon:"💼",color:"#0A66C2",
+      status:connected(["linkedinAccessToken"])?"Connected":"Not connected",
+      fields:[
+        {k:"linkedinId",l:"Company Page ID or URN",p:"e.g. 12345678 or urn:li:organization:12345678"},
+        {k:"linkedinAccessToken",l:"Access Token",p:"From LinkedIn Developer Portal"},
+      ],
+      help:<div>
+        <p style={{fontSize:12,color:"var(--muted)",marginBottom:8}}>Works with LinkedIn Company Pages. Requires a LinkedIn Developer app.</p>
+        <a href="https://www.linkedin.com/developers/apps" target="_blank" style={{fontSize:12,color:"var(--accent)",textDecoration:"none"}}>→ Open LinkedIn Developer Portal</a>
+        <ol style={{fontSize:11,color:"var(--muted)",marginTop:8,paddingLeft:16,lineHeight:1.8}}>
+          <li>Create an app at linkedin.com/developers</li>
+          <li>Add "Share on LinkedIn" and "Manage Company Pages" products</li>
+          <li>Generate an access token via OAuth</li>
+          <li>Paste the token and Page ID above</li>
+        </ol>
+      </div>
+    },
+    {id:"gbp",label:"Google Business Profile",icon:"📍",color:"#4285F4",
+      status:connected(["gbpAccessToken"])?"Connected":"Not connected",
+      fields:[
+        {k:"gbpId",l:"Location ID or Name",p:"e.g. locations/12345 or your business name"},
+        {k:"gbpAccessToken",l:"Access Token",p:"From Google Cloud Console"},
+      ],
+      help:<div>
+        <p style={{fontSize:12,color:"var(--muted)",marginBottom:8}}>Post updates to your Google Business listing. Requires Google Cloud project with Business Profile API.</p>
+        <a href="https://console.cloud.google.com/apis/library/mybusinessbusinessinformation.googleapis.com" target="_blank" style={{fontSize:12,color:"var(--accent)",textDecoration:"none"}}>→ Open Google Cloud Console</a>
+        <ol style={{fontSize:11,color:"var(--muted)",marginTop:8,paddingLeft:16,lineHeight:1.8}}>
+          <li>Enable Business Profile API in Google Cloud</li>
+          <li>Create OAuth credentials</li>
+          <li>Authorise and get access token</li>
+          <li>Paste the token and location ID above</li>
+        </ol>
+      </div>
+    },
   ];
   return(
     <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.7)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:100}} onClick={onClose}>
-      <div style={{background:"var(--surface)",border:"1px solid var(--border)",borderRadius:16,padding:28,width:560,maxHeight:"85vh",overflow:"auto",animation:"fadeIn .2s ease both"}} onClick={e=>e.stopPropagation()}>
+      <div style={{background:"var(--surface)",border:"1px solid var(--border)",borderRadius:16,padding:28,width:580,maxHeight:"90vh",overflow:"auto",animation:"fadeIn .2s ease both"}} onClick={e=>e.stopPropagation()}>
         <h3 style={{fontSize:18,fontWeight:700,color:"#fff",marginBottom:20}}>{client?"Edit Client":"Add New Client"}</h3>
         <div style={{marginBottom:18}}>
-          <div style={S.label}>Business Name</div>
-          <input type="text" value={f.name} onChange={e=>setF(v=>({...v,name:e.target.value}))} placeholder="e.g. Sorn Handyman Services" style={S.input} />
+          <div style={S.label}>Business / Page Name</div>
+          <input type="text" value={f.name} onChange={e=>setF(v=>({...v,name:e.target.value}))} placeholder="e.g. Sorn Handyman Services, Gus, Food Foodie World..." style={S.input} />
+          <p style={{fontSize:10,color:"var(--muted)",marginTop:4}}>Can be any Facebook Page, personal page, or business — doesn't have to be a registered business.</p>
         </div>
-        {groups.map(g=>{
-          const fields=platforms.filter(p=>p.g===g.id);
-          return <div key={g.id} style={{marginBottom:16,padding:14,background:"var(--surface2)",borderRadius:10,border:"1px solid var(--border)"}}>
-            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
-              <div style={{width:8,height:8,borderRadius:"50%",background:g.color}}></div>
-              <span style={{fontSize:12,fontWeight:600,color:"#fff"}}>{g.label}</span>
-              {g.id==="facebook"&&<a href="/api/meta-auth" style={{marginLeft:"auto",fontSize:10,color:"var(--accent)",textDecoration:"none"}}>Connect →</a>}
-              {g.id!=="facebook"&&<span style={{marginLeft:"auto",fontSize:9,color:"var(--muted)"}}>Coming soon</span>}
-            </div>
-            {fields.map(p=>
-              <div key={p.k} style={{marginBottom:8}}>
-                <div style={{fontSize:10,fontWeight:600,color:"var(--muted)",marginBottom:4}}>{p.l}</div>
-                <input type="text" value={f[p.k]} onChange={e=>setF(v=>({...v,[p.k]:e.target.value}))} placeholder={p.p} style={{...S.input,fontSize:12,padding:"8px 10px"}} />
+        <div style={{marginBottom:12}}><div style={S.label}>Social Media Platforms</div></div>
+        {sections.map(sec=>{
+          const isOpen=showSection===sec.id;
+          const isConnected=sec.status==="Connected";
+          return <div key={sec.id} style={{marginBottom:8,borderRadius:10,border:"1px solid var(--border)",overflow:"hidden",background:"var(--surface2)"}}>
+            <button onClick={()=>toggle(sec.id)} style={{width:"100%",display:"flex",alignItems:"center",gap:10,padding:"12px 14px",background:"transparent",border:"none",cursor:"pointer",fontFamily:"inherit",color:"#fff"}}>
+              <span style={{fontSize:16}}>{sec.icon}</span>
+              <span style={{fontSize:13,fontWeight:600,flex:1,textAlign:"left"}}>{sec.label}</span>
+              <span style={{fontSize:10,padding:"2px 8px",borderRadius:4,
+                background:isConnected?"rgba(34,197,94,0.12)":"rgba(107,114,128,0.12)",
+                color:isConnected?"var(--green)":"var(--muted)"}}>{sec.status}</span>
+              <span style={{fontSize:12,color:"var(--muted)",transition:"transform .2s",transform:isOpen?"rotate(180deg)":"rotate(0)"}}>▼</span>
+            </button>
+            {isOpen&&<div style={{padding:"0 14px 14px",borderTop:"1px solid var(--border)",paddingTop:12}}>
+              {sec.help}
+              <div style={{marginTop:12}}>
+                {sec.fields.map(field=>
+                  <div key={field.k} style={{marginBottom:8}}>
+                    <div style={{fontSize:10,fontWeight:600,color:"var(--muted)",marginBottom:3}}>{field.l}</div>
+                    <input type="text" value={f[field.k]||""} onChange={e=>setF(v=>({...v,[field.k]:e.target.value}))} placeholder={field.p} style={{...S.input,fontSize:12,padding:"7px 10px"}} />
+                  </div>
+                )}
+                {sec.tokenField&&<div style={{marginBottom:8}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                    <div style={{fontSize:10,fontWeight:600,color:"var(--muted)",marginBottom:3}}>{sec.tokenField.l}</div>
+                    <button onClick={()=>setShowToken(!showToken)} style={{fontSize:9,color:"var(--accent)",background:"none",border:"none",cursor:"pointer"}}>{showToken?"Hide":"Show"}</button>
+                  </div>
+                  <input type={showToken?"text":"password"} value={f[sec.tokenField.k]||""} onChange={e=>setF(v=>({...v,[sec.tokenField.k]:e.target.value}))} placeholder={sec.tokenField.p} style={{...S.input,fontSize:12,padding:"7px 10px"}} />
+                </div>}
               </div>
-            )}
+            </div>}
           </div>
         })}
-        <div style={{marginBottom:14}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-            <div style={S.label}>Page Access Token (Meta)</div>
-            <button onClick={()=>setShowToken(!showToken)} style={{fontSize:10,color:"var(--accent)",background:"none",border:"none",cursor:"pointer"}}>{showToken?"Hide":"Show"}</button>
-          </div>
-          <input type={showToken?"text":"password"} value={f.pageAccessToken} onChange={e=>setF(v=>({...v,pageAccessToken:e.target.value}))} placeholder="Auto-filled via Connect Facebook or paste manually" style={S.input} />
-          {f.pageAccessToken&&<div style={{fontSize:10,color:"var(--muted)",marginTop:4}}>{f.pageAccessToken.substring(0,20)}...{f.pageAccessToken.substring(f.pageAccessToken.length-10)}</div>}
-        </div>
         <div style={{display:"flex",gap:8,marginTop:20,justifyContent:"flex-end"}}>
           <button onClick={onClose} style={S.btn(false)}>Cancel</button>
           <button onClick={()=>onSave(f)} style={S.btn(true)}>{client?"Save Changes":"Add Client"}</button>
