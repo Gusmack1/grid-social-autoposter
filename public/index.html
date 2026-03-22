@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Grid Social — Auto-Poster Admin</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0F1117;
+  --surface: #1A1D27;
+  --surface-2: #242833;
+  --border: #2E3340;
+  --text: #E8E9ED;
+  --text-muted: #8B8F9E;
+  --accent: #3B82F6;
+  --accent-hover: #2563EB;
+  --green: #22C55E;
+  --amber: #F59E0B;
+  --red: #EF4444;
+  --radius: 10px;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: 'DM Sans', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+}
+
+/* ─── LAYOUT ─── */
+.container { max-width: 960px; margin: 0 auto; padding: 2rem 1.5rem; }
+
+header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 2rem; padding-bottom: 1.5rem;
+  border-bottom: 1px solid var(--border);
+}
+.logo { font-weight: 700; font-size: 1.3rem; }
+.logo span { color: var(--accent); }
+
+.status-pills { display: flex; gap: 0.5rem; }
+.pill {
+  font-size: 0.75rem; padding: 0.3rem 0.7rem; border-radius: 20px;
+  font-weight: 500; display: flex; align-items: center; gap: 0.35rem;
+}
+.pill-green { background: rgba(34,197,94,0.15); color: var(--green); }
+.pill-amber { background: rgba(245,158,11,0.15); color: var(--amber); }
+.pill-red { background: rgba(239,68,68,0.15); color: var(--red); }
+.dot { width: 6px; height: 6px; border-radius: 50%; }
+.dot-green { background: var(--green); }
+.dot-amber { background: var(--amber); }
+.dot-red { background: var(--red); }
+
+/* ─── AUTH ─── */
+#auth-screen {
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: center; min-height: 80vh; gap: 1rem;
+}
+#auth-screen h2 { font-size: 1.4rem; font-weight: 700; }
+#auth-screen p { color: var(--text-muted); font-size: 0.9rem; }
+#auth-screen input {
+  background: var(--surface); border: 1px solid var(--border);
+  color: var(--text); padding: 0.8rem 1rem; border-radius: var(--radius);
+  font-size: 0.95rem; width: 320px; font-family: inherit;
+}
+#auth-screen input:focus { outline: none; border-color: var(--accent); }
+
+/* ─── TABS ─── */
+.tabs { display: flex; gap: 0; margin-bottom: 1.5rem; }
+.tab {
+  padding: 0.6rem 1.2rem; font-size: 0.85rem; font-weight: 500;
+  background: transparent; border: 1px solid var(--border);
+  color: var(--text-muted); cursor: pointer; font-family: inherit;
+  transition: all 0.15s;
+}
+.tab:first-child { border-radius: var(--radius) 0 0 var(--radius); }
+.tab:last-child { border-radius: 0 var(--radius) var(--radius) 0; }
+.tab:not(:first-child) { border-left: none; }
+.tab.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+/* ─── ADD POST FORM ─── */
+.form-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 1.5rem; margin-bottom: 1.5rem;
+}
+.form-card h3 { font-size: 1rem; font-weight: 700; margin-bottom: 1rem; }
+
+.form-row { margin-bottom: 1rem; }
+.form-row label {
+  display: block; font-size: 0.8rem; font-weight: 500;
+  color: var(--text-muted); margin-bottom: 0.4rem; text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+textarea, input[type="text"], input[type="url"] {
+  width: 100%; background: var(--surface-2); border: 1px solid var(--border);
+  color: var(--text); padding: 0.7rem 0.9rem; border-radius: 8px;
+  font-size: 0.9rem; font-family: inherit; resize: vertical;
+}
+textarea:focus, input:focus { outline: none; border-color: var(--accent); }
+textarea { min-height: 120px; }
+
+.checkbox-row {
+  display: flex; gap: 1rem; align-items: center;
+}
+.checkbox-row label {
+  display: flex; align-items: center; gap: 0.4rem; font-size: 0.9rem;
+  color: var(--text); cursor: pointer; text-transform: none; letter-spacing: 0;
+}
+.checkbox-row input[type="checkbox"] {
+  width: 18px; height: 18px; accent-color: var(--accent);
+}
+
+.btn {
+  padding: 0.65rem 1.3rem; border-radius: 8px; font-size: 0.85rem;
+  font-weight: 600; cursor: pointer; border: none; font-family: inherit;
+  transition: all 0.15s;
+}
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-primary:hover { background: var(--accent-hover); }
+.btn-danger { background: rgba(239,68,68,0.15); color: var(--red); }
+.btn-danger:hover { background: rgba(239,68,68,0.25); }
+.btn-ghost { background: transparent; color: var(--text-muted); border: 1px solid var(--border); }
+.btn-ghost:hover { border-color: var(--text-muted); color: var(--text); }
+.btn-sm { padding: 0.4rem 0.8rem; font-size: 0.78rem; }
+.btn-row { display: flex; gap: 0.5rem; margin-top: 1rem; }
+
+/* ─── POST QUEUE ─── */
+.post-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 1.2rem; margin-bottom: 0.75rem;
+  display: flex; gap: 1rem; align-items: flex-start;
+}
+.post-num {
+  background: var(--surface-2); color: var(--text-muted);
+  width: 32px; height: 32px; border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.8rem; font-weight: 700; flex-shrink: 0;
+}
+.post-body { flex: 1; min-width: 0; }
+.post-caption {
+  font-size: 0.88rem; line-height: 1.55; color: var(--text);
+  white-space: pre-wrap; word-break: break-word;
+  max-height: 100px; overflow: hidden; position: relative;
+}
+.post-meta {
+  display: flex; gap: 0.8rem; margin-top: 0.5rem;
+  font-size: 0.75rem; color: var(--text-muted);
+}
+.post-meta .platform-tag {
+  background: var(--surface-2); padding: 0.15rem 0.5rem;
+  border-radius: 4px; font-weight: 500;
+}
+.post-actions { display: flex; gap: 0.3rem; flex-shrink: 0; }
+.icon-btn {
+  width: 32px; height: 32px; border-radius: 6px; border: none;
+  background: var(--surface-2); color: var(--text-muted);
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  font-size: 0.9rem; transition: all 0.15s;
+}
+.icon-btn:hover { background: var(--border); color: var(--text); }
+.icon-btn.delete:hover { background: rgba(239,68,68,0.2); color: var(--red); }
+
+.post-card.published { opacity: 0.5; }
+.post-card.published .post-num { background: rgba(34,197,94,0.15); color: var(--green); }
+
+/* ─── HISTORY ─── */
+.history-item {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 1rem; margin-bottom: 0.5rem;
+}
+.history-item .caption { font-size: 0.85rem; color: var(--text); margin-bottom: 0.4rem; }
+.history-item .meta { font-size: 0.75rem; color: var(--text-muted); }
+.result-tag { font-size: 0.7rem; padding: 0.15rem 0.45rem; border-radius: 4px; font-weight: 600; }
+.result-ok { background: rgba(34,197,94,0.15); color: var(--green); }
+.result-fail { background: rgba(239,68,68,0.15); color: var(--red); }
+
+.empty {
+  text-align: center; padding: 3rem; color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.toast {
+  position: fixed; bottom: 2rem; right: 2rem;
+  background: var(--green); color: #fff; padding: 0.8rem 1.2rem;
+  border-radius: var(--radius); font-size: 0.85rem; font-weight: 600;
+  transform: translateY(100px); opacity: 0; transition: all 0.3s;
+  z-index: 100;
+}
+.toast.show { transform: translateY(0); opacity: 1; }
+.toast.error { background: var(--red); }
+</style>
+</head>
+<body>
+
+<!-- AUTH SCREEN -->
+<div id="auth-screen">
+  <h2>Grid Social Auto-Poster</h2>
+  <p>Enter your admin key to manage posts</p>
+  <input type="password" id="key-input" placeholder="Admin key" onkeydown="if(event.key==='Enter')login()">
+  <button class="btn btn-primary" onclick="login()">Sign in</button>
+</div>
+
+<!-- MAIN APP -->
+<div id="app" style="display:none">
+  <div class="container">
+    <header>
+      <div class="logo">Grid<span>Social</span> Auto-Poster</div>
+      <div class="status-pills" id="status-pills"></div>
+    </header>
+
+    <div class="tabs">
+      <button class="tab active" onclick="switchTab('queue')">Queue</button>
+      <button class="tab" onclick="switchTab('add')">Add Post</button>
+      <button class="tab" onclick="switchTab('history')">History</button>
+    </div>
+
+    <!-- ADD POST -->
+    <div id="tab-add" style="display:none">
+      <div class="form-card">
+        <h3>Add Post to Queue</h3>
+        <div class="form-row">
+          <label>Caption / Post Text</label>
+          <textarea id="f-caption" placeholder="Write the post caption here..."></textarea>
+        </div>
+        <div class="form-row">
+          <label>Image URL (must be publicly accessible)</label>
+          <input type="url" id="f-image" placeholder="https://example.com/photo.jpg">
+        </div>
+        <div class="form-row">
+          <label>Platforms</label>
+          <div class="checkbox-row">
+            <label><input type="checkbox" id="f-fb" checked> Facebook</label>
+            <label><input type="checkbox" id="f-ig" checked> Instagram</label>
+          </div>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-primary" onclick="addPost()">Add to Queue</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- QUEUE -->
+    <div id="tab-queue">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+        <p style="font-size:0.85rem; color:var(--text-muted);" id="queue-summary"></p>
+        <button class="btn btn-ghost btn-sm" onclick="publishNow()">Publish Next Now</button>
+      </div>
+      <div id="queue-list"></div>
+    </div>
+
+    <!-- HISTORY -->
+    <div id="tab-history" style="display:none">
+      <div id="history-list"></div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+let API_KEY = "";
+const BASE = "";
+
+// ─── AUTH ───
+function login() {
+  API_KEY = document.getElementById("key-input").value.trim();
+  if (!API_KEY) return;
+  localStorage.setItem("gsa_key", API_KEY);
+  document.getElementById("auth-screen").style.display = "none";
+  document.getElementById("app").style.display = "block";
+  loadAll();
+}
+
+// Auto-login
+const saved = localStorage.getItem("gsa_key");
+if (saved) { API_KEY = saved; login(); }
+
+// ─── API ───
+async function api(action, method = "GET", body = null) {
+  const opts = {
+    method,
+    headers: { Authorization: `Bearer ${API_KEY}`, "Content-Type": "application/json" },
+  };
+  if (body) opts.body = JSON.stringify(body);
+  const res = await fetch(`/api/admin?action=${action}`, opts);
+  if (res.status === 401) {
+    localStorage.removeItem("gsa_key");
+    location.reload();
+    return null;
+  }
+  return res.json();
+}
+
+// ─── LOAD ───
+async function loadAll() {
+  loadConfig();
+  loadQueue();
+}
+
+async function loadConfig() {
+  const cfg = await api("config");
+  if (!cfg) return;
+  const pills = document.getElementById("status-pills");
+  pills.innerHTML = `
+    <div class="pill ${cfg.hasPageToken ? "pill-green" : "pill-red"}">
+      <div class="dot ${cfg.hasPageToken ? "dot-green" : "dot-red"}"></div>
+      FB Token
+    </div>
+    <div class="pill ${cfg.hasIgUserId ? "pill-green" : "pill-amber"}">
+      <div class="dot ${cfg.hasIgUserId ? "dot-green" : "dot-amber"}"></div>
+      Instagram
+    </div>
+  `;
+}
+
+async function loadQueue() {
+  const data = await api("queue");
+  if (!data) return;
+  const list = document.getElementById("queue-list");
+  const queued = data.posts.filter(p => p.status === "queued");
+  const published = data.posts.filter(p => p.status === "published");
+
+  document.getElementById("queue-summary").textContent =
+    `${queued.length} queued · ${published.length} published`;
+
+  if (data.posts.length === 0) {
+    list.innerHTML = '<div class="empty">No posts in queue. Add one!</div>';
+    return;
+  }
+
+  list.innerHTML = data.posts.map((p, i) => `
+    <div class="post-card ${p.status === "published" ? "published" : ""}">
+      <div class="post-num">${p.status === "published" ? "✓" : i + 1}</div>
+      <div class="post-body">
+        <div class="post-caption">${escHtml(p.caption)}</div>
+        <div class="post-meta">
+          ${p.platforms.map(pl => `<span class="platform-tag">${pl}</span>`).join("")}
+          ${p.imageUrl ? '<span class="platform-tag">📷 image</span>' : '<span class="platform-tag">📝 text only</span>'}
+          ${p.publishedAt ? `<span>Published ${new Date(p.publishedAt).toLocaleDateString("en-GB")}</span>` : ""}
+        </div>
+      </div>
+      ${p.status === "queued" ? `
+      <div class="post-actions">
+        <button class="icon-btn" onclick="reorder('${p.id}','up')" title="Move up">↑</button>
+        <button class="icon-btn" onclick="reorder('${p.id}','down')" title="Move down">↓</button>
+        <button class="icon-btn delete" onclick="deletePost('${p.id}')" title="Delete">×</button>
+      </div>` : ""}
+    </div>
+  `).join("");
+}
+
+async function loadHistory() {
+  const data = await api("history");
+  if (!data) return;
+  const list = document.getElementById("history-list");
+  if (!data.posts || data.posts.length === 0) {
+    list.innerHTML = '<div class="empty">No posts published yet</div>';
+    return;
+  }
+  list.innerHTML = data.posts.reverse().map(p => `
+    <div class="history-item">
+      <div class="caption">${escHtml(p.caption)}</div>
+      <div class="meta">
+        ${new Date(p.publishedAt).toLocaleString("en-GB")}
+        ${p.results?.facebook ? `<span class="result-tag ${p.results.facebook.success ? "result-ok" : "result-fail"}">${p.results.facebook.success ? "FB ✓" : "FB ✗"}</span>` : ""}
+        ${p.results?.instagram ? `<span class="result-tag ${p.results.instagram.success ? "result-ok" : "result-fail"}">${p.results.instagram.success ? "IG ✓" : "IG ✗"}</span>` : ""}
+      </div>
+    </div>
+  `).join("");
+}
+
+// ─── ACTIONS ───
+async function addPost() {
+  const caption = document.getElementById("f-caption").value.trim();
+  const imageUrl = document.getElementById("f-image").value.trim();
+  const fb = document.getElementById("f-fb").checked;
+  const ig = document.getElementById("f-ig").checked;
+
+  if (!caption) return toast("Caption is required", true);
+
+  const platforms = [];
+  if (fb) platforms.push("facebook");
+  if (ig) platforms.push("instagram");
+  if (!platforms.length) return toast("Select at least one platform", true);
+
+  const res = await api("add", "POST", { caption, imageUrl: imageUrl || null, platforms });
+  if (res?.success) {
+    toast("Post added to queue");
+    document.getElementById("f-caption").value = "";
+    document.getElementById("f-image").value = "";
+    switchTab("queue");
+    loadQueue();
+  } else {
+    toast(res?.error || "Failed to add", true);
+  }
+}
+
+async function reorder(postId, direction) {
+  await api("reorder", "PUT", { postId, direction });
+  loadQueue();
+}
+
+async function deletePost(postId) {
+  if (!confirm("Delete this post from the queue?")) return;
+  await api("delete", "DELETE", { postId });
+  loadQueue();
+  toast("Post deleted");
+}
+
+async function publishNow() {
+  if (!confirm("Publish the next queued post right now?")) return;
+  toast("Publishing...");
+  const res = await api("publish-now", "POST");
+  if (res?.triggered) {
+    toast("Post published!");
+    setTimeout(loadQueue, 1500);
+  } else {
+    toast("Failed to publish", true);
+  }
+}
+
+// ─── UI ───
+function switchTab(name) {
+  document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
+  document.querySelectorAll("[id^='tab-']").forEach(t => t.style.display = "none");
+  document.getElementById(`tab-${name}`).style.display = "block";
+  event.target.classList.add("active");
+  if (name === "history") loadHistory();
+  if (name === "queue") loadQueue();
+}
+
+function toast(msg, error = false) {
+  const el = document.getElementById("toast");
+  el.textContent = msg;
+  el.className = `toast show ${error ? "error" : ""}`;
+  setTimeout(() => el.className = "toast", 3000);
+}
+
+function escHtml(s) {
+  return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+}
+</script>
+</body>
+</html>
