@@ -34,12 +34,16 @@ export default async (req) => {
 
     const longLivedUserToken = llData.access_token;
 
-    // Step 3: Get page tokens
-    const pagesRes = await fetch(`https://graph.facebook.com/v21.0/me/accounts?access_token=${longLivedUserToken}&fields=id,name,access_token,instagram_business_account`);
-    const pagesData = await pagesRes.json();
-    if (pagesData.error) return htmlResponse("Pages Error", `<p>${pagesData.error.message}</p><p><a href="/api/meta-auth">Try Again</a></p>`);
-
-    const pages = pagesData.data || [];
+    // Step 3: Get ALL page tokens (with pagination)
+    let pages = [];
+    let nextUrl = `https://graph.facebook.com/v21.0/me/accounts?access_token=${longLivedUserToken}&fields=id,name,access_token,instagram_business_account&limit=100`;
+    while (nextUrl) {
+      const pagesRes = await fetch(nextUrl);
+      const pagesData = await pagesRes.json();
+      if (pagesData.error) return htmlResponse("Pages Error", `<p>${pagesData.error.message}</p><p><a href="/api/meta-auth">Try Again</a></p>`);
+      if (pagesData.data) pages = pages.concat(pagesData.data);
+      nextUrl = pagesData.paging?.next || null;
+    }
     if (pages.length === 0) return htmlResponse("No Pages", `<p>No pages found. Select pages during approval.</p><p><a href="/api/meta-auth">Try Again</a></p>`);
 
     // Step 4: Auto-match to clients
@@ -49,9 +53,19 @@ export default async (req) => {
 
     for (const page of pages) {
       const igAccount = page.instagram_business_account?.id || null;
-      const matchIdx = clientList.findIndex((c) => c.fbPageId === page.id);
+      // Match by Page ID first, then by name (case-insensitive, partial match)
+      let matchIdx = clientList.findIndex((c) => c.fbPageId === page.id);
+      if (matchIdx === -1) {
+        matchIdx = clientList.findIndex((c) => {
+          if (!c.name || c.fbPageId) return false; // skip if already has a different page linked
+          const cn = c.name.toLowerCase();
+          const pn = page.name.toLowerCase();
+          return cn === pn || cn.includes(pn) || pn.includes(cn);
+        });
+      }
       if (matchIdx !== -1) {
         clientList[matchIdx].pageAccessToken = page.access_token;
+        if (!clientList[matchIdx].fbPageId) clientList[matchIdx].fbPageId = page.id;
         if (igAccount && !clientList[matchIdx].igUserId) clientList[matchIdx].igUserId = igAccount;
         clientList[matchIdx].tokenUpdatedAt = new Date().toISOString();
         clientList[matchIdx].updatedAt = new Date().toISOString();
