@@ -365,7 +365,7 @@ function App(){
   const getDayPosts=(day)=>{const ds=new Date(calYear,calMonth,day).toISOString().split("T")[0];return posts.filter(p=>{const pd=p.scheduledFor?p.scheduledFor.split("T")[0]:p.publishedAt?p.publishedAt.split("T")[0]:p.createdAt?.split("T")[0];return pd===ds})};
 
   const queued=posts.filter(p=>p.status==="queued"||p.status==="scheduled");
-  const published=posts.filter(p=>p.status==="published");
+  const published=posts.filter(p=>p.status==="published"||p.status==="deleted");
   const charCount=compose.caption.length;
 
   const S={
