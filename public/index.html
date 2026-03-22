@@ -204,7 +204,7 @@ function App(){
   const [showModal,setShowModal]=useState(false);
   const [showBulk,setShowBulk]=useState(false);
   const [editClient,setEditClient]=useState(null);
-  const [compose,setCompose]=useState({caption:"",imageUrl:"",fb:true,ig:false,scheduledFor:""});
+  const [compose,setCompose]=useState({caption:"",imageUrl:"",fb:true,ig:false,tw:false,tt:false,li:false,gb:false,scheduledFor:""});
   const [dragOver,setDragOver]=useState(false);
   const fileInputRef=useRef(null);
   const [previewPlatform,setPreviewPlatform]=useState("facebook");
@@ -238,7 +238,7 @@ function App(){
 
   useEffect(()=>{if(authed)loadClients()},[authed]);
   useEffect(()=>{if(authed&&activeClient)loadPosts()},[authed,activeClient]);
-  useEffect(()=>{if(activeClient){setCompose(c=>({...c,fb:!!activeClient.fbPageId,ig:!!activeClient.igUserId}))}},[activeClient?.id]);
+  useEffect(()=>{if(activeClient){setCompose(c=>({...c,fb:!!activeClient.fbPageId,ig:!!activeClient.igUserId,tw:!!activeClient.twitterAccessToken,tt:!!activeClient.tiktokAccessToken,li:!!activeClient.linkedinAccessToken,gb:!!activeClient.gbpAccessToken}))}},[activeClient?.id]);
 
   const handleImageFile=async(file)=>{
     if(!file||!file.type.startsWith("image/"))return showToast("Please select an image file",true);
@@ -308,15 +308,45 @@ function App(){
     showToast("Publishing...");
     const r=await api("publish-now","POST",{postId:pid},activeClient.id);
     setPublishing(null);
-    if(r&&r.success){
+    if(r){
       const msgs=[];
-      if(r.results?.facebook?.success)msgs.push("FB ✓");
-      if(r.results?.facebook&&!r.results.facebook.success)msgs.push("FB ✗");
-      if(r.results?.instagram?.success)msgs.push("IG ✓");
-      if(r.results?.instagram&&!r.results.instagram.success)msgs.push("IG ✗");
-      showToast("Published! "+msgs.join(" · "));
+      const platforms=["facebook","instagram","twitter","linkedin","google_business","tiktok"];
+      const labels={facebook:"FB",instagram:"IG",twitter:"X",linkedin:"LI",google_business:"GBP",tiktok:"TT"};
+      platforms.forEach(p=>{if(r.results?.[p]){msgs.push(`${labels[p]} ${r.results[p].success?"✓":"✗"}`)}});
+      if(msgs.length>0)showToast((r.success?"Published! ":"Errors: ")+msgs.join(" · "),!r.success);
+      else showToast(r.error||"No platforms matched",true);
       loadPosts();
-    }else showToast(r?.error||"Failed",true);
+    }else showToast("Request failed",true);
+  };
+
+  const publishDirect=async()=>{
+    if(!compose.caption.trim())return showToast("Write a caption first",true);
+    if(!activeClient)return showToast("Select a client first",true);
+    const pl=[];
+    if(compose.fb)pl.push("facebook");if(compose.ig)pl.push("instagram");
+    if(compose.tw)pl.push("twitter");if(compose.tt)pl.push("tiktok");
+    if(compose.li)pl.push("linkedin");if(compose.gb)pl.push("google_business");
+    if(!pl.length)return showToast("Select a platform",true);
+    if(!confirm(`Post now to ${pl.join(", ")}?`))return;
+    setPublishing("direct");
+    showToast("Publishing...");
+    const r=await api("publish-direct","POST",{caption:compose.caption,imageUrl:compose.imageUrl||null,platforms:pl},activeClient.id);
+    setPublishing(null);
+    if(r){
+      const msgs=[];
+      const labels={facebook:"FB",instagram:"IG",twitter:"X",linkedin:"LI",google_business:"GBP",tiktok:"TT"};
+      Object.entries(r.results||{}).forEach(([k,v])=>{msgs.push(`${labels[k]||k} ${v.success?"✓":"✗ "+v.error?.substring(0,30)}`)});
+      if(r.success){showToast("Posted! "+msgs.join(" · "));setCompose({caption:"",imageUrl:"",fb:!!activeClient.fbPageId,ig:!!activeClient.igUserId,tw:!!activeClient.twitterId,tt:!!activeClient.tiktokId,li:!!activeClient.linkedinId,gb:!!activeClient.gbpId,scheduledFor:""});loadPosts();setView("published")}
+      else showToast("Failed: "+msgs.join(" · "),true);
+    }else showToast("Request failed",true);
+  };
+
+  const deleteFromPlatform=async(postId,platform)=>{
+    if(!confirm(`Delete this post from ${platform}?`))return;
+    showToast(`Deleting from ${platform}...`);
+    const r=await api("delete-from-platform","POST",{postId,platform},activeClient.id);
+    if(r?.success){showToast(`Deleted from ${platform}`);loadPosts()}
+    else showToast(r?.result?.error||r?.error||"Failed to delete",true);
   };
 
   const saveClient=async(data)=>{
@@ -332,7 +362,7 @@ function App(){
   };
 
   const calDays=()=>{const f=new Date(calYear,calMonth,1);const l=new Date(calYear,calMonth+1,0);const s=(f.getDay()+6)%7;const d=[];for(let i=0;i<s;i++)d.push(null);for(let i=1;i<=l.getDate();i++)d.push(i);return d};
-  const getDayPosts=(day)=>{const ds=new Date(calYear,calMonth,day).toISOString().split("T")[0];return posts.filter(p=>{const pd=p.scheduledFor?p.scheduledFor.split("T")[0]:p.createdAt?.split("T")[0];return pd===ds})};
+  const getDayPosts=(day)=>{const ds=new Date(calYear,calMonth,day).toISOString().split("T")[0];return posts.filter(p=>{const pd=p.scheduledFor?p.scheduledFor.split("T")[0]:p.publishedAt?p.publishedAt.split("T")[0]:p.createdAt?.split("T")[0];return pd===ds})};
 
   const queued=posts.filter(p=>p.status==="queued"||p.status==="scheduled");
   const published=posts.filter(p=>p.status==="published");
@@ -394,7 +424,7 @@ function App(){
           )}
         </div>
         <div style={{padding:"12px 16px",borderTop:"1px solid var(--border)"}}>
-          <div style={{fontSize:10,color:"#374151"}}>Grid Social v2.1</div>
+          <div style={{fontSize:10,color:"#374151"}}>Grid Social v3.0</div>
           <div style={{fontSize:10,color:"#262a30",marginTop:2}}>Schedule: Mon/Wed/Fri 10am</div>
         </div>
       </div>
@@ -472,6 +502,7 @@ function App(){
                   <p style={{fontSize:11,color:"var(--muted)",marginTop:6}}>Leave empty to add to queue</p>
                 </div>
                 <button onClick={addPost} style={{...S.btn(true),width:"100%",padding:14,marginBottom:8,fontSize:14}}>{compose.scheduledFor?"📅 Schedule Post":"➕ Add to Queue"}</button>
+                <button onClick={publishDirect} disabled={publishing==="direct"} style={{width:"100%",padding:14,marginBottom:8,fontSize:14,fontWeight:700,background:"linear-gradient(135deg,#22c55e,#16a34a)",color:"#fff",border:"none",borderRadius:8,cursor:"pointer",fontFamily:"inherit",opacity:publishing==="direct"?0.6:1}}>{publishing==="direct"?"🔄 Publishing...":"🚀 Post Now"}</button>
                 <div style={{display:"flex",gap:6}}>
                   <button onClick={()=>setShowBulk(true)} style={{...S.btn(false),flex:1,fontSize:12,padding:"8px 12px"}}>📦 Bulk Import</button>
                   <button onClick={()=>setCompose({caption:"",imageUrl:"",fb:!!activeClient?.fbPageId,ig:!!activeClient?.igUserId,tw:!!activeClient?.twitterId,tt:!!activeClient?.tiktokId,li:!!activeClient?.linkedinId,gb:!!activeClient?.gbpId,scheduledFor:""})} style={{...S.btn(false),fontSize:12,padding:"8px 12px"}}>Clear</button>
@@ -522,7 +553,7 @@ function App(){
             </div>
             {/* Schedule indicator */}
             <div style={{display:"flex",gap:12,marginBottom:16,fontSize:11,color:"var(--muted)"}}>
-              <span>🟢 Published</span><span>🔵 Queued</span><span>⬜ Auto-post days: Mon / Wed / Fri at 10am</span>
+              <span>🟢 Published</span><span>🔵 Queued</span><span>🟣 Scheduled</span><span>⬜ Auto-post days: Mon / Wed / Fri at 10am</span>
             </div>
             <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:1,background:"var(--border)",borderRadius:12,overflow:"hidden"}}>
               {DAYS.map(d=><div key={d} style={{padding:10,textAlign:"center",fontSize:10,fontWeight:600,color:"var(--muted)",background:"var(--surface)",textTransform:"uppercase",letterSpacing:1}}>{d}</div>)}
@@ -534,7 +565,7 @@ function App(){
                 return <div key={i} style={{minHeight:88,padding:5,background:isPostDay&&day?"rgba(59,130,246,0.03)":"var(--bg)"}}>
                   {day&&<React.Fragment>
                     <span style={{fontSize:11,color:today?"var(--accent)":"var(--muted)",fontWeight:today?700:400,display:"inline-flex",alignItems:"center",justifyContent:"center",width:22,height:22,borderRadius:"50%",background:today?"rgba(59,130,246,0.15)":"transparent"}}>{day}</span>
-                    {dp.map(p=><div key={p.id} style={{fontSize:9,padding:"2px 4px",marginTop:2,borderRadius:3,background:p.status==="published"?"rgba(34,197,94,0.12)":"rgba(59,130,246,0.12)",color:p.status==="published"?"var(--green)":"var(--accent)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",cursor:"pointer"}} title={p.caption}>{p.status==="published"?"✓":"○"} {p.caption.substring(0,18)}</div>)}
+                    {dp.map(p=><div key={p.id} onClick={()=>{if(p.status==="queued"||p.status==="scheduled")setView("queue");else setView("published")}} style={{fontSize:9,padding:"2px 4px",marginTop:2,borderRadius:3,background:p.status==="published"?"rgba(34,197,94,0.12)":p.status==="scheduled"?"rgba(168,85,247,0.12)":"rgba(59,130,246,0.12)",color:p.status==="published"?"var(--green)":p.status==="scheduled"?"#a855f7":"var(--accent)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",cursor:"pointer"}} title={`${p.status}: ${p.caption}\nPlatforms: ${p.platforms?.join(", ")}`}>{p.status==="published"?"✓":p.status==="scheduled"?"⏰":"○"} {p.caption.substring(0,18)}</div>)}
                   </React.Fragment>}
                 </div>
               })}
@@ -548,21 +579,39 @@ function App(){
               <span style={{fontSize:13,color:"var(--muted)"}}>{published.length} published</span>
             </div>
             {published.length===0?<div style={{...S.card,padding:48,textAlign:"center",color:"var(--muted)"}}><p style={{fontSize:28,marginBottom:8}}>📭</p><p>No published posts yet</p></div>
-            :published.slice().reverse().map((p,i)=>
-              <div key={p.id} style={{...S.card,marginBottom:8,padding:16,animationDelay:`${i*30}ms`}}>
+            :published.slice().reverse().map((p,i)=>{
+              const platformLabels={facebook:"📘 Facebook",instagram:"📸 Instagram",twitter:"𝕏 Twitter",linkedin:"💼 LinkedIn",google_business:"📍 Google",tiktok:"🎵 TikTok"};
+              return <div key={p.id} style={{...S.card,marginBottom:8,padding:16,animationDelay:`${i*30}ms`}}>
                 <div style={{display:"flex",gap:14}}>
                   {p.imageUrl&&<div style={{width:56,height:56,borderRadius:8,overflow:"hidden",flexShrink:0}}><img src={p.imageUrl} style={{width:"100%",height:"100%",objectFit:"cover"}} onError={e=>{e.target.parentElement.style.display="none"}} /></div>}
                   <div style={{flex:1}}>
                     <div style={{fontSize:14,lineHeight:1.5,whiteSpace:"pre-wrap",maxHeight:60,overflow:"hidden"}}>{p.caption}</div>
-                    <div style={{display:"flex",gap:8,marginTop:8,fontSize:11,color:"var(--muted)",flexWrap:"wrap"}}>
+                    <div style={{display:"flex",gap:4,marginTop:8,fontSize:11,color:"var(--muted)",flexWrap:"wrap",alignItems:"center"}}>
                       <span>📅 {new Date(p.publishedAt).toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"})}</span>
-                      {p.results?.facebook&&<span style={S.badge(p.results.facebook.success,false)}>FB {p.results.facebook.success?"✓ "+p.results.facebook.id?.substring(0,12):"✗ "+p.results.facebook.error?.substring(0,30)}</span>}
-                      {p.results?.instagram&&<span style={S.badge(p.results.instagram.success,false)}>IG {p.results.instagram.success?"✓ "+p.results.instagram.id?.substring(0,12):"✗ "+p.results.instagram.error?.substring(0,30)}</span>}
                     </div>
+                    {/* Platform results */}
+                    <div style={{display:"flex",gap:4,marginTop:6,flexWrap:"wrap"}}>
+                      {Object.entries(p.results||{}).map(([platform,result])=>(
+                        <div key={platform} style={{display:"inline-flex",alignItems:"center",gap:4,fontSize:11,padding:"3px 8px",borderRadius:5,
+                          background:result.deleted?"rgba(107,114,128,0.12)":result.success?"rgba(34,197,94,0.12)":"rgba(239,68,68,0.12)",
+                          color:result.deleted?"var(--muted)":result.success?"var(--green)":"var(--red)"}}>
+                          <span>{platformLabels[platform]||platform}</span>
+                          <span>{result.deleted?"🗑":result.success?"✓":"✗"}</span>
+                          {result.success&&!result.deleted&&result.id&&
+                            <button onClick={()=>deleteFromPlatform(p.id,platform)} title={`Delete from ${platform}`}
+                              style={{background:"none",border:"none",cursor:"pointer",color:"var(--red)",fontSize:11,padding:"0 2px",opacity:0.6}}>🗑</button>
+                          }
+                          {!result.success&&<span title={result.error} style={{cursor:"help"}}>ⓘ</span>}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <div style={{flexShrink:0}}>
+                    <button onClick={()=>deletePost(p.id)} style={{...S.btnSm("red"),fontSize:11}}>Remove</button>
                   </div>
                 </div>
               </div>
-            )}
+            })}
           </div>}
 
           {/* ─── API HEALTH ─── */}
@@ -806,3 +855,4 @@ ReactDOM.render(<App/>,document.getElementById("root"));
 </script>
 </body>
 </html>
+
