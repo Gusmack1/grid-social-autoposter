@@ -2,857 +2,507 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
 <title>Grid Social — Social Media Manager</title>
-<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
 <style>
-:root{--bg:#0a0c10;--surface:#12151c;--surface2:#1a1e28;--border:#252a36;--text:#e5e7eb;--muted:#6b7280;--accent:#3b82f6;--accent2:#2563eb;--green:#22c55e;--amber:#f59e0b;--red:#ef4444;--radius:10px}
+:root{--bg:#090b10;--surface:#11141d;--surface2:#181c28;--surface3:#1f2433;--border:#262c3d;--border2:#323a50;--text:#e8eaf0;--muted:#717b95;--accent:#6366f1;--accent2:#818cf8;--accent-bg:rgba(99,102,241,0.1);--green:#10b981;--green-bg:rgba(16,185,129,0.1);--amber:#f59e0b;--amber-bg:rgba(245,158,11,0.1);--red:#ef4444;--red-bg:rgba(239,68,68,0.1);--pink:#ec4899;--blue:#3b82f6;--radius:10px;--shadow:0 4px 24px rgba(0,0,0,0.3)}
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:'Instrument Sans',system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
-::-webkit-scrollbar{width:6px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:#333;border-radius:3px}
+body{font-family:'Plus Jakarta Sans',system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden}
+::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:#2a3040;border-radius:3px}
 input,textarea,select,button{font-family:inherit}
-@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
-@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+@keyframes slideUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
 @keyframes slideIn{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:translateX(0)}}
-.animate-in{animation:fadeIn .3s ease both}
-.pulse{animation:pulse 1.5s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+@keyframes shimmer{from{background-position:200% 0}to{background-position:-200% 0}}
+@keyframes glow{0%,100%{box-shadow:0 0 20px rgba(99,102,241,0.15)}50%{box-shadow:0 0 40px rgba(99,102,241,0.3)}}
+.animate{animation:fadeIn .35s ease both}
+.shimmer{background:linear-gradient(90deg,var(--surface2) 25%,var(--surface3) 50%,var(--surface2) 75%);background-size:200% 100%;animation:shimmer 1.5s infinite}
+@media(max-width:768px){.desk{display:none!important}.mob-sb{transform:translateX(-100%)!important}.mob-sb.open{transform:translateX(0)!important}}
+@media(min-width:769px){.mob{display:none!important}}
 </style>
 </head>
 <body>
 <div id="root"></div>
 <script type="text/babel">
-const {useState,useEffect,useCallback,useRef} = React;
-const DAYS=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
-const MONTHS=["January","February","March","April","May","June","July","August","September","October","November","December"];
+const {useState,useEffect,useCallback,useRef,useMemo}=React;
+const DAYS=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"],MONTHS=["January","February","March","April","May","June","July","August","September","October","November","December"];
+const PI={facebook:{icon:"📘",l:"Facebook",c:"#1877F2",f:"fbPageId"},instagram:{icon:"📸",l:"Instagram",c:"#E4405F",f:"igUserId"},twitter:{icon:"𝕏",l:"X / Twitter",c:"#1DA1F2",f:"twitterAccessToken"},tiktok:{icon:"🎵",l:"TikTok",c:"#ff0050",f:"tiktokAccessToken"},linkedin:{icon:"💼",l:"LinkedIn",c:"#0A66C2",f:"linkedinAccessToken"},google_business:{icon:"📍",l:"Google Business",c:"#4285F4",f:"gbpAccessToken"},pinterest:{icon:"📌",l:"Pinterest",c:"#E60023",f:"pinterestAccessToken"}};
+const S={
+  sb:{width:260,background:"#0c0f16",borderRight:"1px solid var(--border)",display:"flex",flexDirection:"column",flexShrink:0,height:"100vh",position:"fixed",left:0,top:0,zIndex:55},
+  nav:(a)=>({width:"100%",padding:"10px 14px",background:a?"var(--accent-bg)":"transparent",border:a?"1px solid rgba(99,102,241,0.2)":"1px solid transparent",borderRadius:8,color:a?"var(--accent2)":"var(--muted)",fontSize:13,fontWeight:a?600:400,cursor:"pointer",textAlign:"left",display:"flex",alignItems:"center",gap:10,marginBottom:2,fontFamily:"inherit",transition:"all .15s"}),
+  card:{background:"var(--surface)",border:"1px solid var(--border)",borderRadius:14,padding:20,animation:"fadeIn .35s ease both"},
+  inp:{width:"100%",padding:"10px 12px",background:"var(--surface2)",border:"1px solid var(--border)",borderRadius:8,color:"#fff",fontSize:13,outline:"none",fontFamily:"inherit"},
+  lbl:{fontSize:10,fontWeight:700,color:"var(--muted)",textTransform:"uppercase",letterSpacing:1.2,display:"block",marginBottom:6},
+  bg:(ok,w)=>({fontSize:11,padding:"3px 10px",borderRadius:6,fontWeight:600,background:ok?"var(--green-bg)":w?"var(--amber-bg)":"var(--red-bg)",color:ok?"var(--green)":w?"var(--amber)":"var(--red)"}),
+  btn:(p)=>({padding:"10px 20px",background:p?"var(--accent)":"transparent",color:p?"#fff":"var(--muted)",border:p?"none":"1px solid var(--border)",borderRadius:8,fontSize:13,fontWeight:p?700:500,cursor:"pointer",fontFamily:"inherit",transition:"all .15s ease"}),
+  sm:(c)=>({padding:"6px 14px",background:c==="g"?"var(--green-bg)":c==="r"?"var(--red-bg)":c==="a"?"var(--accent-bg)":"var(--surface2)",color:c==="g"?"var(--green)":c==="r"?"var(--red)":c==="a"?"var(--accent2)":"var(--muted)",border:"none",borderRadius:6,fontSize:12,cursor:"pointer",fontWeight:600,fontFamily:"inherit"})
+};
 
-// ─── Phone Preview Component ───
-function PhonePreview({caption,imageUrl,platform,clientName}){
-  const isFb = platform==="facebook";
-  return(
-    <div style={{width:280,margin:"0 auto"}}>
-      <div style={{background:"#000",borderRadius:28,padding:8,boxShadow:"0 20px 60px rgba(0,0,0,0.5)"}}>
-        <div style={{background:isFb?"#fff":"#000",borderRadius:22,overflow:"hidden",minHeight:420}}>
-          {/* Header */}
-          <div style={{padding:"12px 14px",display:"flex",alignItems:"center",gap:10,background:isFb?"#fff":"#000",borderBottom:isFb?"1px solid #eee":"1px solid #222"}}>
-            <div style={{width:32,height:32,borderRadius:"50%",background:isFb?"#1877F2":"linear-gradient(45deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888)",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:11,fontWeight:700}}>{clientName?.charAt(0)||"?"}</div>
-            <div>
-              <div style={{fontSize:12,fontWeight:700,color:isFb?"#1c1e21":"#fff"}}>{clientName||"Business"}</div>
-              <div style={{fontSize:10,color:isFb?"#65676B":"#8e8e8e"}}>{isFb?"Just now · 🌐":"Sponsored"}</div>
-            </div>
-          </div>
-          {/* Caption */}
-          {isFb && <div style={{padding:"8px 14px",fontSize:13,lineHeight:1.5,color:"#1c1e21",maxHeight:120,overflow:"hidden",whiteSpace:"pre-wrap"}}>{caption||"Your caption here..."}</div>}
-          {/* Image */}
-          {imageUrl ? <div style={{width:"100%",aspectRatio:"1",background:"#1a1a2e",overflow:"hidden"}}>
-            <img src={imageUrl} style={{width:"100%",height:"100%",objectFit:"cover"}} onError={e=>{e.target.style.display="none"}} />
-          </div> : <div style={{width:"100%",aspectRatio:"1",background:isFb?"#f0f2f5":"#1a1a2e",display:"flex",alignItems:"center",justifyContent:"center"}}>
-            <span style={{fontSize:40,opacity:.3}}>📷</span>
-          </div>}
-          {/* IG caption below image */}
-          {!isFb && <div style={{padding:"10px 14px"}}>
-            <div style={{display:"flex",gap:16,marginBottom:8}}>
-              <span style={{fontSize:20}}>♡</span><span style={{fontSize:20}}>💬</span><span style={{fontSize:20}}>✈</span>
-            </div>
-            <div style={{fontSize:12,lineHeight:1.5,color:"#fff",maxHeight:80,overflow:"hidden"}}><strong>{clientName} </strong>{caption||"Your caption here..."}</div>
-          </div>}
-          {/* FB reactions */}
-          {isFb && <div style={{padding:"8px 14px",borderTop:"1px solid #eee",display:"flex",justifyContent:"space-around"}}>
-            <span style={{fontSize:12,color:"#65676B"}}>👍 Like</span><span style={{fontSize:12,color:"#65676B"}}>💬 Comment</span><span style={{fontSize:12,color:"#65676B"}}>↗ Share</span>
-          </div>}
-        </div>
+function PhonePreview({caption,imageUrl,platform,name}){
+  const fb=platform==="facebook";
+  return <div style={{width:250,margin:"0 auto"}}><div style={{background:"#000",borderRadius:22,padding:5,boxShadow:"0 12px 40px rgba(0,0,0,.5)"}}>
+    <div style={{background:fb?"#fff":"#000",borderRadius:18,overflow:"hidden",minHeight:360}}>
+      <div style={{padding:"9px 11px",display:"flex",alignItems:"center",gap:7,borderBottom:fb?"1px solid #eee":"1px solid #222"}}>
+        <div style={{width:26,height:26,borderRadius:"50%",background:fb?"#1877F2":"linear-gradient(45deg,#f09433,#dc2743,#bc1888)",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:9,fontWeight:700}}>{name?.charAt(0)||"?"}</div>
+        <div><div style={{fontSize:10,fontWeight:700,color:fb?"#1c1e21":"#fff"}}>{name||"Business"}</div><div style={{fontSize:8,color:fb?"#65676B":"#8e8e8e"}}>{fb?"Just now · 🌐":"Sponsored"}</div></div>
       </div>
+      {fb&&<div style={{padding:"5px 11px",fontSize:11,lineHeight:1.5,color:"#1c1e21",maxHeight:90,overflow:"hidden",whiteSpace:"pre-wrap"}}>{caption||"Caption..."}</div>}
+      {imageUrl?<div style={{width:"100%",aspectRatio:"1",overflow:"hidden"}}><img src={imageUrl} style={{width:"100%",height:"100%",objectFit:"cover"}} onError={e=>{e.target.style.display="none"}} /></div>
+      :<div style={{width:"100%",aspectRatio:"1",background:fb?"#f0f2f5":"#1a1a2e",display:"flex",alignItems:"center",justifyContent:"center"}}><span style={{fontSize:30,opacity:.3}}>📷</span></div>}
+      {!fb&&<div style={{padding:"7px 11px"}}><div style={{display:"flex",gap:12,marginBottom:5}}><span style={{fontSize:16}}>♡</span><span style={{fontSize:16}}>💬</span><span style={{fontSize:16}}>✈</span></div>
+      <div style={{fontSize:10,lineHeight:1.5,color:"#fff",maxHeight:60,overflow:"hidden"}}><strong>{name} </strong>{caption||"Caption..."}</div></div>}
+      {fb&&<div style={{padding:"5px 11px",borderTop:"1px solid #eee",display:"flex",justifyContent:"space-around"}}><span style={{fontSize:10,color:"#65676B"}}>👍 Like</span><span style={{fontSize:10,color:"#65676B"}}>💬 Comment</span><span style={{fontSize:10,color:"#65676B"}}>↗ Share</span></div>}
     </div>
-  );
+  </div></div>;
 }
 
-// ─── API Health Component ───
-function ApiHealth({client}){
-  const [health,setHealth]=useState(null);
-  const [checking,setChecking]=useState(false);
-
-  const checkHealth=async()=>{
-    if(!client?.pageAccessToken)return setHealth({status:"no_token"});
-    setChecking(true);
-    try{
-      const r=await fetch(`https://graph.facebook.com/v21.0/me?access_token=${client.pageAccessToken}`);
-      const d=await r.json();
-      if(d.error){setHealth({status:"error",message:d.error.message,code:d.error.code})}
-      else{
-        const info={status:"ok",name:d.name,id:d.id,fb:!!client.fbPageId,ig:!!client.igUserId};
-        // Check token expiry if possible
-        try{
-          const dr=await fetch(`https://graph.facebook.com/v21.0/debug_token?input_token=${client.pageAccessToken}&access_token=${client.pageAccessToken}`);
-          const dd=await dr.json();
-          if(dd.data){
-            info.expiresAt=dd.data.expires_at?new Date(dd.data.expires_at*1000).toLocaleDateString("en-GB"):null;
-            info.isValid=dd.data.is_valid;
-            info.scopes=dd.data.scopes||[];
-          }
-        }catch(e){}
-        setHealth(info);
-      }
-    }catch(e){setHealth({status:"error",message:e.message})}
-    setChecking(false);
-  };
-
-  useEffect(()=>{if(client)checkHealth()},[client?.id,client?.pageAccessToken]);
-
-  if(!client)return null;
-  if(!health)return <div style={{fontSize:12,color:"var(--muted)"}}>Checking API...</div>;
-
-  const items=[];
-  if(health.status==="no_token") items.push({label:"API Token",ok:false,text:"Not configured"});
-  else if(health.status==="error") items.push({label:"API Token",ok:false,text:health.message?.substring(0,60)});
-  else{
-    items.push({label:"API Token",ok:true,text:health.name||"Valid"});
-    items.push({label:"Facebook Page",ok:!!client.fbPageId,text:client.fbPageId||"Not linked"});
-    items.push({label:"Instagram",ok:!!client.igUserId,text:client.igUserId||"Not linked"});
-    if(health.expiresAt) items.push({label:"Token Expires",ok:true,warn:true,text:health.expiresAt==="Invalid Date"?"Never (permanent)":health.expiresAt});
-    else items.push({label:"Token Expires",ok:true,text:"Permanent ✓"});
-    if(health.scopes?.length>0){
-      const required=["pages_manage_posts","pages_read_engagement","instagram_basic","instagram_content_publish"];
-      const missing=required.filter(s=>!health.scopes.includes(s));
-      if(missing.length>0) items.push({label:"Permissions",ok:false,text:`Missing: ${missing.join(", ")}`});
-      else items.push({label:"Permissions",ok:true,text:`${health.scopes.length} scopes active`});
-    }
-  }
-
-  return(
-    <div style={{display:"flex",flexDirection:"column",gap:6}}>
-      {items.map((item,i)=>
-        <div key={i} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"6px 0"}}>
-          <span style={{fontSize:12,color:"var(--muted)"}}>{item.label}</span>
-          <span style={{fontSize:12,padding:"2px 10px",borderRadius:4,
-            background:item.ok?"rgba(34,197,94,0.12)":item.warn?"rgba(245,158,11,0.12)":"rgba(239,68,68,0.12)",
-            color:item.ok?"var(--green)":item.warn?"var(--amber)":"var(--red)"}}>{item.text}</span>
-        </div>
-      )}
-      <button onClick={checkHealth} disabled={checking}
-        style={{marginTop:4,padding:"6px 12px",background:"var(--surface2)",border:"1px solid var(--border)",borderRadius:6,color:"var(--muted)",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>
-        {checking?"Checking...":"↻ Refresh Status"}
-      </button>
+function EditPostModal({post,onSave,onClose}){
+  const [c,setC]=useState(post.caption||"");const [img,setImg]=useState(post.imageUrl||"");const [pl,setPl]=useState(post.platforms||[]);const [sf,setSf]=useState(post.scheduledFor||"");
+  const tp=(p)=>setPl(x=>x.includes(p)?x.filter(v=>v!==p):[...x,p]);
+  return <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.7)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:100,padding:16}} onClick={onClose}>
+    <div style={{background:"var(--surface)",border:"1px solid var(--border)",borderRadius:16,padding:24,width:500,maxWidth:"100%",maxHeight:"85vh",overflow:"auto"}} onClick={e=>e.stopPropagation()}>
+      <h3 style={{fontSize:17,fontWeight:700,color:"#fff",marginBottom:14}}>Edit Post</h3>
+      <div style={S.lbl}>Caption</div>
+      <textarea value={c} onChange={e=>setC(e.target.value)} style={{...S.inp,minHeight:130,resize:"vertical",fontSize:14,lineHeight:1.6,marginBottom:10}} />
+      <div style={S.lbl}>Image URL</div>
+      <input value={img} onChange={e=>setImg(e.target.value)} style={{...S.inp,marginBottom:10}} />
+      <div style={S.lbl}>Platforms</div>
+      <div style={{display:"flex",gap:5,flexWrap:"wrap",marginBottom:10}}>{Object.entries(PI).filter(([k])=>k!=="pinterest").map(([k,v])=>
+        <button key={k} onClick={()=>tp(k)} style={{padding:"5px 10px",borderRadius:6,border:`1px solid ${pl.includes(k)?v.c:"var(--border)"}`,background:pl.includes(k)?v.c+"18":"transparent",color:pl.includes(k)?v.c:"var(--muted)",fontSize:11,cursor:"pointer",fontFamily:"inherit",fontWeight:600}}>{v.icon} {v.l}</button>
+      )}</div>
+      <div style={S.lbl}>Schedule</div>
+      <input type="datetime-local" value={sf} onChange={e=>setSf(e.target.value)} style={{...S.inp,colorScheme:"dark",marginBottom:14}} />
+      <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}><button onClick={onClose} style={S.btn(false)}>Cancel</button><button onClick={()=>onSave({...post,caption:c,imageUrl:img,platforms:pl,scheduledFor:sf,status:sf?"scheduled":"queued"})} style={S.btn(true)}>Save</button></div>
     </div>
-  );
+  </div>;
 }
 
-// ─── Bulk Import Modal ───
-function BulkImportModal({onImport,onClose,S}){
-  const [raw,setRaw]=useState("");
-  const [parsed,setParsed]=useState([]);
-  const [sep,setSep]=useState("---");
-
-  const parse=()=>{
-    const chunks=raw.split(sep).map(c=>c.trim()).filter(Boolean);
-    setParsed(chunks.map(c=>{
-      const imgMatch=c.match(/https?:\/\/\S+\.(jpg|jpeg|png|gif|webp)\S*/i);
-      const caption=imgMatch?c.replace(imgMatch[0],"").trim():c;
-      return{caption,imageUrl:imgMatch?imgMatch[0]:""};
-    }));
-  };
-
-  return(
-    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.7)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:100}} onClick={onClose}>
-      <div style={{background:"var(--surface)",border:"1px solid var(--border)",borderRadius:16,padding:28,width:600,maxHeight:"85vh",overflow:"auto"}} onClick={e=>e.stopPropagation()}>
-        <h3 style={{fontSize:18,fontWeight:700,color:"#fff",marginBottom:8}}>Bulk Import Posts</h3>
-        <p style={{fontSize:12,color:"var(--muted)",marginBottom:16}}>Paste multiple posts separated by a delimiter. Image URLs are auto-detected.</p>
-        <div style={{marginBottom:12}}>
-          <div style={S.label}>Separator</div>
-          <div style={{display:"flex",gap:6}}>
-            {["---","===","###","blank line"].map(s=>
-              <button key={s} onClick={()=>setSep(s==="blank line"?"\n\n":s)}
-                style={{padding:"4px 12px",background:sep===(s==="blank line"?"\n\n":s)?"var(--accent)":"var(--surface2)",border:"1px solid var(--border)",borderRadius:6,color:sep===(s==="blank line"?"\n\n":s)?"#fff":"var(--muted)",fontSize:11,cursor:"pointer"}}>{s}</button>
-            )}
-          </div>
-        </div>
-        <textarea value={raw} onChange={e=>setRaw(e.target.value)} placeholder={"First post caption here\nhttps://example.com/photo1.jpg\n---\nSecond post caption\nhttps://example.com/photo2.jpg\n---\nThird post (text only)"}
-          style={{...S.input,minHeight:200,resize:"vertical",fontSize:13,lineHeight:1.6}} />
-        <div style={{display:"flex",gap:8,marginTop:12}}>
-          <button onClick={parse} style={S.btn(false)}>Preview ({raw.split(sep).filter(c=>c.trim()).length} posts)</button>
-        </div>
-        {parsed.length>0&&<div style={{marginTop:16,borderTop:"1px solid var(--border)",paddingTop:12}}>
-          <div style={{fontSize:12,color:"var(--muted)",marginBottom:8}}>{parsed.length} posts detected:</div>
-          {parsed.map((p,i)=>
-            <div key={i} style={{padding:8,background:"var(--surface2)",borderRadius:6,marginBottom:6,fontSize:12}}>
-              <div style={{color:"#fff",marginBottom:4}}>#{i+1}: {p.caption.substring(0,80)}...</div>
-              {p.imageUrl&&<div style={{color:"var(--accent)",fontSize:11}}>📷 {p.imageUrl.substring(0,60)}...</div>}
-            </div>
-          )}
-          <button onClick={()=>{onImport(parsed);onClose()}} style={{...S.btn(true),marginTop:8,width:"100%"}}>Import {parsed.length} Posts to Queue</button>
-        </div>}
-        <button onClick={onClose} style={{...S.btn(false),marginTop:8}}>Cancel</button>
-      </div>
-    </div>
-  );
+function AICaptionGen({client,onInsert}){
+  const [pr,setPr]=useState("");const [ld,setLd]=useState(false);const [res,setRes]=useState("");const [tone,setTone]=useState("friendly");
+  const gen=async()=>{if(!pr.trim())return;setLd(true);setRes("");
+    try{const r=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:1000,system:`You write social media posts for "${client?.name||"a business"}". Tone: ${tone}. Include emojis & hashtags. Max 250 words. Ready to copy-paste.`,
+        messages:[{role:"user",content:`Write a post about: ${pr}`}]})});
+      const d=await r.json();setRes(d.content?.map(c=>c.text||"").join("")||"Error")}catch(e){setRes("Error: "+e.message)}setLd(false)};
+  return <div style={{...S.card,marginBottom:16}}>
+    <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}><span style={{fontSize:16}}>✨</span><span style={{fontSize:14,fontWeight:700,color:"#fff"}}>AI Caption Generator</span>
+      <span style={{fontSize:9,padding:"2px 8px",borderRadius:10,background:"linear-gradient(135deg,var(--accent),var(--pink))",color:"#fff",fontWeight:600}}>Beta</span></div>
+    <div style={{display:"flex",gap:4,marginBottom:8,flexWrap:"wrap"}}>{["friendly","professional","funny","urgent","inspirational"].map(t=>
+      <button key={t} onClick={()=>setTone(t)} style={{padding:"3px 9px",borderRadius:16,border:`1px solid ${tone===t?"var(--accent)":"var(--border)"}`,background:tone===t?"var(--accent-bg)":"transparent",color:tone===t?"var(--accent2)":"var(--muted)",fontSize:10,cursor:"pointer",fontFamily:"inherit",textTransform:"capitalize"}}>{t}</button>
+    )}</div>
+    <div style={{display:"flex",gap:6}}><input value={pr} onChange={e=>setPr(e.target.value)} onKeyDown={e=>e.key==="Enter"&&gen()} placeholder="Describe the post..." style={{...S.inp,flex:1}} />
+      <button onClick={gen} disabled={ld} style={{...S.btn(true),whiteSpace:"nowrap",opacity:ld?.6:1}}>{ld?"...":"Generate ✨"}</button></div>
+    {res&&<div style={{marginTop:10,padding:12,background:"var(--surface2)",borderRadius:10,border:"1px solid var(--border)"}}>
+      <div style={{fontSize:13,lineHeight:1.7,whiteSpace:"pre-wrap",maxHeight:180,overflow:"auto"}}>{res}</div>
+      <button onClick={()=>{onInsert(res);setRes("")}} style={{...S.sm("a"),marginTop:8}}>📋 Use This</button>
+    </div>}
+  </div>;
 }
 
-// ─── Main App ───
+function HashtagBar({caption,onInsert}){
+  const tags=useMemo(()=>{const t=caption.toLowerCase();const a=[];
+    if(t.includes("repair")||t.includes("fix"))a.push("#HomeRepairs","#HandymanLife","#PropertyMaintenance");
+    if(t.includes("deck")||t.includes("garden"))a.push("#GardenDesign","#DeckingInstall","#OutdoorLiving");
+    if(t.includes("bath")||t.includes("kitchen"))a.push("#BathroomReno","#KitchenDesign","#HomeImprovement");
+    if(t.includes("roof")||t.includes("verge"))a.push("#RoofRepairs","#Guttering");
+    a.push("#SmallBusiness","#LocalTrades","#Ayrshire","#SupportLocal");
+    return a.filter(tag=>!caption.includes(tag)).slice(0,7)},[caption]);
+  if(!caption||!tags.length)return null;
+  return <div style={{display:"flex",gap:3,flexWrap:"wrap",padding:"6px 0"}}><span style={{fontSize:9,color:"var(--muted)",alignSelf:"center",marginRight:3}}>Tags:</span>
+    {tags.map(t=><button key={t} onClick={()=>onInsert(t)} style={{padding:"1px 7px",borderRadius:10,background:"var(--accent-bg)",border:"1px solid rgba(99,102,241,.2)",color:"var(--accent2)",fontSize:9,cursor:"pointer",fontFamily:"inherit"}}>{t}</button>)}</div>;
+}
+
+const TEMPLATES=[
+  {n:"Job Completed",t:"✅ Another job completed!\n\n[Describe the work]\n\nNo job too small — get in touch 👇\n📞 [phone]\n💬 WhatsApp us"},
+  {n:"Before & After",t:"Before ➡️ After\n\n[Describe transformation]\n\nIf you've been putting off that repair, now's the time 💪\nMessage us for a free quote"},
+  {n:"Tip / Advice",t:"💡 Quick tip from your local handyman:\n\n[Share advice]\n\nWant help? Drop us a message 📩"},
+  {n:"Customer Review",t:"⭐⭐⭐⭐⭐ Another happy customer!\n\n\"[Quote feedback]\"\n\nThank you for trusting us 🏠\nBook your job today 👇"},
+  {n:"Seasonal",t:"🌟 [Season] is here!\n\nPerfect time for:\n• [Service 1]\n• [Service 2]\n• [Service 3]\n\nMessage us to book ✉️"},
+];
+
 function App(){
-  const [key,setKey]=useState(localStorage.getItem("gsa_key")||"");
-  const [authed,setAuthed]=useState(false);
-  const [authErr,setAuthErr]=useState("");
-  const [keyInput,setKeyInput]=useState("");
-  const [clients,setClients]=useState([]);
-  const [activeClient,setActiveClient]=useState(null);
-  const [posts,setPosts]=useState([]);
-  const [view,setView]=useState("compose");
-  const [calMonth,setCalMonth]=useState(new Date().getMonth());
-  const [calYear,setCalYear]=useState(new Date().getFullYear());
-  const [toast,setToast]=useState(null);
-  const [showModal,setShowModal]=useState(false);
-  const [showBulk,setShowBulk]=useState(false);
-  const [editClient,setEditClient]=useState(null);
-  const [compose,setCompose]=useState({caption:"",imageUrl:"",fb:true,ig:false,tw:false,tt:false,li:false,gb:false,scheduledFor:""});
-  const [dragOver,setDragOver]=useState(false);
-  const fileInputRef=useRef(null);
-  const [previewPlatform,setPreviewPlatform]=useState("facebook");
-  const [publishing,setPublishing]=useState(null);
+  const [key,setKey]=useState(localStorage.getItem("gsa_key")||"");const [authed,setAuthed]=useState(false);const [authErr,setAuthErr]=useState("");const [ki,setKi]=useState("");
+  const [clients,setCl]=useState([]);const [ac,setAc]=useState(null);const [posts,setPs]=useState([]);
+  const [view,setView]=useState("dashboard");const [cm,setCm]=useState(new Date().getMonth());const [cy,setCy]=useState(new Date().getFullYear());
+  const [toast,setToast]=useState(null);const [showModal,setSM]=useState(false);const [showBulk,setSB]=useState(false);
+  const [ec,setEc]=useState(null);const [ep,setEp]=useState(null);const [showAI,setSA]=useState(false);const [sbOpen,setSbO]=useState(false);
+  const [comp,setComp]=useState({caption:"",imageUrl:"",fb:true,ig:false,tw:false,tt:false,li:false,gb:false,pi:false,scheduledFor:""});
+  const [dragO,setDragO]=useState(false);const fRef=useRef(null);const [pp,setPP]=useState("facebook");const [pub,setPub]=useState(null);const [showT,setST]=useState(false);
 
-  const showToast=(msg,err)=>{setToast({msg,err});setTimeout(()=>setToast(null),3000)};
-
-  const api=useCallback(async(action,method,body,cid)=>{
-    method=method||"GET";
-    let url="/api/admin?action="+action;
-    if(cid)url+="&clientId="+cid;
-    const opts={method,headers:{Authorization:"Bearer "+key}};
-    if(body){opts.headers["Content-Type"]="application/json";opts.body=JSON.stringify(body)}
-    try{
-      const r=await fetch(url,opts);
-      if(r.status===401){setAuthed(false);localStorage.removeItem("gsa_key");return null}
-      return await r.json();
-    }catch(e){showToast(e.message,true);return null}
+  const st=(m,e)=>{setToast({m,e});setTimeout(()=>setToast(null),3500)};
+  const api=useCallback(async(a,method,body,cid)=>{
+    let u="/api/admin?action="+a;if(cid)u+="&clientId="+cid;
+    const o={method:method||"GET",headers:{Authorization:"Bearer "+key}};
+    if(body){o.headers["Content-Type"]="application/json";o.body=JSON.stringify(body)}
+    try{const r=await fetch(u,o);if(r.status===401){setAuthed(false);localStorage.removeItem("gsa_key");return null}return await r.json()}catch(e){st(e.message,true);return null}
   },[key]);
 
-  const loadClients=useCallback(async()=>{
-    const d=await api("get-clients");
-    if(d){setClients(d);if(d.length>0&&!activeClient)setActiveClient(d[0])}
-  },[api]);
+  const loadCl=useCallback(async()=>{const d=await api("get-clients");if(d){setCl(d);if(d.length&&!ac)setAc(d[0])}},[api]);
+  const loadPs=useCallback(async()=>{if(!ac)return;const d=await api("get-posts","GET",null,ac.id);if(d)setPs(d)},[api,ac]);
+  useEffect(()=>{if(authed)loadCl()},[authed]);
+  useEffect(()=>{if(authed&&ac)loadPs()},[authed,ac]);
+  useEffect(()=>{if(ac)setComp(c=>({...c,fb:!!ac.fbPageId,ig:!!ac.igUserId,tw:!!ac.twitterAccessToken,tt:!!ac.tiktokAccessToken,li:!!ac.linkedinAccessToken,gb:!!ac.gbpAccessToken,pi:false}))},[ac?.id]);
 
-  const loadPosts=useCallback(async()=>{
-    if(!activeClient)return;
-    const d=await api("get-posts","GET",null,activeClient.id);
-    if(d)setPosts(d);
-  },[api,activeClient]);
+  const handleImg=async(file)=>{if(!file?.type.startsWith("image/"))return st("Select image",true);if(file.size>10*1024*1024)return st("Max 10MB",true);st("Uploading...");
+    const r=new FileReader();r.onload=async()=>{const b=r.result.split(",")[1];const res=await api("upload-image","POST",{filename:`up_${Date.now()}.${file.name.split(".").pop()||"jpg"}`,content:b});
+    if(res?.success){setComp(p=>({...p,imageUrl:res.url}));st("Uploaded!")}else st(res?.error||"Failed",true)};r.readAsDataURL(file)};
 
-  useEffect(()=>{if(authed)loadClients()},[authed]);
-  useEffect(()=>{if(authed&&activeClient)loadPosts()},[authed,activeClient]);
-  useEffect(()=>{if(activeClient){setCompose(c=>({...c,fb:!!activeClient.fbPageId,ig:!!activeClient.igUserId,tw:!!activeClient.twitterAccessToken,tt:!!activeClient.tiktokAccessToken,li:!!activeClient.linkedinAccessToken,gb:!!activeClient.gbpAccessToken}))}},[activeClient?.id]);
+  useEffect(()=>{if(key){fetch("/api/admin?action=config",{headers:{Authorization:"Bearer "+key}}).then(r=>{if(r.ok)setAuthed(true);else{localStorage.removeItem("gsa_key");setKey("")}}).catch(()=>{})}},[]);
+  const login=async()=>{if(!ki.trim())return;try{const r=await fetch("/api/admin?action=config",{headers:{Authorization:"Bearer "+ki.trim()}});if(r.ok){setKey(ki.trim());localStorage.setItem("gsa_key",ki.trim());setAuthed(true);setAuthErr("")}else setAuthErr("Invalid key")}catch(e){setAuthErr("Failed")}};
 
-  const handleImageFile=async(file)=>{
-    if(!file||!file.type.startsWith("image/"))return showToast("Please select an image file",true);
-    if(file.size>10*1024*1024)return showToast("Image too large (max 10MB)",true);
-    showToast("Uploading image...");
-    const reader=new FileReader();
-    reader.onload=async()=>{
-      const base64=reader.result.split(",")[1];
-      const ext=file.name.split(".").pop()||"jpg";
-      const fname=`upload_${Date.now()}.${ext}`;
-      try{
-        const res=await api("upload-image","POST",{filename:fname,content:base64});
-        if(res&&res.success){
-          setCompose(p=>({...p,imageUrl:res.url}));
-          showToast("Image uploaded!");
-        }else{showToast(res?.error||"Upload failed",true)}
-      }catch(e){showToast("Upload failed: "+e.message,true)}
-    };
-    reader.readAsDataURL(file);
-  };
+  const getPl=()=>{const p=[];if(comp.fb)p.push("facebook");if(comp.ig)p.push("instagram");if(comp.tw)p.push("twitter");if(comp.tt)p.push("tiktok");if(comp.li)p.push("linkedin");if(comp.gb)p.push("google_business");return p};
+  const resetC=()=>setComp({caption:"",imageUrl:"",fb:!!ac?.fbPageId,ig:!!ac?.igUserId,tw:!!ac?.twitterAccessToken,tt:!!ac?.tiktokAccessToken,li:!!ac?.linkedinAccessToken,gb:!!ac?.gbpAccessToken,pi:false,scheduledFor:""});
 
-  useEffect(()=>{
-    if(key){
-      fetch("/api/admin?action=config",{headers:{Authorization:"Bearer "+key}})
-        .then(r=>{if(r.ok)setAuthed(true);else{localStorage.removeItem("gsa_key");setKey("")}})
-        .catch(()=>{})
-    }
-  },[]);
+  const addPost=async()=>{if(!comp.caption.trim())return st("Write caption",true);if(!ac)return;const pl=getPl();if(!pl.length)return st("Select platform",true);
+    const r=await api("add-post","POST",{caption:comp.caption,imageUrl:comp.imageUrl||null,platforms:pl,scheduledFor:comp.scheduledFor||null},ac.id);if(r?.success){st(comp.scheduledFor?"Scheduled!":"Queued!");resetC();loadPs()}};
 
-  const doLogin=async()=>{
-    if(!keyInput.trim())return;
-    try{
-      const r=await fetch("/api/admin?action=config",{headers:{Authorization:"Bearer "+keyInput.trim()}});
-      if(r.ok){setKey(keyInput.trim());localStorage.setItem("gsa_key",keyInput.trim());setAuthed(true);setAuthErr("")}
-      else setAuthErr("Invalid admin key")
-    }catch(e){setAuthErr("Connection failed")}
-  };
+  const publishPost=async(pid)=>{if(!confirm("Publish now?"))return;setPub(pid);st("Publishing...");
+    const r=await api("publish-now","POST",{postId:pid},ac.id);setPub(null);
+    if(r){const m=[];Object.entries(r.results||{}).forEach(([k,v])=>m.push(`${PI[k]?.icon||k}${v.success?"✓":"✗"}`));st((r.success?"Published! ":"Error: ")+m.join(" "),!r.success);loadPs()}else st("Failed",true)};
 
-  const addPost=async()=>{
-    if(!compose.caption.trim())return showToast("Write a caption first",true);
-    if(!activeClient)return showToast("Select a client first",true);
-    const pl=[];
-    if(compose.fb)pl.push("facebook");if(compose.ig)pl.push("instagram");
-    if(compose.tw)pl.push("twitter");if(compose.tt)pl.push("tiktok");
-    if(compose.li)pl.push("linkedin");if(compose.gb)pl.push("google_business");
-    if(!pl.length)return showToast("Select a platform",true);
-    const res=await api("add-post","POST",{caption:compose.caption,imageUrl:compose.imageUrl||null,platforms:pl,scheduledFor:compose.scheduledFor||null},activeClient.id);
-    if(res&&res.success){showToast(compose.scheduledFor?"Scheduled!":"Added to queue!");setCompose({caption:"",imageUrl:"",fb:!!activeClient.fbPageId,ig:!!activeClient.igUserId,tw:!!activeClient.twitterId,tt:!!activeClient.tiktokId,li:!!activeClient.linkedinId,gb:!!activeClient.gbpId,scheduledFor:""});loadPosts()}
-  };
+  const pubDirect=async()=>{if(!comp.caption.trim()||!ac)return;const pl=getPl();if(!pl.length)return st("Select platform",true);if(!confirm(`Post to ${pl.join(", ")}?`))return;
+    setPub("d");st("Publishing...");const r=await api("post-now","POST",{caption:comp.caption,imageUrl:comp.imageUrl||null,platforms:pl},ac.id);setPub(null);
+    if(r?.success){const m=[];Object.entries(r.results||{}).forEach(([k,v])=>m.push(`${PI[k]?.icon||k}${v.success?"✓":"✗"}`));st("Posted! "+m.join(" "));resetC();loadPs();setView("published")}else st("Failed",true)};
 
-  const bulkImport=async(items)=>{
-    let count=0;
-    for(const item of items){
-      const pl=["facebook"];if(item.imageUrl)pl.push("instagram");
-      const res=await api("add-post","POST",{caption:item.caption,imageUrl:item.imageUrl||null,platforms:pl},activeClient.id);
-      if(res?.success)count++;
-    }
-    showToast(`Imported ${count}/${items.length} posts`);
-    loadPosts();
-  };
+  const delPost=async(pid)=>{if(!confirm("Delete?"))return;await api("delete-post","DELETE",{postId:pid},ac.id);loadPs();st("Deleted")};
+  const saveEp=async(u)=>{await api("update-post","PUT",{postId:u.id,...u},ac.id);setEp(null);loadPs();st("Updated!")};
+  const moveP=async(pid,dir)=>{const q=posts.filter(p=>p.status==="queued"||p.status==="scheduled");const i=q.findIndex(p=>p.id===pid);if((dir==="u"&&i<=0)||(dir==="d"&&i>=q.length-1))return;const j=dir==="u"?i-1:i+1;const tmp=q[i].createdAt;await api("update-post","PUT",{postId:q[i].id,createdAt:q[j].createdAt},ac.id);await api("update-post","PUT",{postId:q[j].id,createdAt:tmp},ac.id);loadPs()};
+  const delPlat=async(pid,p)=>{if(!confirm(`Delete from ${p}?`))return;await api("delete-from-platform","POST",{postId:pid,platform:p},ac.id);loadPs();st("Deleted")};
+  const saveCl=async(d)=>{if(ec?.id)await api("update-client","PUT",{...d,id:ec.id});else await api("add-client","POST",d);loadCl();setSM(false);setEc(null);st("Saved")};
+  const delCl=async(id)=>{if(!confirm("Delete client?"))return;await api("delete-client","DELETE",{id});loadCl();setAc(null);st("Deleted")};
+  const bulkImp=async(items)=>{let c=0;for(const it of items){const r=await api("add-post","POST",{caption:it.caption,imageUrl:it.imageUrl||null,platforms:["facebook"]},ac.id);if(r?.success)c++}st(`Imported ${c}/${items.length}`);loadPs()};
 
-  const deletePost=async(pid)=>{if(!confirm("Delete?"))return;await api("delete-post","DELETE",{postId:pid},activeClient.id);loadPosts();showToast("Deleted")};
-
-  const publishPost=async(pid)=>{
-    if(!confirm("Publish now?"))return;
-    setPublishing(pid);
-    showToast("Publishing...");
-    const r=await api("publish-now","POST",{postId:pid},activeClient.id);
-    setPublishing(null);
-    if(r){
-      const msgs=[];
-      const platforms=["facebook","instagram","twitter","linkedin","google_business","tiktok"];
-      const labels={facebook:"FB",instagram:"IG",twitter:"X",linkedin:"LI",google_business:"GBP",tiktok:"TT"};
-      platforms.forEach(p=>{if(r.results?.[p]){msgs.push(`${labels[p]} ${r.results[p].success?"✓":"✗"}`)}});
-      if(msgs.length>0)showToast((r.success?"Published! ":"Errors: ")+msgs.join(" · "),!r.success);
-      else showToast(r.error||"No platforms matched",true);
-      loadPosts();
-    }else showToast("Request failed",true);
-  };
-
-  const publishDirect=async()=>{
-    if(!compose.caption.trim())return showToast("Write a caption first",true);
-    if(!activeClient)return showToast("Select a client first",true);
-    const pl=[];
-    if(compose.fb)pl.push("facebook");if(compose.ig)pl.push("instagram");
-    if(compose.tw)pl.push("twitter");if(compose.tt)pl.push("tiktok");
-    if(compose.li)pl.push("linkedin");if(compose.gb)pl.push("google_business");
-    if(!pl.length)return showToast("Select a platform",true);
-    if(!confirm(`Post now to ${pl.join(", ")}?`))return;
-    setPublishing("direct");
-    showToast("Publishing...");
-    const r=await api("post-now","POST",{caption:compose.caption,imageUrl:compose.imageUrl||null,platforms:pl},activeClient.id);
-    setPublishing(null);
-    if(r){
-      const msgs=[];
-      const labels={facebook:"FB",instagram:"IG",twitter:"X",linkedin:"LI",google_business:"GBP",tiktok:"TT"};
-      Object.entries(r.results||{}).forEach(([k,v])=>{msgs.push(`${labels[k]||k} ${v.success?"✓":"✗ "+v.error?.substring(0,30)}`)});
-      if(r.success){showToast("Posted! "+msgs.join(" · "));setCompose({caption:"",imageUrl:"",fb:!!activeClient.fbPageId,ig:!!activeClient.igUserId,tw:!!activeClient.twitterId,tt:!!activeClient.tiktokId,li:!!activeClient.linkedinId,gb:!!activeClient.gbpId,scheduledFor:""});loadPosts();setView("published")}
-      else showToast("Failed: "+msgs.join(" · "),true);
-    }else showToast("Request failed",true);
-  };
-
-  const deleteFromPlatform=async(postId,platform)=>{
-    if(!confirm(`Delete this post from ${platform}?`))return;
-    showToast(`Deleting from ${platform}...`);
-    const r=await api("delete-from-platform","POST",{postId,platform},activeClient.id);
-    if(r?.success){showToast(`Deleted from ${platform}`);loadPosts()}
-    else showToast(r?.result?.error||r?.error||"Failed to delete",true);
-  };
-
-  const saveClient=async(data)=>{
-    if(editClient&&editClient.id){await api("update-client","PUT",{...data,id:editClient.id})}
-    else{await api("add-client","POST",data)}
-    loadClients();setShowModal(false);setEditClient(null);showToast("Client saved");
-  };
-
-  const deleteClient=async(id)=>{
-    if(!confirm("Delete this client and all their posts?"))return;
-    await api("delete-client","DELETE",{id});
-    loadClients();setActiveClient(null);showToast("Client deleted");
-  };
-
-  const calDays=()=>{const f=new Date(calYear,calMonth,1);const l=new Date(calYear,calMonth+1,0);const s=(f.getDay()+6)%7;const d=[];for(let i=0;i<s;i++)d.push(null);for(let i=1;i<=l.getDate();i++)d.push(i);return d};
-  const getDayPosts=(day)=>{const ds=new Date(calYear,calMonth,day).toISOString().split("T")[0];return posts.filter(p=>{const pd=p.scheduledFor?p.scheduledFor.split("T")[0]:p.publishedAt?p.publishedAt.split("T")[0]:p.createdAt?.split("T")[0];return pd===ds})};
+  const calDays=()=>{const f=new Date(cy,cm,1),l=new Date(cy,cm+1,0),s=(f.getDay()+6)%7,d=[];for(let i=0;i<s;i++)d.push(null);for(let i=1;i<=l.getDate();i++)d.push(i);return d};
+  const getDp=(day)=>{const ds=new Date(cy,cm,day).toISOString().split("T")[0];return posts.filter(p=>{const pd=p.scheduledFor?p.scheduledFor.split("T")[0]:p.publishedAt?p.publishedAt.split("T")[0]:p.createdAt?.split("T")[0];return pd===ds})};
 
   const queued=posts.filter(p=>p.status==="queued"||p.status==="scheduled");
   const published=posts.filter(p=>p.status==="published"||p.status==="deleted");
-  const charCount=compose.caption.length;
+  const wk=published.filter(p=>{const d=new Date(p.publishedAt);return d>=new Date(Date.now()-7*864e5)}).length;
+  const sr=published.length?Math.round(published.filter(p=>Object.values(p.results||{}).some(r=>r.success)).length/published.length*100):0;
+  const cc=comp.caption.length;
 
-  const S={
-    sidebar:{width:256,background:"#0e1018",borderRight:"1px solid var(--border)",display:"flex",flexDirection:"column",flexShrink:0,height:"100vh",position:"sticky",top:0},
-    navBtn:(active)=>({width:"100%",padding:"10px 14px",background:active?"var(--surface2)":"transparent",border:active?"1px solid var(--border)":"1px solid transparent",borderRadius:8,color:active?"#fff":"var(--muted)",fontSize:13,fontWeight:active?600:400,cursor:"pointer",textAlign:"left",display:"flex",alignItems:"center",gap:10,marginBottom:2,fontFamily:"inherit"}),
-    card:{background:"var(--surface)",border:"1px solid var(--border)",borderRadius:12,padding:20,animation:"fadeIn .3s ease both"},
-    input:{width:"100%",padding:"10px 12px",background:"var(--surface2)",border:"1px solid var(--border)",borderRadius:8,color:"#fff",fontSize:13,outline:"none",fontFamily:"inherit"},
-    label:{fontSize:10,fontWeight:600,color:"var(--muted)",textTransform:"uppercase",letterSpacing:1,display:"block",marginBottom:6},
-    badge:(ok,warn)=>({fontSize:11,padding:"3px 8px",borderRadius:4,background:ok?"rgba(34,197,94,0.15)":warn?"rgba(245,158,11,0.15)":"rgba(239,68,68,0.15)",color:ok?"var(--green)":warn?"var(--amber)":"var(--red)"}),
-    btn:(primary)=>({padding:"10px 20px",background:primary?"var(--accent)":"transparent",color:primary?"#fff":"var(--muted)",border:primary?"none":"1px solid var(--border)",borderRadius:8,fontSize:13,fontWeight:primary?700:400,cursor:"pointer",fontFamily:"inherit",transition:"all .15s ease"}),
-    btnSm:(color)=>({padding:"6px 12px",background:color==="green"?"rgba(34,197,94,0.12)":color==="red"?"rgba(239,68,68,0.1)":"var(--surface2)",color:color==="green"?"var(--green)":color==="red"?"var(--red)":"var(--muted)",border:"none",borderRadius:6,fontSize:12,cursor:"pointer",fontWeight:600,fontFamily:"inherit"})
-  };
-
-  // ─── LOGIN ───
-  if(!authed)return(
-    <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"var(--bg)"}}>
-      <div style={{textAlign:"center",animation:"fadeIn .5s ease both"}}>
-        <div style={{fontSize:36,fontWeight:800,color:"#fff",marginBottom:4,letterSpacing:"-0.5px"}}>Grid<span style={{color:"var(--accent)"}}>Social</span></div>
-        <p style={{color:"var(--muted)",fontSize:13,marginBottom:32}}>Social Media Management Platform</p>
-        <input type="password" placeholder="Enter admin key" value={keyInput} onChange={e=>setKeyInput(e.target.value)} onKeyDown={e=>e.key==="Enter"&&doLogin()} autoFocus
-          style={{...S.input,width:340,marginBottom:12,display:"block",padding:"14px 16px",fontSize:14}} />
-        {authErr&&<p style={{color:"var(--red)",fontSize:12,marginBottom:8}}>{authErr}</p>}
-        <button onClick={doLogin} style={{...S.btn(true),width:340,padding:14,fontSize:14}}>Sign in</button>
-      </div>
+  if(!authed)return <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"radial-gradient(ellipse at top,#0f1320,#090b10 70%)"}}>
+    <div style={{textAlign:"center",animation:"slideUp .6s ease both",maxWidth:360,width:"100%",padding:"0 20px"}}>
+      <div style={{width:56,height:56,borderRadius:14,background:"linear-gradient(135deg,var(--accent),#818cf8)",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 16px",fontSize:24,fontWeight:800,color:"#fff",animation:"glow 3s ease infinite"}}>G</div>
+      <div style={{fontSize:26,fontWeight:800,color:"#fff",marginBottom:4}}>Grid<span style={{color:"var(--accent2)"}}>Social</span></div>
+      <p style={{color:"var(--muted)",fontSize:13,marginBottom:24}}>Social Media Management</p>
+      <input type="password" placeholder="Admin key" value={ki} onChange={e=>setKi(e.target.value)} onKeyDown={e=>e.key==="Enter"&&login()} autoFocus style={{...S.inp,marginBottom:10,padding:"13px 16px",fontSize:14,background:"var(--surface)",border:"1px solid var(--border2)"}} />
+      {authErr&&<p style={{color:"var(--red)",fontSize:12,marginBottom:8}}>{authErr}</p>}
+      <button onClick={login} style={{...S.btn(true),width:"100%",padding:13,fontSize:14,background:"linear-gradient(135deg,var(--accent),#818cf8)"}}>Sign in →</button>
     </div>
-  );
+  </div>;
 
-  return(
-    <div style={{display:"flex",minHeight:"100vh",background:"var(--bg)"}}>
-      {/* SIDEBAR */}
-      <div style={S.sidebar}>
-        <div style={{padding:"20px 16px 14px",borderBottom:"1px solid var(--border)"}}>
-          <div style={{fontSize:20,fontWeight:800,color:"#fff",letterSpacing:"-0.3px"}}>Grid<span style={{color:"var(--accent)"}}>Social</span></div>
-          <p style={{fontSize:11,color:"var(--muted)",marginTop:2}}>Social Media Manager</p>
-        </div>
-        <div style={{padding:"12px 16px",borderBottom:"1px solid var(--border)"}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}><div style={S.label}>Client</div><button onClick={()=>{setEditClient(null);setShowModal(true)}} style={{background:"var(--accent)",color:"#fff",border:"none",borderRadius:5,width:20,height:20,fontSize:13,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",lineHeight:1,padding:0}} title="Add new client">+</button></div>
-          <select value={activeClient?.id||""} onChange={e=>{const c=clients.find(x=>x.id===e.target.value);setActiveClient(c)}}
-            style={{...S.input,cursor:"pointer"}}>
-            {clients.length===0&&<option>No clients</option>}
-            {clients.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
-          {activeClient&&<div style={{display:"flex",gap:3,marginTop:6,flexWrap:"wrap"}}>
-            {[{f:"pageAccessToken",l:"Token"},{f:"fbPageId",l:"FB"},{f:"igUserId",l:"IG"},{f:"twitterId",l:"X"},{f:"tiktokId",l:"TT"},{f:"linkedinId",l:"LI"},{f:"gbpId",l:"GBP"}].map(b=>
-              <span key={b.f} style={{...S.badge(!!activeClient[b.f]),fontSize:8,padding:"1px 5px"}}>{activeClient[b.f]?"●":"○"} {b.l}</span>
-            )}
-          </div>}
-        </div>
-        <div style={{padding:"8px",flex:1}}>
-          {[{id:"compose",icon:"✏️",label:"Create Post"},{id:"queue",icon:"📋",label:"Queue"},{id:"calendar",icon:"📅",label:"Calendar"},{id:"published",icon:"✅",label:"Published"},{id:"health",icon:"🩺",label:"API Health"},{id:"clients",icon:"⚙️",label:"Clients & API"}].map(item=>
-            <button key={item.id} onClick={()=>setView(item.id)} style={S.navBtn(view===item.id)}>
-              <span style={{fontSize:16}}>{item.icon}</span>{item.label}
-              {item.id==="queue"&&queued.length>0&&<span style={{marginLeft:"auto",background:"var(--accent)",color:"#fff",fontSize:10,padding:"1px 7px",borderRadius:10,fontWeight:700}}>{queued.length}</span>}
-              {item.id==="published"&&published.length>0&&<span style={{marginLeft:"auto",fontSize:10,color:"var(--muted)"}}>{published.length}</span>}
-            </button>
-          )}
-        </div>
-        <div style={{padding:"12px 16px",borderTop:"1px solid var(--border)"}}>
-          <div style={{fontSize:10,color:"#374151"}}>Grid Social v3.0</div>
-          <div style={{fontSize:10,color:"#262a30",marginTop:2}}>Schedule: Mon/Wed/Fri 10am</div>
-        </div>
+  const navs=[{id:"dashboard",i:"📊",l:"Dashboard"},{id:"compose",i:"✏️",l:"Create Post"},{id:"queue",i:"📋",l:"Queue",c:queued.length},{id:"calendar",i:"📅",l:"Calendar"},{id:"published",i:"✅",l:"Published",c:published.length},{id:"health",i:"🩺",l:"API Health"},{id:"clients",i:"⚙️",l:"Clients & API"}];
+
+  return <div style={{display:"flex",minHeight:"100vh"}}>
+    {/* Mobile hamburger */}
+    <button className="mob" onClick={()=>setSbO(!sbOpen)} style={{position:"fixed",top:10,left:10,zIndex:60,width:38,height:38,borderRadius:10,background:"var(--surface)",border:"1px solid var(--border)",color:"#fff",fontSize:16,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>{sbOpen?"✕":"☰"}</button>
+
+    {/* SIDEBAR */}
+    <div className={`mob-sb ${sbOpen?"open":""}`} style={{...S.sb,transition:"transform .25s ease"}}>
+      <div style={{padding:"16px 14px 10px",borderBottom:"1px solid var(--border)"}}>
+        <div style={{display:"flex",alignItems:"center",gap:8}}><div style={{width:28,height:28,borderRadius:7,background:"linear-gradient(135deg,var(--accent),#818cf8)",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:12,fontWeight:800}}>G</div>
+        <div><div style={{fontSize:16,fontWeight:800,color:"#fff"}}>Grid<span style={{color:"var(--accent2)"}}>Social</span></div><p style={{fontSize:9,color:"var(--muted)"}}>v4.0</p></div></div>
       </div>
+      <div style={{padding:"8px 10px",borderBottom:"1px solid var(--border)"}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}><div style={S.lbl}>Client</div>
+        <button onClick={()=>{setEc(null);setSM(true)}} style={{background:"var(--accent)",color:"#fff",border:"none",borderRadius:5,width:18,height:18,fontSize:11,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>+</button></div>
+        <select value={ac?.id||""} onChange={e=>setAc(clients.find(x=>x.id===e.target.value))} style={{...S.inp,cursor:"pointer",fontSize:11,padding:"8px 10px"}}>
+          {!clients.length&&<option>No clients</option>}{clients.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
+        </select>
+        {ac&&<div style={{display:"flex",gap:2,marginTop:5,flexWrap:"wrap"}}>{Object.entries(PI).filter(([k])=>k!=="pinterest").map(([k,v])=>{const h=!!ac[v.f];return <span key={k} style={{fontSize:7,padding:"1px 4px",borderRadius:3,...S.bg(h,!h)}}>{h?"●":"○"}{v.l.split(" ")[0].substring(0,2).toUpperCase()}</span>})}</div>}
+      </div>
+      <div style={{padding:"5px 7px",flex:1,overflow:"auto"}}>{navs.map(n=><button key={n.id} onClick={()=>{setView(n.id);setSbO(false)}} style={S.nav(view===n.id)}>
+        <span style={{fontSize:14}}>{n.i}</span>{n.l}
+        {n.c>0&&<span style={{marginLeft:"auto",background:view===n.id?"var(--accent)":"var(--surface2)",color:view===n.id?"#fff":"var(--muted)",fontSize:9,padding:"1px 6px",borderRadius:10,fontWeight:700}}>{n.c}</span>}
+      </button>)}</div>
+      <div style={{padding:"8px 12px",borderTop:"1px solid var(--border)"}}><div style={{fontSize:9,color:"#1e2230"}}>Mon/Wed/Fri 10am</div></div>
+    </div>
 
-      {/* MAIN */}
-      <div style={{flex:1,overflow:"auto"}}>
-        <div style={{maxWidth:1040,margin:"0 auto",padding:"28px 36px"}}>
+    <div className="desk" style={{width:260,flexShrink:0}} />
+    {sbOpen&&<div className="mob" onClick={()=>setSbO(false)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,.5)",zIndex:52}} />}
 
-          {/* ─── CREATE POST ─── */}
-          {view==="compose"&&<div className="animate-in">
-            <h2 style={{fontSize:22,fontWeight:700,color:"#fff",marginBottom:20}}>Create Post</h2>
-            {!activeClient?<div style={{...S.card,padding:48,textAlign:"center",color:"var(--muted)"}}>
-              <p style={{fontSize:15,marginBottom:12}}>Add a client first</p>
-              <button onClick={()=>{setView("clients");setShowModal(true)}} style={S.btn(true)}>Add Client</button>
-            </div>:<div style={{display:"grid",gridTemplateColumns:"1fr 320px",gap:20}}>
-              <div>
-                {/* Compose Card */}
-                <div style={S.card}>
-                  <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
-                    <div style={{width:40,height:40,borderRadius:"50%",background:"var(--accent)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,fontWeight:700,color:"#fff"}}>{activeClient.name.charAt(0)}</div>
-                    <div><div style={{fontWeight:600,fontSize:14,color:"#fff"}}>{activeClient.name}</div>
-                    <div style={{fontSize:11,color:"var(--muted)"}}>{[compose.fb&&"FB",compose.ig&&"IG",compose.tw&&"X",compose.tt&&"TikTok",compose.li&&"LinkedIn",compose.gb&&"GBP"].filter(Boolean).join(" + ")||"No platforms"}</div></div>
-                    <div style={{marginLeft:"auto",fontSize:12,color:charCount>2200?"var(--red)":charCount>1800?"var(--amber)":"var(--muted)"}}>{charCount}/2,200</div>
-                  </div>
-                  <textarea value={compose.caption} onChange={e=>setCompose(p=>({...p,caption:e.target.value}))}
-                    placeholder="Write your post here..."
-                    style={{width:"100%",minHeight:200,background:"transparent",border:"none",color:"var(--text)",fontSize:15,lineHeight:1.7,resize:"vertical",outline:"none",fontFamily:"inherit"}} />
-                  <div style={{borderTop:"1px solid var(--border)",paddingTop:14,marginTop:14}}>
-                    <div style={S.label}>Image</div>
-                    <div 
-                      onDragOver={e=>{e.preventDefault();setDragOver(true)}}
-                      onDragLeave={()=>setDragOver(false)}
-                      onDrop={e=>{e.preventDefault();setDragOver(false);const f=e.dataTransfer.files[0];if(f)handleImageFile(f)}}
-                      onClick={()=>fileInputRef.current?.click()}
-                      style={{border:`2px dashed ${dragOver?"var(--accent)":"var(--border)"}`,borderRadius:10,padding:compose.imageUrl?"8px":"24px 16px",textAlign:"center",cursor:"pointer",background:dragOver?"rgba(59,130,246,0.06)":"transparent",transition:"all .2s",marginBottom:8}}>
-                      {compose.imageUrl?
-                        <div style={{position:"relative"}}><img src={compose.imageUrl} style={{maxWidth:"100%",maxHeight:180,borderRadius:8,objectFit:"cover"}} onError={e=>{e.target.style.display="none"}} />
-                        <button onClick={e=>{e.stopPropagation();setCompose(p=>({...p,imageUrl:""}))}} style={{position:"absolute",top:4,right:4,background:"rgba(0,0,0,0.7)",color:"#fff",border:"none",borderRadius:"50%",width:24,height:24,cursor:"pointer",fontSize:14,display:"flex",alignItems:"center",justifyContent:"center"}}>×</button></div>
-                        :<div><div style={{fontSize:28,marginBottom:6}}>📷</div><div style={{fontSize:13,color:"var(--muted)"}}>Drop image here, tap to browse,<br/>or paste a URL below</div></div>}
-                      <input ref={fileInputRef} type="file" accept="image/*" style={{display:"none"}} onChange={e=>{const f=e.target.files[0];if(f)handleImageFile(f);e.target.value=""}} />
-                    </div>
-                    <input type="url" value={compose.imageUrl} onChange={e=>setCompose(p=>({...p,imageUrl:e.target.value}))}
-                      placeholder="Or paste image URL here..." style={{...S.input,fontSize:12}} />
-                  </div>
-                </div>
+    {/* MAIN */}
+    <div style={{flex:1,overflow:"auto",minWidth:0}}>
+      <div style={{maxWidth:1020,margin:"0 auto",padding:"22px 18px",paddingTop:typeof window!=="undefined"&&window.innerWidth<769?"58px":"22px"}}>
 
-                {/* Phone Preview */}
-                {compose.caption&&<div style={{marginTop:16}}>
-                  <div style={{display:"flex",justifyContent:"center",gap:8,marginBottom:14}}>
-                    <button onClick={()=>setPreviewPlatform("facebook")} style={{...S.btnSm(previewPlatform==="facebook"?"green":null),background:previewPlatform==="facebook"?"rgba(59,130,246,0.15)":"var(--surface2)",color:previewPlatform==="facebook"?"var(--accent)":"var(--muted)"}}>📘 Facebook</button>
-                    <button onClick={()=>setPreviewPlatform("instagram")} style={{...S.btnSm(previewPlatform==="instagram"?"green":null),background:previewPlatform==="instagram"?"rgba(236,73,153,0.15)":"var(--surface2)",color:previewPlatform==="instagram"?"#ec4899":"var(--muted)"}}>📸 Instagram</button>
-                  </div>
-                  <PhonePreview caption={compose.caption} imageUrl={compose.imageUrl} platform={previewPlatform} clientName={activeClient.name} />
-                </div>}
-              </div>
-
-              {/* Right sidebar */}
-              <div>
-                <div style={{...S.card,padding:16,marginBottom:12}}>
-                  <div style={S.label}>Platforms</div>
-                  {[{k:"fb",l:"Facebook",i:"📘",field:"fbPageId"},{k:"ig",l:"Instagram",i:"📸",field:"igUserId"},{k:"tw",l:"X / Twitter",i:"𝕏",field:"twitterId"},{k:"tt",l:"TikTok",i:"🎵",field:"tiktokId"},{k:"li",l:"LinkedIn",i:"💼",field:"linkedinId"},{k:"gb",l:"Google Business",i:"📍",field:"gbpId"}].map(p=>{
-                    const linked=!!activeClient[p.field];
-                    return <label key={p.k} style={{display:"flex",alignItems:"center",gap:10,padding:"6px 0",cursor:linked?"pointer":"default",opacity:linked?1:0.5}}>
-                      <input type="checkbox" checked={!!compose[p.k]} disabled={!linked} onChange={e=>setCompose(x=>({...x,[p.k]:e.target.checked}))} style={{width:16,height:16,accentColor:"var(--accent)"}} />
-                      <span style={{fontSize:14}}>{p.i}</span><span style={{fontSize:12}}>{p.l}</span>
-                      {!linked&&<span style={{marginLeft:"auto",...S.badge(false,true),fontSize:9}}>Not linked</span>}
-                    </label>
-                  })}
-                  {compose.ig&&!compose.imageUrl&&<div style={{fontSize:11,color:"var(--amber)",padding:"6px 8px",background:"rgba(245,158,11,0.08)",borderRadius:6,marginTop:4}}>⚠ Instagram requires an image</div>}
-                </div>
-                <div style={{...S.card,padding:16,marginBottom:12}}>
-                  <div style={S.label}>Schedule</div>
-                  <input type="datetime-local" value={compose.scheduledFor} onChange={e=>setCompose(p=>({...p,scheduledFor:e.target.value}))}
-                    style={{...S.input,colorScheme:"dark"}} />
-                  <p style={{fontSize:11,color:"var(--muted)",marginTop:6}}>Leave empty to add to queue</p>
-                </div>
-                <button onClick={addPost} style={{...S.btn(true),width:"100%",padding:14,marginBottom:8,fontSize:14}}>{compose.scheduledFor?"📅 Schedule Post":"➕ Add to Queue"}</button>
-                <button onClick={publishDirect} disabled={publishing==="direct"} style={{width:"100%",padding:14,marginBottom:8,fontSize:14,fontWeight:700,background:"linear-gradient(135deg,#22c55e,#16a34a)",color:"#fff",border:"none",borderRadius:8,cursor:"pointer",fontFamily:"inherit",opacity:publishing==="direct"?0.6:1}}>{publishing==="direct"?"🔄 Publishing...":"🚀 Post Now"}</button>
-                <div style={{display:"flex",gap:6}}>
-                  <button onClick={()=>setShowBulk(true)} style={{...S.btn(false),flex:1,fontSize:12,padding:"8px 12px"}}>📦 Bulk Import</button>
-                  <button onClick={()=>setCompose({caption:"",imageUrl:"",fb:!!activeClient?.fbPageId,ig:!!activeClient?.igUserId,tw:!!activeClient?.twitterId,tt:!!activeClient?.tiktokId,li:!!activeClient?.linkedinId,gb:!!activeClient?.gbpId,scheduledFor:""})} style={{...S.btn(false),fontSize:12,padding:"8px 12px"}}>Clear</button>
-                </div>
-              </div>
-            </div>}
-          </div>}
-
-          {/* ─── QUEUE ─── */}
-          {view==="queue"&&<div className="animate-in">
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
-              <h2 style={{fontSize:22,fontWeight:700,color:"#fff"}}>Post Queue</h2>
-              <div style={{display:"flex",gap:8,alignItems:"center"}}>
-                <span style={{fontSize:13,color:"var(--muted)"}}>{queued.length} queued</span>
-                {queued.length>0&&<button onClick={()=>publishPost(queued[0].id)} style={S.btnSm("green")}>▶ Publish Next</button>}
-              </div>
-            </div>
-            {queued.length===0?<div style={{...S.card,padding:48,textAlign:"center",color:"var(--muted)"}}><p style={{fontSize:28,marginBottom:8}}>📝</p><p>Queue is empty — create a post to get started</p></div>
-            :queued.map((p,i)=>
-              <div key={p.id} style={{...S.card,marginBottom:8,display:"flex",gap:14,padding:16,animationDelay:`${i*50}ms`,opacity:publishing===p.id?.5:1,transition:"opacity .3s"}}>
-                <div style={{width:36,height:36,borderRadius:8,background:"var(--surface2)",display:"flex",alignItems:"center",justifyContent:"center",color:"var(--muted)",fontSize:13,fontWeight:700,flexShrink:0}}>{i+1}</div>
-                {p.imageUrl&&<div style={{width:52,height:52,borderRadius:8,overflow:"hidden",flexShrink:0}}><img src={p.imageUrl} style={{width:"100%",height:"100%",objectFit:"cover"}} onError={e=>{e.target.parentElement.style.display="none"}} /></div>}
-                <div style={{flex:1,minWidth:0}}>
-                  <div style={{fontSize:14,lineHeight:1.5,whiteSpace:"pre-wrap",maxHeight:80,overflow:"hidden"}}>{p.caption}</div>
-                  <div style={{display:"flex",gap:6,marginTop:8,flexWrap:"wrap"}}>
-                    {p.platforms.map(pl=><span key={pl} style={{fontSize:11,padding:"2px 8px",background:"var(--surface2)",border:"1px solid var(--border)",borderRadius:4,color:"var(--muted)"}}>{pl}</span>)}
-                    {p.imageUrl&&<span style={{fontSize:11,padding:"2px 8px",background:"var(--surface2)",borderRadius:4,color:"var(--muted)"}}>📷</span>}
-                    {p.scheduledFor&&<span style={{fontSize:11,padding:"2px 8px",background:"rgba(59,130,246,0.12)",borderRadius:4,color:"var(--accent)"}}>📅 {new Date(p.scheduledFor).toLocaleDateString("en-GB",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"})}</span>}
-                  </div>
-                </div>
-                <div style={{display:"flex",gap:4,flexShrink:0,alignItems:"flex-start"}}>
-                  <button onClick={()=>publishPost(p.id)} disabled={publishing===p.id} style={S.btnSm("green")}>{publishing===p.id?"...":"Publish"}</button>
-                  <button onClick={()=>deletePost(p.id)} style={S.btnSm("red")}>×</button>
-                </div>
+        {/* DASHBOARD */}
+        {view==="dashboard"&&<div className="animate">
+          <h2 style={{fontSize:22,fontWeight:800,color:"#fff",marginBottom:2}}>Dashboard</h2>
+          <p style={{fontSize:12,color:"var(--muted)",marginBottom:20}}>{ac?.name||"Select a client"}</p>
+          <div style={{display:"flex",gap:10,marginBottom:20,flexWrap:"wrap"}}>
+            {[{l:"Queued",v:queued.length,c:"var(--accent2)",i:"📋"},{l:"Published",v:published.length,c:"var(--green)",i:"✅"},{l:"This Week",v:wk,c:"var(--amber)",i:"📈"},{l:"Success",v:sr+"%",c:sr>80?"var(--green)":"var(--amber)",i:"🎯"}].map((s,i)=>
+              <div key={i} style={{...S.card,flex:"1 1 180px",animationDelay:`${i*70}ms`}}>
+                <div style={{display:"flex",justifyContent:"space-between"}}><div><div style={{fontSize:9,fontWeight:600,color:"var(--muted)",textTransform:"uppercase",letterSpacing:1,marginBottom:4}}>{s.l}</div>
+                <div style={{fontSize:24,fontWeight:800,color:s.c}}>{s.v}</div></div><span style={{fontSize:20}}>{s.i}</span></div>
               </div>
             )}
-          </div>}
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(190px,1fr))",gap:10,marginBottom:20}}>
+            <button onClick={()=>setView("compose")} style={{...S.card,cursor:"pointer",display:"flex",alignItems:"center",gap:10,border:"1px solid rgba(99,102,241,.2)",background:"var(--accent-bg)"}}><span style={{fontSize:20}}>✏️</span><div><div style={{fontWeight:700,fontSize:13,color:"#fff"}}>Create Post</div><div style={{fontSize:10,color:"var(--muted)"}}>Write & schedule</div></div></button>
+            <button onClick={()=>{if(queued.length)publishPost(queued[0].id);else setView("compose")}} style={{...S.card,cursor:"pointer",display:"flex",alignItems:"center",gap:10,border:"1px solid rgba(16,185,129,.2)",background:"var(--green-bg)"}}><span style={{fontSize:20}}>🚀</span><div><div style={{fontWeight:700,fontSize:13,color:"#fff"}}>{queued.length?"Publish Next":"No Queue"}</div><div style={{fontSize:10,color:"var(--muted)"}}>{queued.length?queued[0].caption.substring(0,28)+"...":"Create a post"}</div></div></button>
+            <button onClick={()=>setView("calendar")} style={{...S.card,cursor:"pointer",display:"flex",alignItems:"center",gap:10}}><span style={{fontSize:20}}>📅</span><div><div style={{fontWeight:700,fontSize:13,color:"#fff"}}>Calendar</div><div style={{fontSize:10,color:"var(--muted)"}}>View schedule</div></div></button>
+          </div>
+          <div style={S.card}><h3 style={{fontSize:14,fontWeight:700,color:"#fff",marginBottom:12}}>Recent Activity</h3>
+            {!posts.length?<p style={{color:"var(--muted)",fontSize:12}}>No activity yet</p>
+            :posts.slice(-5).reverse().map((p,i)=><div key={p.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 0",borderBottom:i<4?"1px solid var(--border)":"none"}}>
+              <div style={{width:7,height:7,borderRadius:"50%",background:p.status==="published"?"var(--green)":p.status==="queued"?"var(--accent)":"var(--amber)",flexShrink:0}} />
+              <div style={{flex:1,minWidth:0}}><div style={{fontSize:12,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{p.caption}</div>
+              <div style={{fontSize:10,color:"var(--muted)"}}>{p.status} · {new Date(p.publishedAt||p.createdAt).toLocaleDateString("en-GB",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"})}</div></div>
+              <div style={{display:"flex",gap:2}}>{p.platforms?.map(pl=><span key={pl} style={{fontSize:11}}>{PI[pl]?.icon}</span>)}</div>
+            </div>)}
+          </div>
+        </div>}
 
-          {/* ─── CALENDAR ─── */}
-          {view==="calendar"&&<div className="animate-in">
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
-              <h2 style={{fontSize:22,fontWeight:700,color:"#fff"}}>Content Calendar</h2>
-              <div style={{display:"flex",gap:8,alignItems:"center"}}>
-                <button onClick={()=>{if(calMonth===0){setCalMonth(11);setCalYear(y=>y-1)}else setCalMonth(m=>m-1)}} style={{padding:"6px 12px",background:"var(--surface2)",border:"1px solid var(--border)",borderRadius:6,color:"var(--muted)",cursor:"pointer",fontSize:16}}>‹</button>
-                <span style={{fontSize:15,fontWeight:600,color:"#fff",minWidth:160,textAlign:"center"}}>{MONTHS[calMonth]} {calYear}</span>
-                <button onClick={()=>{if(calMonth===11){setCalMonth(0);setCalYear(y=>y+1)}else setCalMonth(m=>m+1)}} style={{padding:"6px 12px",background:"var(--surface2)",border:"1px solid var(--border)",borderRadius:6,color:"var(--muted)",cursor:"pointer",fontSize:16}}>›</button>
+        {/* CREATE POST */}
+        {view==="compose"&&<div className="animate">
+          <h2 style={{fontSize:22,fontWeight:800,color:"#fff",marginBottom:18}}>Create Post</h2>
+          {!ac?<div style={{...S.card,padding:40,textAlign:"center",color:"var(--muted)"}}><p>Add a client first</p><button onClick={()=>{setView("clients");setSM(true)}} style={{...S.btn(true),marginTop:10}}>Add Client</button></div>
+          :<div style={{display:"grid",gridTemplateColumns:"1fr 280px",gap:18}}>
+            <div>
+              {showAI&&<AICaptionGen client={ac} onInsert={(t)=>{setComp(c=>({...c,caption:t}));setSA(false)}} />}
+              {showT&&<div style={{...S.card,marginBottom:14}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}><span style={{fontSize:13,fontWeight:700,color:"#fff"}}>📝 Templates</span><button onClick={()=>setST(false)} style={{background:"none",border:"none",color:"var(--muted)",cursor:"pointer",fontSize:14}}>✕</button></div>
+                <div style={{display:"grid",gap:6}}>{TEMPLATES.map((t,i)=><button key={i} onClick={()=>{setComp(c=>({...c,caption:t.t}));setST(false)}} style={{padding:10,background:"var(--surface2)",border:"1px solid var(--border)",borderRadius:8,textAlign:"left",cursor:"pointer",fontFamily:"inherit",color:"var(--text)"}}><div style={{fontWeight:600,fontSize:12,marginBottom:3}}>{t.n}</div><div style={{fontSize:10,color:"var(--muted)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{t.t.substring(0,55)}...</div></button>)}</div>
+              </div>}
+              <div style={S.card}>
+                <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
+                  <div style={{width:32,height:32,borderRadius:8,background:"linear-gradient(135deg,var(--accent),#818cf8)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:700,color:"#fff"}}>{ac.name.charAt(0)}</div>
+                  <div style={{flex:1}}><div style={{fontWeight:600,fontSize:13,color:"#fff"}}>{ac.name}</div>
+                  <div style={{fontSize:10,color:"var(--muted)"}}>{[comp.fb&&"FB",comp.ig&&"IG",comp.tw&&"X",comp.tt&&"TT",comp.li&&"LI",comp.gb&&"GBP"].filter(Boolean).join(" + ")||"None"}</div></div>
+                  <div style={{display:"flex",gap:3}}>
+                    <button onClick={()=>setSA(!showAI)} title="AI" style={{padding:"5px 8px",background:showAI?"var(--accent-bg)":"var(--surface2)",border:`1px solid ${showAI?"rgba(99,102,241,.3)":"var(--border)"}`,borderRadius:5,cursor:"pointer",fontSize:11}}>✨</button>
+                    <button onClick={()=>setST(!showT)} title="Templates" style={{padding:"5px 8px",background:showT?"var(--accent-bg)":"var(--surface2)",border:`1px solid ${showT?"rgba(99,102,241,.3)":"var(--border)"}`,borderRadius:5,cursor:"pointer",fontSize:11}}>📝</button>
+                  </div>
+                </div>
+                <textarea value={comp.caption} onChange={e=>setComp(p=>({...p,caption:e.target.value}))} placeholder="Write your post..."
+                  style={{width:"100%",minHeight:160,background:"transparent",border:"none",color:"var(--text)",fontSize:14,lineHeight:1.7,resize:"vertical",outline:"none",fontFamily:"inherit"}} />
+                <div style={{display:"flex",justifyContent:"flex-end",borderTop:"1px solid var(--border)",paddingTop:6,marginTop:4}}>
+                  <span style={{fontSize:11,color:cc>2200?"var(--red)":cc>1800?"var(--amber)":"var(--muted)"}}>{cc}/2,200</span></div>
+                <HashtagBar caption={comp.caption} onInsert={(t)=>setComp(c=>({...c,caption:c.caption+"\n"+t}))} />
+                <div style={{borderTop:"1px solid var(--border)",paddingTop:12,marginTop:6}}>
+                  <div style={S.lbl}>Image</div>
+                  <div onDragOver={e=>{e.preventDefault();setDragO(true)}} onDragLeave={()=>setDragO(false)} onDrop={e=>{e.preventDefault();setDragO(false);if(e.dataTransfer.files[0])handleImg(e.dataTransfer.files[0])}} onClick={()=>fRef.current?.click()}
+                    style={{border:`2px dashed ${dragO?"var(--accent)":"var(--border)"}`,borderRadius:10,padding:comp.imageUrl?"6px":"18px 12px",textAlign:"center",cursor:"pointer",background:dragO?"rgba(99,102,241,.04)":"transparent",transition:"all .2s",marginBottom:6}}>
+                    {comp.imageUrl?<div style={{position:"relative"}}><img src={comp.imageUrl} style={{maxWidth:"100%",maxHeight:140,borderRadius:8,objectFit:"cover"}} onError={e=>{e.target.style.display="none"}} />
+                      <button onClick={e=>{e.stopPropagation();setComp(p=>({...p,imageUrl:""}))}} style={{position:"absolute",top:3,right:3,background:"rgba(0,0,0,.7)",color:"#fff",border:"none",borderRadius:"50%",width:20,height:20,cursor:"pointer",fontSize:12,display:"flex",alignItems:"center",justifyContent:"center"}}>×</button></div>
+                    :<div><div style={{fontSize:22,marginBottom:3}}>📷</div><div style={{fontSize:11,color:"var(--muted)"}}>Drop, browse, or paste URL</div></div>}
+                    <input ref={fRef} type="file" accept="image/*" style={{display:"none"}} onChange={e=>{if(e.target.files[0])handleImg(e.target.files[0]);e.target.value=""}} />
+                  </div>
+                  <input type="url" value={comp.imageUrl} onChange={e=>setComp(p=>({...p,imageUrl:e.target.value}))} placeholder="Or paste image URL..." style={{...S.inp,fontSize:11}} />
+                </div>
               </div>
+              {comp.caption&&<div style={{marginTop:14}}><div style={{display:"flex",justifyContent:"center",gap:5,marginBottom:10}}>
+                <button onClick={()=>setPP("facebook")} style={{...S.sm(pp==="facebook"?"a":null)}}>📘 FB</button>
+                <button onClick={()=>setPP("instagram")} style={{...S.sm(null),background:pp==="instagram"?"rgba(236,73,153,.12)":"var(--surface2)",color:pp==="instagram"?"#ec4899":"var(--muted)"}}>📸 IG</button>
+              </div><PhonePreview caption={comp.caption} imageUrl={comp.imageUrl} platform={pp} name={ac.name} /></div>}
             </div>
-            {/* Schedule indicator */}
-            <div style={{display:"flex",gap:12,marginBottom:16,fontSize:11,color:"var(--muted)"}}>
-              <span>🟢 Published</span><span>🔵 Queued</span><span>🟣 Scheduled</span><span>⬜ Auto-post days: Mon / Wed / Fri at 10am</span>
-            </div>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:1,background:"var(--border)",borderRadius:12,overflow:"hidden"}}>
-              {DAYS.map(d=><div key={d} style={{padding:10,textAlign:"center",fontSize:10,fontWeight:600,color:"var(--muted)",background:"var(--surface)",textTransform:"uppercase",letterSpacing:1}}>{d}</div>)}
-              {calDays().map((day,i)=>{
-                const dp=day?getDayPosts(day):[];
-                const today=day&&new Date().getDate()===day&&new Date().getMonth()===calMonth&&new Date().getFullYear()===calYear;
-                const dow=day?new Date(calYear,calMonth,day).getDay():-1;
-                const isPostDay=[1,3,5].includes(dow);
-                return <div key={i} style={{minHeight:88,padding:5,background:isPostDay&&day?"rgba(59,130,246,0.03)":"var(--bg)"}}>
-                  {day&&<React.Fragment>
-                    <span style={{fontSize:11,color:today?"var(--accent)":"var(--muted)",fontWeight:today?700:400,display:"inline-flex",alignItems:"center",justifyContent:"center",width:22,height:22,borderRadius:"50%",background:today?"rgba(59,130,246,0.15)":"transparent"}}>{day}</span>
-                    {dp.map(p=><div key={p.id} onClick={()=>{if(p.status==="queued"||p.status==="scheduled")setView("queue");else setView("published")}} style={{fontSize:9,padding:"2px 4px",marginTop:2,borderRadius:3,background:p.status==="published"?"rgba(34,197,94,0.12)":p.status==="scheduled"?"rgba(168,85,247,0.12)":"rgba(59,130,246,0.12)",color:p.status==="published"?"var(--green)":p.status==="scheduled"?"#a855f7":"var(--accent)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",cursor:"pointer"}} title={`${p.status}: ${p.caption}\nPlatforms: ${p.platforms?.join(", ")}`}>{p.status==="published"?"✓":p.status==="scheduled"?"⏰":"○"} {p.caption.substring(0,18)}</div>)}
-                  </React.Fragment>}
-                </div>
-              })}
+            <div>
+              <div style={{...S.card,padding:14,marginBottom:10}}>
+                <div style={S.lbl}>Platforms</div>
+                {Object.entries(PI).filter(([k])=>k!=="pinterest").map(([k,v])=>{const on=!!ac[v.f];const ck={facebook:"fb",instagram:"ig",twitter:"tw",tiktok:"tt",linkedin:"li",google_business:"gb"}[k];
+                  return <label key={k} style={{display:"flex",alignItems:"center",gap:7,padding:"4px 0",cursor:on?"pointer":"default",opacity:on?1:.4}}>
+                    <input type="checkbox" checked={!!comp[ck]} disabled={!on} onChange={e=>setComp(x=>({...x,[ck]:e.target.checked}))} style={{width:14,height:14,accentColor:"var(--accent)"}} />
+                    <span style={{fontSize:12}}>{v.icon}</span><span style={{fontSize:11}}>{v.l}</span>
+                    {!on&&<span style={{marginLeft:"auto",fontSize:8,...S.bg(false,true),padding:"1px 5px"}}>—</span>}
+                  </label>
+                })}
+                {comp.ig&&!comp.imageUrl&&<div style={{fontSize:10,color:"var(--amber)",padding:"4px 6px",background:"var(--amber-bg)",borderRadius:5,marginTop:3}}>⚠ IG needs image</div>}
+              </div>
+              <div style={{...S.card,padding:14,marginBottom:10}}><div style={S.lbl}>Schedule</div>
+                <input type="datetime-local" value={comp.scheduledFor} onChange={e=>setComp(p=>({...p,scheduledFor:e.target.value}))} style={{...S.inp,colorScheme:"dark"}} />
+                <p style={{fontSize:9,color:"var(--muted)",marginTop:3}}>Empty = queue</p></div>
+              <button onClick={addPost} style={{...S.btn(true),width:"100%",padding:12,marginBottom:6,fontSize:13}}>{comp.scheduledFor?"📅 Schedule":"➕ Queue"}</button>
+              <button onClick={pubDirect} disabled={pub==="d"} style={{width:"100%",padding:12,fontSize:13,fontWeight:700,background:"linear-gradient(135deg,#10b981,#059669)",color:"#fff",border:"none",borderRadius:8,cursor:"pointer",fontFamily:"inherit",opacity:pub==="d"?.6:1,marginBottom:6}}>{pub==="d"?"Publishing...":"🚀 Post Now"}</button>
+              <div style={{display:"flex",gap:5}}><button onClick={()=>setSB(true)} style={{...S.btn(false),flex:1,fontSize:10,padding:"6px 8px"}}>📦 Bulk</button><button onClick={resetC} style={{...S.btn(false),fontSize:10,padding:"6px 8px"}}>Clear</button></div>
             </div>
           </div>}
+        </div>}
 
-          {/* ─── PUBLISHED ─── */}
-          {view==="published"&&<div className="animate-in">
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
-              <h2 style={{fontSize:22,fontWeight:700,color:"#fff"}}>Published Posts</h2>
-              <span style={{fontSize:13,color:"var(--muted)"}}>{published.length} published</span>
+        {/* QUEUE */}
+        {view==="queue"&&<div className="animate">
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18,flexWrap:"wrap",gap:6}}>
+            <h2 style={{fontSize:22,fontWeight:800,color:"#fff"}}>Post Queue</h2>
+            <div style={{display:"flex",gap:6,alignItems:"center"}}><span style={{fontSize:12,color:"var(--muted)"}}>{queued.length} queued</span>
+            {queued.length>0&&<button onClick={()=>publishPost(queued[0].id)} style={S.sm("g")}>▶ Next</button>}</div>
+          </div>
+          {!queued.length?<div style={{...S.card,padding:40,textAlign:"center",color:"var(--muted)"}}><p style={{fontSize:24,marginBottom:6}}>📝</p><p>Empty — <span onClick={()=>setView("compose")} style={{color:"var(--accent2)",cursor:"pointer"}}>create a post</span></p></div>
+          :queued.map((p,i)=><div key={p.id} style={{...S.card,marginBottom:6,display:"flex",gap:10,padding:14,animationDelay:`${i*35}ms`,opacity:pub===p.id?.5:1}}>
+            <div style={{display:"flex",flexDirection:"column",gap:1,justifyContent:"center",flexShrink:0}}>
+              <button onClick={()=>moveP(p.id,"u")} disabled={i===0} style={{background:"var(--surface2)",border:"none",borderRadius:3,width:20,height:20,cursor:i===0?"default":"pointer",color:i===0?"#151820":"var(--muted)",fontSize:9,display:"flex",alignItems:"center",justifyContent:"center"}}>▲</button>
+              <div style={{textAlign:"center",fontSize:10,color:"var(--muted)",fontWeight:700}}>{i+1}</div>
+              <button onClick={()=>moveP(p.id,"d")} disabled={i===queued.length-1} style={{background:"var(--surface2)",border:"none",borderRadius:3,width:20,height:20,cursor:i===queued.length-1?"default":"pointer",color:i===queued.length-1?"#151820":"var(--muted)",fontSize:9,display:"flex",alignItems:"center",justifyContent:"center"}}>▼</button>
             </div>
-            {published.length===0?<div style={{...S.card,padding:48,textAlign:"center",color:"var(--muted)"}}><p style={{fontSize:28,marginBottom:8}}>📭</p><p>No published posts yet</p></div>
-            :published.slice().reverse().map((p,i)=>{
-              const platformLabels={facebook:"📘 Facebook",instagram:"📸 Instagram",twitter:"𝕏 Twitter",linkedin:"💼 LinkedIn",google_business:"📍 Google",tiktok:"🎵 TikTok"};
-              return <div key={p.id} style={{...S.card,marginBottom:8,padding:16,animationDelay:`${i*30}ms`}}>
-                <div style={{display:"flex",gap:14}}>
-                  {p.imageUrl&&<div style={{width:56,height:56,borderRadius:8,overflow:"hidden",flexShrink:0}}><img src={p.imageUrl} style={{width:"100%",height:"100%",objectFit:"cover"}} onError={e=>{e.target.parentElement.style.display="none"}} /></div>}
-                  <div style={{flex:1}}>
-                    <div style={{fontSize:14,lineHeight:1.5,whiteSpace:"pre-wrap",maxHeight:60,overflow:"hidden"}}>{p.caption}</div>
-                    <div style={{display:"flex",gap:4,marginTop:8,fontSize:11,color:"var(--muted)",flexWrap:"wrap",alignItems:"center"}}>
-                      <span>📅 {new Date(p.publishedAt).toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"})}</span>
-                    </div>
-                    {/* Platform results */}
-                    <div style={{display:"flex",gap:4,marginTop:6,flexWrap:"wrap"}}>
-                      {Object.entries(p.results||{}).map(([platform,result])=>(
-                        <div key={platform} style={{display:"inline-flex",alignItems:"center",gap:4,fontSize:11,padding:"3px 8px",borderRadius:5,
-                          background:result.deleted?"rgba(107,114,128,0.12)":result.success?"rgba(34,197,94,0.12)":"rgba(239,68,68,0.12)",
-                          color:result.deleted?"var(--muted)":result.success?"var(--green)":"var(--red)"}}>
-                          <span>{platformLabels[platform]||platform}</span>
-                          <span>{result.deleted?"🗑":result.success?"✓":"✗"}</span>
-                          {result.success&&!result.deleted&&result.id&&
-                            <button onClick={()=>deleteFromPlatform(p.id,platform)} title={`Delete from ${platform}`}
-                              style={{background:"none",border:"none",cursor:"pointer",color:"var(--red)",fontSize:11,padding:"0 2px",opacity:0.6}}>🗑</button>
-                          }
-                          {!result.success&&<span title={result.error} style={{cursor:"help"}}>ⓘ</span>}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                  <div style={{flexShrink:0}}>
-                    <button onClick={()=>deletePost(p.id)} style={{...S.btnSm("red"),fontSize:11}}>Remove</button>
-                  </div>
-                </div>
+            {p.imageUrl&&<div style={{width:46,height:46,borderRadius:7,overflow:"hidden",flexShrink:0}}><img src={p.imageUrl} style={{width:"100%",height:"100%",objectFit:"cover"}} /></div>}
+            <div style={{flex:1,minWidth:0}}><div style={{fontSize:13,lineHeight:1.5,whiteSpace:"pre-wrap",maxHeight:60,overflow:"hidden"}}>{p.caption}</div>
+              <div style={{display:"flex",gap:3,marginTop:5,flexWrap:"wrap"}}>{p.platforms.map(pl=><span key={pl} style={{fontSize:9,padding:"1px 5px",background:"var(--surface2)",border:"1px solid var(--border)",borderRadius:3,color:"var(--muted)"}}>{PI[pl]?.icon}</span>)}
+              {p.scheduledFor&&<span style={{fontSize:9,padding:"1px 5px",background:"var(--accent-bg)",borderRadius:3,color:"var(--accent2)"}}>📅 {new Date(p.scheduledFor).toLocaleDateString("en-GB",{day:"numeric",month:"short"})}</span>}</div>
+            </div>
+            <div style={{display:"flex",gap:2,flexShrink:0,alignItems:"flex-start"}}>
+              <button onClick={()=>setEp(p)} style={S.sm("a")} title="Edit">✎</button>
+              <button onClick={()=>publishPost(p.id)} disabled={pub===p.id} style={S.sm("g")}>{pub===p.id?"…":"▶"}</button>
+              <button onClick={()=>delPost(p.id)} style={S.sm("r")}>×</button>
+            </div>
+          </div>)}
+        </div>}
+
+        {/* CALENDAR */}
+        {view==="calendar"&&<div className="animate">
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18,flexWrap:"wrap",gap:6}}>
+            <h2 style={{fontSize:22,fontWeight:800,color:"#fff"}}>Calendar</h2>
+            <div style={{display:"flex",gap:6,alignItems:"center"}}>
+              <button onClick={()=>{if(cm===0){setCm(11);setCy(y=>y-1)}else setCm(m=>m-1)}} style={{padding:"5px 10px",background:"var(--surface2)",border:"1px solid var(--border)",borderRadius:6,color:"var(--muted)",cursor:"pointer",fontSize:14}}>‹</button>
+              <span style={{fontSize:14,fontWeight:700,color:"#fff",minWidth:140,textAlign:"center"}}>{MONTHS[cm]} {cy}</span>
+              <button onClick={()=>{if(cm===11){setCm(0);setCy(y=>y+1)}else setCm(m=>m+1)}} style={{padding:"5px 10px",background:"var(--surface2)",border:"1px solid var(--border)",borderRadius:6,color:"var(--muted)",cursor:"pointer",fontSize:14}}>›</button>
+            </div>
+          </div>
+          <div style={{display:"flex",gap:8,marginBottom:12,fontSize:10,color:"var(--muted)",flexWrap:"wrap"}}><span>🟢 Published</span><span>🔵 Queued</span><span>🟣 Scheduled</span></div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:1,background:"var(--border)",borderRadius:12,overflow:"hidden"}}>
+            {DAYS.map(d=><div key={d} style={{padding:7,textAlign:"center",fontSize:9,fontWeight:600,color:"var(--muted)",background:"var(--surface)",textTransform:"uppercase",letterSpacing:1}}>{d}</div>)}
+            {calDays().map((day,i)=>{const dp=day?getDp(day):[];const today=day&&new Date().getDate()===day&&new Date().getMonth()===cm&&new Date().getFullYear()===cy;const dow=day?new Date(cy,cm,day).getDay():-1;
+              return <div key={i} onClick={()=>{if(day){setComp(c=>({...c,scheduledFor:new Date(cy,cm,day,10,0).toISOString().slice(0,16)}));setView("compose")}}} style={{minHeight:72,padding:3,background:[1,3,5].includes(dow)&&day?"rgba(99,102,241,.02)":"var(--bg)",cursor:day?"pointer":"default"}}>
+                {day&&<><span style={{fontSize:10,color:today?"var(--accent2)":"var(--muted)",fontWeight:today?700:400,display:"inline-flex",alignItems:"center",justifyContent:"center",width:18,height:18,borderRadius:"50%",background:today?"var(--accent-bg)":"transparent"}}>{day}</span>
+                {dp.map(p=><div key={p.id} style={{fontSize:7,padding:"1px 2px",marginTop:1,borderRadius:2,background:p.status==="published"?"var(--green-bg)":p.status==="scheduled"?"rgba(168,85,247,.12)":"var(--accent-bg)",color:p.status==="published"?"var(--green)":p.status==="scheduled"?"#a855f7":"var(--accent2)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}} title={p.caption}>{p.status==="published"?"✓":"○"} {p.caption.substring(0,13)}</div>)}</>}
               </div>
             })}
-          </div>}
+          </div>
+        </div>}
 
-          {/* ─── API HEALTH ─── */}
-          {view==="health"&&<div className="animate-in">
-            <h2 style={{fontSize:22,fontWeight:700,color:"#fff",marginBottom:20}}>API Health Check</h2>
-            {!activeClient?<div style={{...S.card,padding:48,textAlign:"center",color:"var(--muted)"}}><p>Select a client first</p></div>
-            :<div style={{...S.card}}>
-              <h3 style={{fontSize:16,fontWeight:700,color:"#fff",marginBottom:16}}>{activeClient.name}</h3>
-              <ApiHealth client={activeClient} />
-              <div style={{borderTop:"1px solid var(--border)",marginTop:16,paddingTop:16}}>
-                <div style={S.label}>Connect / Reconnect Facebook</div>
-                <p style={{fontSize:12,color:"var(--muted)",marginBottom:10}}>Click below to connect your Facebook Pages. This will generate a permanent Page Access Token and auto-link it to matching clients.</p>
-                <a href="/api/meta-auth" style={{display:"inline-flex",alignItems:"center",gap:8,padding:"12px 20px",background:"#1877F2",color:"#fff",borderRadius:8,textDecoration:"none",fontWeight:700,fontSize:14,fontFamily:"inherit"}}>📘 Connect Facebook Pages</a>
+        {/* PUBLISHED */}
+        {view==="published"&&<div className="animate">
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18}}><h2 style={{fontSize:22,fontWeight:800,color:"#fff"}}>Published</h2><span style={{fontSize:12,color:"var(--muted)"}}>{published.length}</span></div>
+          {!published.length?<div style={{...S.card,padding:40,textAlign:"center",color:"var(--muted)"}}><p style={{fontSize:24,marginBottom:6}}>📭</p><p>Nothing yet</p></div>
+          :published.slice().reverse().map((p,i)=><div key={p.id} style={{...S.card,marginBottom:6,padding:14,animationDelay:`${i*25}ms`}}>
+            <div style={{display:"flex",gap:10}}>
+              {p.imageUrl&&<div style={{width:48,height:48,borderRadius:7,overflow:"hidden",flexShrink:0}}><img src={p.imageUrl} style={{width:"100%",height:"100%",objectFit:"cover"}} /></div>}
+              <div style={{flex:1,minWidth:0}}><div style={{fontSize:12,lineHeight:1.5,whiteSpace:"pre-wrap",maxHeight:50,overflow:"hidden"}}>{p.caption}</div>
+                <div style={{fontSize:10,color:"var(--muted)",marginTop:3}}>📅 {new Date(p.publishedAt).toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"})}</div>
+                <div style={{display:"flex",gap:3,marginTop:4,flexWrap:"wrap"}}>{Object.entries(p.results||{}).map(([k,v])=><div key={k} style={{display:"inline-flex",alignItems:"center",gap:2,fontSize:10,padding:"2px 6px",borderRadius:4,background:v.success?"var(--green-bg)":"var(--red-bg)",color:v.success?"var(--green)":"var(--red)"}}>{PI[k]?.icon}{v.success?"✓":"✗"}
+                  {v.success&&v.id&&<button onClick={()=>delPlat(p.id,k)} style={{background:"none",border:"none",cursor:"pointer",color:"var(--red)",fontSize:9,opacity:.5}}>🗑</button>}
+                </div>)}</div>
               </div>
-              <div style={{borderTop:"1px solid var(--border)",marginTop:16,paddingTop:16}}>
-                <div style={S.label}>Quick Links</div>
-                <div style={{display:"flex",flexDirection:"column",gap:6}}>
-                  <a href="https://developers.facebook.com/tools/explorer/" target="_blank" style={{fontSize:12,color:"var(--accent)",textDecoration:"none"}}>→ Graph API Explorer (manual tokens)</a>
-                  <a href="https://developers.facebook.com/tools/debug/accesstoken/" target="_blank" style={{fontSize:12,color:"var(--accent)",textDecoration:"none"}}>→ Access Token Debugger</a>
-                  <a href="https://business.facebook.com/latest/settings/" target="_blank" style={{fontSize:12,color:"var(--accent)",textDecoration:"none"}}>→ Meta Business Settings</a>
-                </div>
-              </div>
-              <div style={{borderTop:"1px solid var(--border)",marginTop:16,paddingTop:16}}>
-                <div style={S.label}>Post Statistics</div>
-                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12}}>
-                  <div style={{textAlign:"center",padding:12,background:"var(--surface2)",borderRadius:8}}>
-                    <div style={{fontSize:24,fontWeight:700,color:"var(--accent)"}}>{queued.length}</div>
-                    <div style={{fontSize:11,color:"var(--muted)"}}>Queued</div>
-                  </div>
-                  <div style={{textAlign:"center",padding:12,background:"var(--surface2)",borderRadius:8}}>
-                    <div style={{fontSize:24,fontWeight:700,color:"var(--green)"}}>{published.length}</div>
-                    <div style={{fontSize:11,color:"var(--muted)"}}>Published</div>
-                  </div>
-                  <div style={{textAlign:"center",padding:12,background:"var(--surface2)",borderRadius:8}}>
-                    <div style={{fontSize:24,fontWeight:700,color:"#fff"}}>{posts.length}</div>
-                    <div style={{fontSize:11,color:"var(--muted)"}}>Total</div>
-                  </div>
-                </div>
-              </div>
-            </div>}
-          </div>}
-
-          {/* ─── CLIENTS & API ─── */}
-          {view==="clients"&&<div className="animate-in">
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
-              <h2 style={{fontSize:22,fontWeight:700,color:"#fff"}}>Clients & API Settings</h2>
-              <button onClick={()=>{setEditClient(null);setShowModal(true)}} style={S.btn(true)}>+ Add Client</button>
+              <button onClick={()=>delPost(p.id)} style={{...S.sm("r"),flexShrink:0,fontSize:10}}>×</button>
             </div>
-            {clients.length===0?<div style={{...S.card,padding:48,textAlign:"center",color:"var(--muted)"}}><p style={{fontSize:28,marginBottom:8}}>👥</p><p>No clients yet</p></div>
-            :clients.map((c,i)=>
-              <div key={c.id} style={{...S.card,marginBottom:10,animationDelay:`${i*60}ms`}}>
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
-                  <div>
-                    <h3 style={{fontSize:16,fontWeight:700,color:"#fff",marginBottom:8}}>{c.name}</h3>
-                    <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-                      <span style={S.badge(!!c.pageAccessToken,false)}>{c.pageAccessToken?"✓ API Token":"✗ No Token"}</span>
-                      <span style={S.badge(!!c.fbPageId,!c.fbPageId)}>{c.fbPageId?"✓ Facebook":"○ Facebook"}</span>
-                      <span style={S.badge(!!c.igUserId,!c.igUserId)}>{c.igUserId?"✓ Instagram":"○ Instagram"}</span>
-                      <span style={S.badge(!!c.twitterId,!c.twitterId)}>{c.twitterId?"✓ X/Twitter":"○ X/Twitter"}</span>
-                      <span style={S.badge(!!c.tiktokId,!c.tiktokId)}>{c.tiktokId?"✓ TikTok":"○ TikTok"}</span>
-                      <span style={S.badge(!!c.linkedinId,!c.linkedinId)}>{c.linkedinId?"✓ LinkedIn":"○ LinkedIn"}</span>
-                      <span style={S.badge(!!c.gbpId,!c.gbpId)}>{c.gbpId?"✓ GBP":"○ GBP"}</span>
-                    </div>
-                    <div style={{fontSize:11,color:"var(--muted)",marginTop:6}}>Added {new Date(c.createdAt).toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"})}</div>
-                    {!c.pageAccessToken&&c.fbPageId&&<a href="/api/meta-auth" style={{display:"inline-flex",alignItems:"center",gap:6,marginTop:8,padding:"6px 14px",background:"#1877F2",color:"#fff",borderRadius:6,textDecoration:"none",fontWeight:600,fontSize:12,fontFamily:"inherit"}}>📘 Connect Facebook</a>}
-                    {!c.pageAccessToken&&!c.fbPageId&&<button onClick={()=>{setEditClient(c);setShowModal(true)}} style={{display:"inline-flex",alignItems:"center",gap:6,marginTop:8,padding:"6px 14px",background:"var(--accent)",color:"#fff",border:"none",borderRadius:6,fontWeight:600,fontSize:12,fontFamily:"inherit",cursor:"pointer"}}>🔗 Connect Platforms</button>}
-                  </div>
-                  <div style={{display:"flex",gap:6}}>
-                    <button onClick={()=>{setEditClient(c);setShowModal(true)}} style={S.btn(false)}>Edit</button>
-                    <button onClick={()=>deleteClient(c.id)} style={{...S.btn(false),color:"var(--red)",borderColor:"rgba(239,68,68,0.3)"}}>Delete</button>
-                  </div>
-                </div>
-              </div>
-            )}
+          </div>)}
+        </div>}
+
+        {/* API HEALTH */}
+        {view==="health"&&<div className="animate">
+          <h2 style={{fontSize:22,fontWeight:800,color:"#fff",marginBottom:18}}>API Health</h2>
+          {!ac?<div style={{...S.card,padding:40,textAlign:"center",color:"var(--muted)"}}><p>Select client</p></div>
+          :<div style={S.card}><h3 style={{fontSize:15,fontWeight:700,color:"#fff",marginBottom:12}}>{ac.name}</h3>
+            <ApiHealth client={ac} />
+            <div style={{borderTop:"1px solid var(--border)",marginTop:14,paddingTop:14}}><div style={S.lbl}>Connect</div>
+              <a href="/api/meta-auth" style={{display:"inline-flex",alignItems:"center",gap:6,padding:"9px 16px",background:"#1877F2",color:"#fff",borderRadius:8,textDecoration:"none",fontWeight:700,fontSize:12}}>📘 Connect Facebook</a></div>
+            <div style={{borderTop:"1px solid var(--border)",marginTop:14,paddingTop:14}}><div style={S.lbl}>Links</div>
+              {[["Graph Explorer","https://developers.facebook.com/tools/explorer/"],["Token Debugger","https://developers.facebook.com/tools/debug/accesstoken/"],["Meta Business","https://business.facebook.com/latest/settings/"]].map(([l,u])=><a key={l} href={u} target="_blank" style={{display:"block",fontSize:11,color:"var(--accent2)",textDecoration:"none",marginBottom:3}}>→ {l}</a>)}</div>
+            <div style={{borderTop:"1px solid var(--border)",marginTop:14,paddingTop:14}}><div style={S.lbl}>Stats</div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>{[{l:"Queued",v:queued.length,c:"var(--accent2)"},{l:"Published",v:published.length,c:"var(--green)"},{l:"Total",v:posts.length,c:"#fff"}].map(s=><div key={s.l} style={{textAlign:"center",padding:8,background:"var(--surface2)",borderRadius:7}}><div style={{fontSize:20,fontWeight:800,color:s.c}}>{s.v}</div><div style={{fontSize:9,color:"var(--muted)"}}>{s.l}</div></div>)}</div></div>
           </div>}
-        </div>
+        </div>}
+
+        {/* CLIENTS */}
+        {view==="clients"&&<div className="animate">
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18}}><h2 style={{fontSize:22,fontWeight:800,color:"#fff"}}>Clients & API</h2><button onClick={()=>{setEc(null);setSM(true)}} style={S.btn(true)}>+ Add</button></div>
+          {!clients.length?<div style={{...S.card,padding:40,textAlign:"center",color:"var(--muted)"}}><p>No clients</p></div>
+          :clients.map((c,i)=><div key={c.id} style={{...S.card,marginBottom:8,animationDelay:`${i*50}ms`}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:8}}>
+              <div><h3 style={{fontSize:15,fontWeight:700,color:"#fff",marginBottom:6}}>{c.name}</h3>
+                <div style={{display:"flex",gap:3,flexWrap:"wrap"}}><span style={S.bg(!!c.pageAccessToken)}>{c.pageAccessToken?"✓ Token":"✗ Token"}</span>
+                {Object.entries(PI).filter(([k])=>k!=="pinterest").map(([k,v])=><span key={k} style={S.bg(!!c[v.f],!c[v.f])}>{c[v.f]?"✓":"○"} {v.l.split("/")[0].split(" ")[0]}</span>)}</div>
+                <div style={{fontSize:10,color:"var(--muted)",marginTop:4}}>Added {new Date(c.createdAt).toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"})}</div>
+                {!c.pageAccessToken&&<a href="/api/meta-auth" style={{display:"inline-flex",alignItems:"center",gap:5,marginTop:6,padding:"5px 12px",background:"#1877F2",color:"#fff",borderRadius:6,textDecoration:"none",fontWeight:600,fontSize:11}}>📘 Connect</a>}
+              </div>
+              <div style={{display:"flex",gap:5}}><button onClick={()=>{setEc(c);setSM(true)}} style={S.btn(false)}>Edit</button><button onClick={()=>delCl(c.id)} style={{...S.btn(false),color:"var(--red)",borderColor:"rgba(239,68,68,.3)"}}>Delete</button></div>
+            </div>
+          </div>)}
+        </div>}
       </div>
-
-      {/* CLIENT MODAL */}
-      {showModal&&<ClientModal client={editClient} onSave={saveClient} onClose={()=>{setShowModal(false);setEditClient(null)}} S={S} />}
-
-      {/* BULK IMPORT MODAL */}
-      {showBulk&&<BulkImportModal onImport={bulkImport} onClose={()=>setShowBulk(false)} S={S} />}
-
-      {/* TOAST */}
-      {toast&&<div style={{position:"fixed",bottom:24,right:24,padding:"12px 20px",borderRadius:10,background:toast.err?"var(--red)":"var(--green)",color:"#fff",fontSize:14,fontWeight:600,zIndex:999,animation:"slideIn .3s ease both",boxShadow:"0 8px 32px rgba(0,0,0,0.4)"}}>{toast.msg}</div>}
     </div>
-  );
+
+    {showModal&&<ClientModal client={ec} onSave={saveCl} onClose={()=>{setSM(false);setEc(null)}} />}
+    {showBulk&&<BulkImportModal onImport={bulkImp} onClose={()=>setSB(false)} />}
+    {ep&&<EditPostModal post={ep} onSave={saveEp} onClose={()=>setEp(null)} />}
+    {toast&&<div style={{position:"fixed",bottom:16,right:16,left:16,maxWidth:340,marginLeft:"auto",padding:"10px 16px",borderRadius:10,background:toast.e?"var(--red)":"var(--green)",color:"#fff",fontSize:12,fontWeight:600,zIndex:999,animation:"slideIn .3s ease both",boxShadow:"var(--shadow)"}}>{toast.m}</div>}
+  </div>;
 }
 
-function ClientModal({client,onSave,onClose,S}){
-  const [f,setF]=useState({
-    name:client?.name||"",fbPageId:client?.fbPageId||"",igUserId:client?.igUserId||"",pageAccessToken:client?.pageAccessToken||"",
-    twitterId:client?.twitterId||"",twitterApiKey:client?.twitterApiKey||"",twitterApiSecret:client?.twitterApiSecret||"",twitterAccessToken:client?.twitterAccessToken||"",twitterAccessSecret:client?.twitterAccessSecret||"",
-    tiktokId:client?.tiktokId||"",tiktokAccessToken:client?.tiktokAccessToken||"",
-    linkedinId:client?.linkedinId||"",linkedinAccessToken:client?.linkedinAccessToken||"",
-    gbpId:client?.gbpId||"",gbpAccessToken:client?.gbpAccessToken||""
-  });
-  const [showSection,setShowSection]=useState(null);
-  const [showToken,setShowToken]=useState(false);
-  const toggle=(id)=>setShowSection(s=>s===id?null:id);
-  const connected=(fields)=>fields.some(k=>!!f[k]);
-  const sections=[
-    {id:"meta",label:"Facebook & Instagram",icon:"📘",color:"#1877F2",
-      status:connected(["fbPageId"])?"Connected":"Not connected",
-      fields:[
-        {k:"fbPageId",l:"Facebook Page ID",p:"Auto-filled when you Connect Facebook"},
-        {k:"igUserId",l:"Instagram Business ID",p:"Auto-filled when you Connect Facebook"},
-      ],
-      help:<div>
-        <p style={{fontSize:12,color:"var(--muted)",marginBottom:8}}>Works with any Facebook Page — personal or business. Connect to auto-fill Page ID, Instagram ID, and access token.</p>
-        <a href="/api/meta-auth" style={{display:"inline-flex",alignItems:"center",gap:6,padding:"8px 16px",background:"#1877F2",color:"#fff",borderRadius:6,textDecoration:"none",fontWeight:600,fontSize:13,fontFamily:"inherit"}}>📘 Connect Facebook Pages</a>
-        <p style={{fontSize:10,color:"var(--muted)",marginTop:8}}>You'll choose which pages to connect. Works with personal pages too — not just businesses.</p>
-      </div>,
-      tokenField:{k:"pageAccessToken",l:"Page Access Token",p:"Auto-filled via Connect, or paste manually"}
-    },
-    {id:"twitter",label:"X / Twitter",icon:"𝕏",color:"#000",
-      status:connected(["twitterAccessToken"])?"Connected":"Not connected",
-      fields:[
-        {k:"twitterId",l:"Username",p:"e.g. sornhandyman (without @)"},
-        {k:"twitterApiKey",l:"API Key",p:"From developer.x.com → App → Keys"},
-        {k:"twitterApiSecret",l:"API Secret",p:"From developer.x.com → App → Keys"},
-        {k:"twitterAccessToken",l:"Access Token",p:"From developer.x.com → App → Keys"},
-        {k:"twitterAccessSecret",l:"Access Token Secret",p:"From developer.x.com → App → Keys"},
-      ],
-      help:<div>
-        <p style={{fontSize:12,color:"var(--muted)",marginBottom:8}}>Requires an X/Twitter Developer account. Free tier allows posting.</p>
-        <a href="https://developer.x.com/en/portal/dashboard" target="_blank" style={{fontSize:12,color:"var(--accent)",textDecoration:"none"}}>→ Open X Developer Portal</a>
-        <ol style={{fontSize:11,color:"var(--muted)",marginTop:8,paddingLeft:16,lineHeight:1.8}}>
-          <li>Create a project and app at developer.x.com</li>
-          <li>Under Keys and Tokens, generate all 4 keys</li>
-          <li>Set app permissions to "Read and Write"</li>
-          <li>Paste the 4 values above</li>
-        </ol>
-      </div>
-    },
-    {id:"tiktok",label:"TikTok",icon:"🎵",color:"#ff0050",
-      status:connected(["tiktokAccessToken"])?"Connected":"Not connected",
-      fields:[
-        {k:"tiktokId",l:"Username",p:"e.g. sornhandyman"},
-        {k:"tiktokAccessToken",l:"Access Token",p:"From TikTok Developer Portal"},
-      ],
-      help:<div>
-        <p style={{fontSize:12,color:"var(--muted)",marginBottom:8}}>Requires a TikTok Developer account with Content Posting API access.</p>
-        <a href="https://developers.tiktok.com/" target="_blank" style={{fontSize:12,color:"var(--accent)",textDecoration:"none"}}>→ Open TikTok Developer Portal</a>
-        <ol style={{fontSize:11,color:"var(--muted)",marginTop:8,paddingLeft:16,lineHeight:1.8}}>
-          <li>Register as a developer at developers.tiktok.com</li>
-          <li>Create an app with Content Posting API scope</li>
-          <li>Complete OAuth to get access token</li>
-          <li>Paste the token above</li>
-        </ol>
-      </div>
-    },
-    {id:"linkedin",label:"LinkedIn",icon:"💼",color:"#0A66C2",
-      status:connected(["linkedinAccessToken"])?"Connected":"Not connected",
-      fields:[
-        {k:"linkedinId",l:"Company Page ID or URN",p:"e.g. 12345678 or urn:li:organization:12345678"},
-        {k:"linkedinAccessToken",l:"Access Token",p:"From LinkedIn Developer Portal"},
-      ],
-      help:<div>
-        <p style={{fontSize:12,color:"var(--muted)",marginBottom:8}}>Works with LinkedIn Company Pages. Requires a LinkedIn Developer app.</p>
-        <a href="https://www.linkedin.com/developers/apps" target="_blank" style={{fontSize:12,color:"var(--accent)",textDecoration:"none"}}>→ Open LinkedIn Developer Portal</a>
-        <ol style={{fontSize:11,color:"var(--muted)",marginTop:8,paddingLeft:16,lineHeight:1.8}}>
-          <li>Create an app at linkedin.com/developers</li>
-          <li>Add "Share on LinkedIn" and "Manage Company Pages" products</li>
-          <li>Generate an access token via OAuth</li>
-          <li>Paste the token and Page ID above</li>
-        </ol>
-      </div>
-    },
-    {id:"gbp",label:"Google Business Profile",icon:"📍",color:"#4285F4",
-      status:connected(["gbpAccessToken"])?"Connected":"Not connected",
-      fields:[
-        {k:"gbpId",l:"Location ID or Name",p:"e.g. locations/12345 or your business name"},
-        {k:"gbpAccessToken",l:"Access Token",p:"From Google Cloud Console"},
-      ],
-      help:<div>
-        <p style={{fontSize:12,color:"var(--muted)",marginBottom:8}}>Post updates to your Google Business listing. Requires Google Cloud project with Business Profile API.</p>
-        <a href="https://console.cloud.google.com/apis/library/mybusinessbusinessinformation.googleapis.com" target="_blank" style={{fontSize:12,color:"var(--accent)",textDecoration:"none"}}>→ Open Google Cloud Console</a>
-        <ol style={{fontSize:11,color:"var(--muted)",marginTop:8,paddingLeft:16,lineHeight:1.8}}>
-          <li>Enable Business Profile API in Google Cloud</li>
-          <li>Create OAuth credentials</li>
-          <li>Authorise and get access token</li>
-          <li>Paste the token and location ID above</li>
-        </ol>
-      </div>
-    },
-  ];
-  return(
-    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.7)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:100}} onClick={onClose}>
-      <div style={{background:"var(--surface)",border:"1px solid var(--border)",borderRadius:16,padding:28,width:580,maxHeight:"90vh",overflow:"auto",animation:"fadeIn .2s ease both"}} onClick={e=>e.stopPropagation()}>
-        <h3 style={{fontSize:18,fontWeight:700,color:"#fff",marginBottom:20}}>{client?"Edit Client":"Add New Client"}</h3>
-        <div style={{marginBottom:18}}>
-          <div style={S.label}>Business / Page Name</div>
-          <input type="text" value={f.name} onChange={e=>setF(v=>({...v,name:e.target.value}))} placeholder="e.g. Sorn Handyman Services, Gus, Food Foodie World..." style={S.input} />
-          <p style={{fontSize:10,color:"var(--muted)",marginTop:4}}>Can be any Facebook Page, personal page, or business — doesn't have to be a registered business.</p>
-        </div>
-        <div style={{marginBottom:12}}><div style={S.label}>Social Media Platforms</div></div>
-        {sections.map(sec=>{
-          const isOpen=showSection===sec.id;
-          const isConnected=sec.status==="Connected";
-          return <div key={sec.id} style={{marginBottom:8,borderRadius:10,border:"1px solid var(--border)",overflow:"hidden",background:"var(--surface2)"}}>
-            <button onClick={()=>toggle(sec.id)} style={{width:"100%",display:"flex",alignItems:"center",gap:10,padding:"12px 14px",background:"transparent",border:"none",cursor:"pointer",fontFamily:"inherit",color:"#fff"}}>
-              <span style={{fontSize:16}}>{sec.icon}</span>
-              <span style={{fontSize:13,fontWeight:600,flex:1,textAlign:"left"}}>{sec.label}</span>
-              <span style={{fontSize:10,padding:"2px 8px",borderRadius:4,
-                background:isConnected?"rgba(34,197,94,0.12)":"rgba(107,114,128,0.12)",
-                color:isConnected?"var(--green)":"var(--muted)"}}>{sec.status}</span>
-              <span style={{fontSize:12,color:"var(--muted)",transition:"transform .2s",transform:isOpen?"rotate(180deg)":"rotate(0)"}}>▼</span>
-            </button>
-            {isOpen&&<div style={{padding:"0 14px 14px",borderTop:"1px solid var(--border)",paddingTop:12}}>
-              {sec.help}
-              <div style={{marginTop:12}}>
-                {sec.fields.map(field=>
-                  <div key={field.k} style={{marginBottom:8}}>
-                    <div style={{fontSize:10,fontWeight:600,color:"var(--muted)",marginBottom:3}}>{field.l}</div>
-                    <input type="text" value={f[field.k]||""} onChange={e=>setF(v=>({...v,[field.k]:e.target.value}))} placeholder={field.p} style={{...S.input,fontSize:12,padding:"7px 10px"}} />
-                  </div>
-                )}
-                {sec.tokenField&&<div style={{marginBottom:8}}>
-                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                    <div style={{fontSize:10,fontWeight:600,color:"var(--muted)",marginBottom:3}}>{sec.tokenField.l}</div>
-                    <button onClick={()=>setShowToken(!showToken)} style={{fontSize:9,color:"var(--accent)",background:"none",border:"none",cursor:"pointer"}}>{showToken?"Hide":"Show"}</button>
-                  </div>
-                  <input type={showToken?"text":"password"} value={f[sec.tokenField.k]||""} onChange={e=>setF(v=>({...v,[sec.tokenField.k]:e.target.value}))} placeholder={sec.tokenField.p} style={{...S.input,fontSize:12,padding:"7px 10px"}} />
-                </div>}
-              </div>
-            </div>}
-          </div>
-        })}
-        <div style={{display:"flex",gap:8,marginTop:20,justifyContent:"flex-end"}}>
-          <button onClick={onClose} style={S.btn(false)}>Cancel</button>
-          <button onClick={()=>onSave(f)} style={S.btn(true)}>{client?"Save Changes":"Add Client"}</button>
-        </div>
-      </div>
+function ApiHealth({client:c}){
+  const [h,setH]=useState(null);const [ck,setCk]=useState(false);
+  const chk=async()=>{if(!c?.pageAccessToken)return setH({s:"no"});setCk(true);
+    try{const r=await fetch(`https://graph.facebook.com/v21.0/me?access_token=${c.pageAccessToken}`);const d=await r.json();
+      if(d.error)setH({s:"err",m:d.error.message});else{const i={s:"ok",name:d.name};
+        try{const dr=await fetch(`https://graph.facebook.com/v21.0/debug_token?input_token=${c.pageAccessToken}&access_token=${c.pageAccessToken}`);const dd=await dr.json();if(dd.data){i.exp=dd.data.expires_at?new Date(dd.data.expires_at*1000).toLocaleDateString("en-GB"):null;i.sc=dd.data.scopes||[]}}catch(e){}setH(i)}}catch(e){setH({s:"err",m:e.message})}setCk(false)};
+  useEffect(()=>{if(c)chk()},[c?.id,c?.pageAccessToken]);
+  if(!h)return <div className="shimmer" style={{height:50,borderRadius:7}} />;
+  const items=[];
+  if(h.s==="no")items.push({l:"Token",ok:false,t:"Not set"});else if(h.s==="err")items.push({l:"Token",ok:false,t:h.m?.substring(0,45)});
+  else{items.push({l:"Token",ok:true,t:h.name||"Valid"});items.push({l:"Facebook",ok:!!c.fbPageId,t:c.fbPageId||"—"});items.push({l:"Instagram",ok:!!c.igUserId,t:c.igUserId||"—"});items.push({l:"Expires",ok:true,t:!h.exp||h.exp==="Invalid Date"?"Permanent ✓":h.exp});if(h.sc?.length)items.push({l:"Scopes",ok:true,t:`${h.sc.length} active`})}
+  return <div style={{display:"flex",flexDirection:"column",gap:5}}>{items.map((it,i)=><div key={i} style={{display:"flex",justifyContent:"space-between",padding:"4px 0"}}><span style={{fontSize:11,color:"var(--muted)"}}>{it.l}</span><span style={{fontSize:11,...S.bg(it.ok)}}>{it.t}</span></div>)}
+    <button onClick={chk} disabled={ck} style={{marginTop:3,padding:"5px 10px",background:"var(--surface2)",border:"1px solid var(--border)",borderRadius:5,color:"var(--muted)",fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>{ck?"...":"↻ Refresh"}</button></div>;
+}
+
+function BulkImportModal({onImport,onClose}){
+  const [raw,setRaw]=useState("");const [parsed,setParsed]=useState([]);const [sep,setSep]=useState("---");
+  const parse=()=>{const chunks=raw.split(sep).map(c=>c.trim()).filter(Boolean);setParsed(chunks.map(c=>{const m=c.match(/https?:\/\/\S+\.(jpg|jpeg|png|gif|webp)\S*/i);return{caption:m?c.replace(m[0],"").trim():c,imageUrl:m?m[0]:""}}))};
+  return <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.7)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:100,padding:16}} onClick={onClose}>
+    <div style={{background:"var(--surface)",border:"1px solid var(--border)",borderRadius:16,padding:22,width:520,maxWidth:"100%",maxHeight:"85vh",overflow:"auto"}} onClick={e=>e.stopPropagation()}>
+      <h3 style={{fontSize:16,fontWeight:700,color:"#fff",marginBottom:10}}>Bulk Import</h3>
+      <div style={{display:"flex",gap:4,marginBottom:10}}>{["---","===","\\n\\n"].map(s=><button key={s} onClick={()=>setSep(s==="\\n\\n"?"\n\n":s)} style={{padding:"3px 8px",background:sep===(s==="\\n\\n"?"\n\n":s)?"var(--accent)":"var(--surface2)",border:"1px solid var(--border)",borderRadius:5,color:sep===(s==="\\n\\n"?"\n\n":s)?"#fff":"var(--muted)",fontSize:10,cursor:"pointer"}}>{s==="\\n\\n"?"blank":s}</button>)}</div>
+      <textarea value={raw} onChange={e=>setRaw(e.target.value)} placeholder="Post 1\n---\nPost 2" style={{...S.inp,minHeight:140,resize:"vertical",fontSize:12,lineHeight:1.6}} />
+      <button onClick={parse} style={{...S.btn(false),marginTop:6}}>Preview ({raw.split(sep).filter(c=>c.trim()).length})</button>
+      {parsed.length>0&&<div style={{marginTop:10,borderTop:"1px solid var(--border)",paddingTop:10}}>
+        {parsed.map((p,i)=><div key={i} style={{padding:6,background:"var(--surface2)",borderRadius:5,marginBottom:3,fontSize:11}}><span style={{color:"#fff"}}>#{i+1}: {p.caption.substring(0,60)}...</span></div>)}
+        <button onClick={()=>{onImport(parsed);onClose()}} style={{...S.btn(true),marginTop:6,width:"100%"}}>Import {parsed.length}</button>
+      </div>}
     </div>
-  );
+  </div>;
+}
+
+function ClientModal({client,onSave,onClose}){
+  const [f,setF]=useState({name:client?.name||"",fbPageId:client?.fbPageId||"",igUserId:client?.igUserId||"",pageAccessToken:client?.pageAccessToken||"",twitterId:client?.twitterId||"",twitterApiKey:client?.twitterApiKey||"",twitterApiSecret:client?.twitterApiSecret||"",twitterAccessToken:client?.twitterAccessToken||"",twitterAccessSecret:client?.twitterAccessSecret||"",tiktokId:client?.tiktokId||"",tiktokAccessToken:client?.tiktokAccessToken||"",linkedinId:client?.linkedinId||"",linkedinAccessToken:client?.linkedinAccessToken||"",gbpId:client?.gbpId||"",gbpAccessToken:client?.gbpAccessToken||"",pinterestId:client?.pinterestId||"",pinterestAccessToken:client?.pinterestAccessToken||""});
+  const [ss,setSs]=useState(null);const [st2,setSt2]=useState(false);
+  const sections=[
+    {id:"meta",l:"Facebook & Instagram",i:"📘",fs:[{k:"fbPageId",l:"Page ID",p:"Auto via Connect"},{k:"igUserId",l:"IG Business ID",p:"Auto via Connect"}],tk:{k:"pageAccessToken",l:"Access Token",p:"Auto or paste"},
+      h:<div><p style={{fontSize:11,color:"var(--muted)",marginBottom:6}}>Works with any FB Page.</p><a href="/api/meta-auth" style={{display:"inline-flex",padding:"6px 12px",background:"#1877F2",color:"#fff",borderRadius:5,textDecoration:"none",fontWeight:600,fontSize:11}}>📘 Connect</a></div>},
+    {id:"twitter",l:"X / Twitter",i:"𝕏",fs:[{k:"twitterId",l:"Username"},{k:"twitterApiKey",l:"API Key"},{k:"twitterApiSecret",l:"API Secret"},{k:"twitterAccessToken",l:"Access Token"},{k:"twitterAccessSecret",l:"Access Secret"}],
+      h:<a href="https://developer.x.com/en/portal/dashboard" target="_blank" style={{fontSize:11,color:"var(--accent2)",textDecoration:"none"}}>→ X Developer Portal</a>},
+    {id:"tiktok",l:"TikTok",i:"🎵",fs:[{k:"tiktokId",l:"Username"},{k:"tiktokAccessToken",l:"Token"}],h:<a href="https://developers.tiktok.com/" target="_blank" style={{fontSize:11,color:"var(--accent2)",textDecoration:"none"}}>→ TikTok Portal</a>},
+    {id:"linkedin",l:"LinkedIn",i:"💼",fs:[{k:"linkedinId",l:"Page ID"},{k:"linkedinAccessToken",l:"Token"}],h:<a href="https://www.linkedin.com/developers/apps" target="_blank" style={{fontSize:11,color:"var(--accent2)",textDecoration:"none"}}>→ LinkedIn Portal</a>},
+    {id:"gbp",l:"Google Business",i:"📍",fs:[{k:"gbpId",l:"Location ID"},{k:"gbpAccessToken",l:"Token"}],h:<a href="https://console.cloud.google.com/" target="_blank" style={{fontSize:11,color:"var(--accent2)",textDecoration:"none"}}>→ Google Cloud</a>},
+    {id:"pinterest",l:"Pinterest",i:"📌",fs:[{k:"pinterestId",l:"Board ID"},{k:"pinterestAccessToken",l:"Token"}],h:<a href="https://developers.pinterest.com/" target="_blank" style={{fontSize:11,color:"var(--accent2)",textDecoration:"none"}}>→ Pinterest Portal</a>},
+  ];
+  return <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.7)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:100,padding:16}} onClick={onClose}>
+    <div style={{background:"var(--surface)",border:"1px solid var(--border)",borderRadius:16,padding:22,width:520,maxWidth:"100%",maxHeight:"90vh",overflow:"auto",animation:"fadeIn .2s ease both"}} onClick={e=>e.stopPropagation()}>
+      <h3 style={{fontSize:16,fontWeight:700,color:"#fff",marginBottom:14}}>{client?"Edit":"Add"} Client</h3>
+      <div style={{marginBottom:12}}><div style={S.lbl}>Name</div><input value={f.name} onChange={e=>setF(v=>({...v,name:e.target.value}))} placeholder="Business name" style={S.inp} /></div>
+      <div style={{marginBottom:6}}><div style={S.lbl}>Platforms</div></div>
+      {sections.map(sec=>{const open=ss===sec.id;const conn=sec.fs.some(fi=>!!f[fi.k]);
+        return <div key={sec.id} style={{marginBottom:5,borderRadius:8,border:"1px solid var(--border)",overflow:"hidden",background:"var(--surface2)"}}>
+          <button onClick={()=>setSs(s=>s===sec.id?null:sec.id)} style={{width:"100%",display:"flex",alignItems:"center",gap:7,padding:"9px 11px",background:"transparent",border:"none",cursor:"pointer",fontFamily:"inherit",color:"#fff"}}>
+            <span style={{fontSize:13}}>{sec.i}</span><span style={{fontSize:11,fontWeight:600,flex:1,textAlign:"left"}}>{sec.l}</span>
+            <span style={{fontSize:8,...S.bg(conn,!conn)}}>{conn?"✓":"—"}</span>
+            <span style={{fontSize:10,color:"var(--muted)",transform:open?"rotate(180deg)":"none",transition:"transform .2s"}}>▼</span>
+          </button>
+          {open&&<div style={{padding:"0 11px 11px",borderTop:"1px solid var(--border)",paddingTop:8}}>
+            {sec.h}<div style={{marginTop:8}}>{sec.fs.map(fi=><div key={fi.k} style={{marginBottom:5}}><div style={{fontSize:8,fontWeight:600,color:"var(--muted)",marginBottom:2}}>{fi.l}</div><input value={f[fi.k]||""} onChange={e=>setF(v=>({...v,[fi.k]:e.target.value}))} placeholder={fi.p||""} style={{...S.inp,fontSize:11,padding:"5px 9px"}} /></div>)}
+            {sec.tk&&<div style={{marginBottom:5}}><div style={{display:"flex",justifyContent:"space-between"}}><div style={{fontSize:8,fontWeight:600,color:"var(--muted)",marginBottom:2}}>{sec.tk.l}</div><button onClick={()=>setSt2(!st2)} style={{fontSize:8,color:"var(--accent2)",background:"none",border:"none",cursor:"pointer"}}>{st2?"Hide":"Show"}</button></div>
+            <input type={st2?"text":"password"} value={f[sec.tk.k]||""} onChange={e=>setF(v=>({...v,[sec.tk.k]:e.target.value}))} placeholder={sec.tk.p} style={{...S.inp,fontSize:11,padding:"5px 9px"}} /></div>}
+            </div>
+          </div>}
+        </div>
+      })}
+      <div style={{display:"flex",gap:6,marginTop:14,justifyContent:"flex-end"}}><button onClick={onClose} style={S.btn(false)}>Cancel</button><button onClick={()=>onSave(f)} style={S.btn(true)}>{client?"Save":"Add"}</button></div>
+    </div>
+  </div>;
 }
 
 ReactDOM.render(<App/>,document.getElementById("root"));
 </script>
 </body>
 </html>
-
