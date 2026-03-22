@@ -330,7 +330,7 @@ function App(){
     if(!confirm(`Post now to ${pl.join(", ")}?`))return;
     setPublishing("direct");
     showToast("Publishing...");
-    const r=await api("publish-direct","POST",{caption:compose.caption,imageUrl:compose.imageUrl||null,platforms:pl},activeClient.id);
+    const r=await api("post-now","POST",{caption:compose.caption,imageUrl:compose.imageUrl||null,platforms:pl},activeClient.id);
     setPublishing(null);
     if(r){
       const msgs=[];
