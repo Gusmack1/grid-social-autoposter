@@ -16,31 +16,23 @@ export default async (req) => {
   const redirectUri = `${origin}/api/meta-callback`;
 
   if (!APP_ID || !APP_SECRET) {
-    return htmlResponse("Config Error", `<p>Missing env vars.</p><p>APP_ID: ${APP_ID ? "set" : "MISSING"}</p><p>APP_SECRET: ${APP_SECRET ? "set (" + APP_SECRET.substring(0,4) + "...)" : "MISSING"}</p><p><a href="/">← Back to Dashboard</a></p>`);
+    return htmlResponse("Config Error", `<p>Missing env vars.</p><p>APP_ID: ${APP_ID ? "set" : "MISSING"}</p><p>APP_SECRET: ${APP_SECRET ? "set" : "MISSING"}</p><p><a href="/">← Back</a></p>`);
   }
 
   try {
     // Step 1: Exchange code for short-lived user token
-    const tokenUrl = `https://graph.facebook.com/v21.0/oauth/access_token?client_id=${APP_ID}&client_secret=${APP_SECRET}&redirect_uri=${encodeURIComponent(redirectUri)}&code=${encodeURIComponent(code)}`;
-
-    const tokenRes = await fetch(tokenUrl);
+    const tokenRes = await fetch(`https://graph.facebook.com/v21.0/oauth/access_token?client_id=${APP_ID}&client_secret=${APP_SECRET}&redirect_uri=${encodeURIComponent(redirectUri)}&code=${encodeURIComponent(code)}`);
     const tokenText = await tokenRes.text();
     let tokenData;
     try { tokenData = JSON.parse(tokenText); } catch(e) { tokenData = { error: { message: "Non-JSON: " + tokenText.substring(0,200) } }; }
-
-    if (tokenData.error) {
-      return htmlResponse("Token Error", `<p>Failed to get access token.</p><p><strong>${tokenData.error.message}</strong></p><p style="font-size:11px;color:#666;margin-top:12px;">Debug info:<br>App ID: ${APP_ID}<br>Secret: ${APP_SECRET.substring(0,6)}...${APP_SECRET.substring(APP_SECRET.length-4)}<br>Redirect: ${redirectUri}<br>Code: ${code.substring(0,20)}...</p><p><a href="/api/meta-auth">Try Again</a> | <a href="/">← Dashboard</a></p>`);
-    }
-
-    const shortToken = tokenData.access_token;
+    if (tokenData.error) return htmlResponse("Token Error", `<p>${tokenData.error.message}</p><p><a href="/api/meta-auth">Try Again</a></p>`);
 
     // Step 2: Exchange for long-lived token
-    const llRes = await fetch(`https://graph.facebook.com/v21.0/oauth/access_token?grant_type=fb_exchange_token&client_id=${APP_ID}&client_secret=${APP_SECRET}&fb_exchange_token=${shortToken}`);
+    const llRes = await fetch(`https://graph.facebook.com/v21.0/oauth/access_token?grant_type=fb_exchange_token&client_id=${APP_ID}&client_secret=${APP_SECRET}&fb_exchange_token=${tokenData.access_token}`);
     const llData = await llRes.json();
-    if (llData.error) return htmlResponse("Exchange Error", `<p>Failed to get long-lived token.</p><p>${llData.error.message}</p><p><a href="/">← Dashboard</a></p>`);
+    if (llData.error) return htmlResponse("Exchange Error", `<p>${llData.error.message}</p><p><a href="/">← Back</a></p>`);
 
     const longLivedUserToken = llData.access_token;
-    const expiresIn = llData.expires_in || 0;
 
     // Step 3: Get page tokens
     const pagesRes = await fetch(`https://graph.facebook.com/v21.0/me/accounts?access_token=${longLivedUserToken}&fields=id,name,access_token,instagram_business_account`);
@@ -48,7 +40,7 @@ export default async (req) => {
     if (pagesData.error) return htmlResponse("Pages Error", `<p>${pagesData.error.message}</p><p><a href="/api/meta-auth">Try Again</a></p>`);
 
     const pages = pagesData.data || [];
-    if (pages.length === 0) return htmlResponse("No Pages", `<p>No pages found. Make sure you selected pages during approval.</p><p><a href="/api/meta-auth">Try Again</a></p>`);
+    if (pages.length === 0) return htmlResponse("No Pages", `<p>No pages found. Select pages during approval.</p><p><a href="/api/meta-auth">Try Again</a></p>`);
 
     // Step 4: Auto-match to clients
     const clients = getStore("clients");
@@ -71,25 +63,83 @@ export default async (req) => {
 
     await clients.setJSON("list", clientList);
 
-    let html = `<h2>✅ Facebook Connected!</h2>`;
-    html += `<p style="color:#8e8e8e;margin-bottom:20px;">Found ${pages.length} page(s). Page tokens are permanent.</p>`;
+    // Build interactive results page
+    let cards = "";
     for (const r of results) {
       if (r.status === "updated") {
-        html += `<div style="background:#1a2e1a;border:1px solid #2d5a2d;border-radius:10px;padding:16px;margin-bottom:12px;"><div style="font-size:16px;font-weight:700;color:#4ade80;">✓ ${r.name}</div><div style="font-size:13px;color:#8e8e8e;margin-top:4px;">Matched to: <strong style="color:#fff;">${r.clientName}</strong></div><div style="font-size:12px;color:#6b7280;margin-top:4px;">Page: ${r.pageId}${r.igId ? ` · IG: ${r.igId}` : ""}</div></div>`;
+        cards += `<div class="card ok"><div class="title">✓ ${r.name}</div><div class="sub">Matched to: <strong>${r.clientName}</strong></div><div class="meta">Page: ${r.pageId}${r.igId ? " · IG: " + r.igId : ""}</div></div>`;
       } else {
-        html += `<div style="background:#1a1e28;border:1px solid #252a36;border-radius:10px;padding:16px;margin-bottom:12px;"><div style="font-size:16px;font-weight:700;color:#f59e0b;">○ ${r.name}</div><div style="font-size:13px;color:#8e8e8e;margin-top:4px;">No matching client. Page ID: <code style="background:#252a36;padding:2px 6px;border-radius:4px;">${r.pageId}</code>${r.igId ? ` · IG: <code style="background:#252a36;padding:2px 6px;border-radius:4px;">${r.igId}</code>` : ""}</div><div style="margin-top:8px;"><input type="text" value="${r.token}" readonly style="width:100%;padding:8px;background:#12151c;border:1px solid #333;border-radius:6px;color:#e5e7eb;font-size:11px;font-family:monospace;" onclick="this.select();document.execCommand('copy');" /><div style="font-size:10px;color:#6b7280;margin-top:4px;">Click to copy → Dashboard → Clients → Edit → Paste token</div></div></div>`;
+        cards += `<div class="card new" id="page-${r.pageId}"><div class="title" style="color:#f59e0b;">○ ${r.name}</div><div class="sub">Not yet added as a client</div><div class="meta">Page ID: ${r.pageId}${r.igId ? " · IG: " + r.igId : ""}</div><button class="add-btn" onclick="addClient('${r.name}','${r.pageId}','${r.igId||""}','${r.token.replace(/'/g,"\\'")}',this)">+ Add ${r.name} as Client</button></div>`;
       }
     }
-    html += `<div style="margin-top:20px;"><a href="/" style="display:inline-block;padding:12px 24px;background:#3b82f6;color:#fff;border-radius:8px;text-decoration:none;font-weight:700;">← Back to Dashboard</a></div>`;
-    return htmlResponse("Facebook Connected", html);
+
+    const body = `
+<h2>✅ Facebook Connected!</h2>
+<p class="dim">Found ${pages.length} page(s). Page tokens are permanent.</p>
+${cards}
+<div style="margin-top:24px;display:flex;gap:10px;flex-wrap:wrap;">
+  <a href="/" class="btn primary">← Back to Dashboard</a>
+  <a href="/api/meta-auth" class="btn">🔄 Reconnect Pages</a>
+</div>
+<script>
+async function addClient(name, pageId, igId, token, btn) {
+  btn.disabled = true;
+  btn.textContent = "Adding...";
+  const key = localStorage.getItem("gsa_key");
+  if (!key) { btn.textContent = "Error: Not logged in"; return; }
+  try {
+    const r = await fetch("/api/admin?action=add-client", {
+      method: "POST",
+      headers: { "Authorization": "Bearer " + key, "Content-Type": "application/json" },
+      body: JSON.stringify({ name, fbPageId: pageId, igUserId: igId, pageAccessToken: token })
+    });
+    const d = await r.json();
+    if (d.success) {
+      const card = document.getElementById("page-" + pageId);
+      card.className = "card ok";
+      card.innerHTML = '<div class="title">✓ ' + name + '</div><div class="sub">Added as new client!</div><div class="meta">Page: ' + pageId + (igId ? ' · IG: ' + igId : '') + '</div>';
+    } else {
+      btn.textContent = "Error: " + (d.error || "Failed");
+    }
+  } catch(e) {
+    btn.textContent = "Error: " + e.message;
+  }
+}
+</script>`;
+
+    return htmlResponse("Facebook Connected", body);
 
   } catch (err) {
-    return htmlResponse("Error", `<p>${err.message}</p><p style="font-size:11px;color:#666;">${err.stack}</p><p><a href="/">← Dashboard</a></p>`);
+    return htmlResponse("Error", `<p>${err.message}</p><p><a href="/">← Back</a></p>`);
   }
 };
 
 function htmlResponse(title, body) {
-  return new Response(`<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title}</title><link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;600;700;800&display=swap" rel="stylesheet"><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:'Instrument Sans',system-ui,sans-serif;background:#0a0c10;color:#e5e7eb;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}.card{background:#12151c;border:1px solid #252a36;border-radius:16px;padding:32px;max-width:600px;width:100%}h2{font-size:22px;font-weight:800;margin-bottom:8px;color:#fff}p{font-size:14px;line-height:1.6;margin-bottom:8px}code{background:#252a36;padding:2px 6px;border-radius:4px;font-size:12px}a{color:#3b82f6}strong{color:#fff}</style></head><body><div class="card">${body}</div></body></html>`, { status: 200, headers: { "Content-Type": "text/html" } });
+  return new Response(`<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title}</title>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Instrument Sans',system-ui,sans-serif;background:#0a0c10;color:#e5e7eb;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
+.wrap{max-width:600px;width:100%}
+h2{font-size:22px;font-weight:800;margin-bottom:6px;color:#fff}
+p{font-size:14px;line-height:1.6;margin-bottom:8px}
+.dim{color:#8e8e8e;margin-bottom:20px}
+.card{border-radius:10px;padding:16px;margin-bottom:12px;animation:fadeIn .3s ease both}
+.card.ok{background:#1a2e1a;border:1px solid #2d5a2d}
+.card.ok .title{color:#4ade80;font-size:16px;font-weight:700}
+.card.new{background:#1a1e28;border:1px solid #252a36}
+.card.new .title{font-size:16px;font-weight:700}
+.sub{font-size:13px;color:#8e8e8e;margin-top:4px}
+.sub strong{color:#fff}
+.meta{font-size:12px;color:#6b7280;margin-top:4px}
+.add-btn{margin-top:12px;padding:10px 20px;background:#3b82f6;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;width:100%;transition:all .15s}
+.add-btn:hover{background:#2563eb}
+.add-btn:disabled{opacity:0.6;cursor:wait}
+.btn{display:inline-block;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:700;font-size:14px;font-family:inherit;border:1px solid #252a36;color:#8e8e8e}
+.btn.primary{background:#3b82f6;color:#fff;border:none}
+a{color:#3b82f6}
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+</style></head><body><div class="wrap">${body}</div></body></html>`, { status: 200, headers: { "Content-Type": "text/html" } });
 }
 
 export const config = { path: "/api/meta-callback" };
