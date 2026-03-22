@@ -3,25 +3,22 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
-<title>Grid Social — Social Media Manager</title>
+<title>Grid Social — Post Manager</title>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
 <style>
-:root{--bg:#090b10;--surface:#11141d;--surface2:#181c28;--surface3:#1f2433;--border:#262c3d;--border2:#323a50;--text:#e8eaf0;--muted:#717b95;--accent:#6366f1;--accent2:#818cf8;--accent-bg:rgba(99,102,241,0.1);--green:#10b981;--green-bg:rgba(16,185,129,0.1);--amber:#f59e0b;--amber-bg:rgba(245,158,11,0.1);--red:#ef4444;--red-bg:rgba(239,68,68,0.1);--pink:#ec4899;--blue:#3b82f6;--radius:10px;--shadow:0 4px 24px rgba(0,0,0,0.3)}
-*{margin:0;padding:0;box-sizing:border-box}
-body{font-family:'Plus Jakarta Sans',system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden}
+:root{--bg:#090b10;--s1:#11141d;--s2:#181c28;--s3:#1f2433;--b1:#262c3d;--b2:#323a50;--tx:#e8eaf0;--mu:#717b95;--ac:#6366f1;--ac2:#818cf8;--acbg:rgba(99,102,241,0.08);--gn:#10b981;--gnbg:rgba(16,185,129,0.08);--am:#f59e0b;--ambg:rgba(245,158,11,0.08);--rd:#ef4444;--rdbg:rgba(239,68,68,0.08);--r:12px;--sh:0 4px 24px rgba(0,0,0,0.3)}
+*{margin:0;padding:0;box-sizing:border-box}body{font-family:'Plus Jakarta Sans',system-ui,sans-serif;background:var(--bg);color:var(--tx);min-height:100vh;overflow-x:hidden}
 ::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:#2a3040;border-radius:3px}
 input,textarea,select,button{font-family:inherit}
 @keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
-@keyframes slideUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
-@keyframes slideIn{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:translateX(0)}}
-@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+@keyframes slideIn{from{opacity:0;transform:translateX(16px)}to{opacity:1;transform:translateX(0)}}
+@keyframes pop{0%{transform:scale(0.95);opacity:0}100%{transform:scale(1);opacity:1}}
+@keyframes glow{0%,100%{box-shadow:0 0 20px rgba(99,102,241,0.12)}50%{box-shadow:0 0 40px rgba(99,102,241,0.25)}}
 @keyframes shimmer{from{background-position:200% 0}to{background-position:-200% 0}}
-@keyframes glow{0%,100%{box-shadow:0 0 20px rgba(99,102,241,0.15)}50%{box-shadow:0 0 40px rgba(99,102,241,0.3)}}
-.animate{animation:fadeIn .35s ease both}
-.shimmer{background:linear-gradient(90deg,var(--surface2) 25%,var(--surface3) 50%,var(--surface2) 75%);background-size:200% 100%;animation:shimmer 1.5s infinite}
+.anim{animation:fadeIn .3s ease both}.shimmer{background:linear-gradient(90deg,var(--s2) 25%,var(--s3) 50%,var(--s2) 75%);background-size:200% 100%;animation:shimmer 1.5s infinite}
 @media(max-width:768px){.desk{display:none!important}.mob-sb{transform:translateX(-100%)!important}.mob-sb.open{transform:translateX(0)!important}}
 @media(min-width:769px){.mob{display:none!important}}
 </style>
@@ -30,109 +27,58 @@ input,textarea,select,button{font-family:inherit}
 <div id="root"></div>
 <script type="text/babel">
 const {useState,useEffect,useCallback,useRef,useMemo}=React;
-const DAYS=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"],MONTHS=["January","February","March","April","May","June","July","August","September","October","November","December"];
-const PI={facebook:{icon:"📘",l:"Facebook",c:"#1877F2",f:"fbPageId"},instagram:{icon:"📸",l:"Instagram",c:"#E4405F",f:"igUserId"},twitter:{icon:"𝕏",l:"X / Twitter",c:"#1DA1F2",f:"twitterAccessToken"},tiktok:{icon:"🎵",l:"TikTok",c:"#ff0050",f:"tiktokAccessToken"},linkedin:{icon:"💼",l:"LinkedIn",c:"#0A66C2",f:"linkedinAccessToken"},google_business:{icon:"📍",l:"Google Business",c:"#4285F4",f:"gbpAccessToken"},pinterest:{icon:"📌",l:"Pinterest",c:"#E60023",f:"pinterestAccessToken"}};
+const PI={facebook:{icon:"\u{1F4D8}",l:"Facebook",c:"#1877F2",f:"fbPageId"},instagram:{icon:"\u{1F4F8}",l:"Instagram",c:"#E4405F",f:"igUserId"},twitter:{icon:"\u{1D54F}",l:"X / Twitter",c:"#1DA1F2",f:"twitterAccessToken"},tiktok:{icon:"\u{1F3B5}",l:"TikTok",c:"#ff0050",f:"tiktokAccessToken"},linkedin:{icon:"\u{1F4BC}",l:"LinkedIn",c:"#0A66C2",f:"linkedinAccessToken"},google_business:{icon:"\u{1F4CD}",l:"Google Business",c:"#4285F4",f:"gbpAccessToken"}};
+const DAYS=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"],MFULL=["January","February","March","April","May","June","July","August","September","October","November","December"];
 const S={
-  sb:{width:260,background:"#0c0f16",borderRight:"1px solid var(--border)",display:"flex",flexDirection:"column",flexShrink:0,height:"100vh",position:"fixed",left:0,top:0,zIndex:55},
-  nav:(a)=>({width:"100%",padding:"10px 14px",background:a?"var(--accent-bg)":"transparent",border:a?"1px solid rgba(99,102,241,0.2)":"1px solid transparent",borderRadius:8,color:a?"var(--accent2)":"var(--muted)",fontSize:13,fontWeight:a?600:400,cursor:"pointer",textAlign:"left",display:"flex",alignItems:"center",gap:10,marginBottom:2,fontFamily:"inherit",transition:"all .15s"}),
-  card:{background:"var(--surface)",border:"1px solid var(--border)",borderRadius:14,padding:20,animation:"fadeIn .35s ease both"},
-  inp:{width:"100%",padding:"10px 12px",background:"var(--surface2)",border:"1px solid var(--border)",borderRadius:8,color:"#fff",fontSize:13,outline:"none",fontFamily:"inherit"},
-  lbl:{fontSize:10,fontWeight:700,color:"var(--muted)",textTransform:"uppercase",letterSpacing:1.2,display:"block",marginBottom:6},
-  bg:(ok,w)=>({fontSize:11,padding:"3px 10px",borderRadius:6,fontWeight:600,background:ok?"var(--green-bg)":w?"var(--amber-bg)":"var(--red-bg)",color:ok?"var(--green)":w?"var(--amber)":"var(--red)"}),
-  btn:(p)=>({padding:"10px 20px",background:p?"var(--accent)":"transparent",color:p?"#fff":"var(--muted)",border:p?"none":"1px solid var(--border)",borderRadius:8,fontSize:13,fontWeight:p?700:500,cursor:"pointer",fontFamily:"inherit",transition:"all .15s ease"}),
-  sm:(c)=>({padding:"6px 14px",background:c==="g"?"var(--green-bg)":c==="r"?"var(--red-bg)":c==="a"?"var(--accent-bg)":"var(--surface2)",color:c==="g"?"var(--green)":c==="r"?"var(--red)":c==="a"?"var(--accent2)":"var(--muted)",border:"none",borderRadius:6,fontSize:12,cursor:"pointer",fontWeight:600,fontFamily:"inherit"})
+  card:{background:"var(--s1)",border:"1px solid var(--b1)",borderRadius:14,padding:20,animation:"fadeIn .3s ease both"},
+  inp:{width:"100%",padding:"12px 14px",background:"var(--s2)",border:"1px solid var(--b1)",borderRadius:10,color:"#fff",fontSize:14,outline:"none",fontFamily:"inherit"},
+  lbl:{fontSize:10,fontWeight:700,color:"var(--mu)",textTransform:"uppercase",letterSpacing:1.2,display:"block",marginBottom:6},
+  badge:(ok)=>({fontSize:11,padding:"3px 10px",borderRadius:20,fontWeight:600,background:ok?"var(--gnbg)":"var(--rdbg)",color:ok?"var(--gn)":"var(--rd)",display:"inline-flex",alignItems:"center",gap:4}),
+  btn:(p,sz)=>({padding:sz==="sm"?"8px 14px":sz==="lg"?"14px 28px":"11px 22px",background:p?"var(--ac)":"transparent",color:p?"#fff":"var(--mu)",border:p?"none":"1px solid var(--b1)",borderRadius:10,fontSize:sz==="lg"?15:13,fontWeight:p?700:500,cursor:"pointer",fontFamily:"inherit",transition:"all .15s",display:"inline-flex",alignItems:"center",gap:6}),
 };
+const TEMPLATES=[
+  {n:"Job Completed",t:"Another job completed!\n\n[Describe the work]\n\nNo job too small \u2014 get in touch\nCall or message us",color:"var(--gn)"},
+  {n:"Before & After",t:"Before to After\n\n[What changed?]\n\nMessage us for a free quote!",color:"var(--am)"},
+  {n:"Quick Tip",t:"Quick tip from your local expert:\n\n[Share a tip]\n\nWant help? Drop us a message",color:"var(--ac2)"},
+  {n:"Customer Review",t:"Another happy customer!\n\n\"[Paste their review]\"\n\nThank you! Book your job today",color:"#ec4899"},
+  {n:"Special Offer",t:"LIMITED OFFER\n\n[Describe the offer]\n\nAvailable until [date]\nCall now to book!",color:"var(--rd)"},
+];
+function getHashtags(cap,name){const t=(cap+" "+name).toLowerCase();const tags=new Set();
+  if(/repair|fix|mend/.test(t)){tags.add("#HomeRepairs");tags.add("#HandymanLife")}
+  if(/deck|garden|planter|outdoor|fence/.test(t)){tags.add("#GardenDesign");tags.add("#OutdoorLiving")}
+  if(/bath|kitchen|plumb|tile|reseal/.test(t)){tags.add("#BathroomReno");tags.add("#HomeImprovement")}
+  if(/roof|verge|gutter/.test(t)){tags.add("#RoofRepairs");tags.add("#PropertyCare")}
+  if(/paint|decor/.test(t)){tags.add("#Painting");tags.add("#InteriorDesign")}
+  if(/food|recipe|cook|eat|restaurant/.test(t)){tags.add("#Foodie");tags.add("#InstaFood")}
+  if(/scotland|ayrshire|kilmarnock|glasgow/.test(t)){tags.add("#Scotland");tags.add("#Ayrshire")}
+  tags.add("#SmallBusiness");tags.add("#SupportLocal");
+  return [...tags].filter(tag=>!cap.includes(tag)).slice(0,6)}
 
 function PhonePreview({caption,imageUrl,platform,name}){
   const fb=platform==="facebook";
-  return <div style={{width:250,margin:"0 auto"}}><div style={{background:"#000",borderRadius:22,padding:5,boxShadow:"0 12px 40px rgba(0,0,0,.5)"}}>
-    <div style={{background:fb?"#fff":"#000",borderRadius:18,overflow:"hidden",minHeight:360}}>
-      <div style={{padding:"9px 11px",display:"flex",alignItems:"center",gap:7,borderBottom:fb?"1px solid #eee":"1px solid #222"}}>
-        <div style={{width:26,height:26,borderRadius:"50%",background:fb?"#1877F2":"linear-gradient(45deg,#f09433,#dc2743,#bc1888)",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:9,fontWeight:700}}>{name?.charAt(0)||"?"}</div>
-        <div><div style={{fontSize:10,fontWeight:700,color:fb?"#1c1e21":"#fff"}}>{name||"Business"}</div><div style={{fontSize:8,color:fb?"#65676B":"#8e8e8e"}}>{fb?"Just now · 🌐":"Sponsored"}</div></div>
+  return <div style={{width:260,margin:"0 auto"}}><div style={{background:"#000",borderRadius:24,padding:5,boxShadow:"0 12px 40px rgba(0,0,0,.5)"}}>
+    <div style={{background:fb?"#fff":"#000",borderRadius:20,overflow:"hidden",minHeight:340}}>
+      <div style={{padding:"10px 12px",display:"flex",alignItems:"center",gap:8,borderBottom:fb?"1px solid #eee":"1px solid #222"}}>
+        <div style={{width:28,height:28,borderRadius:"50%",background:fb?"#1877F2":"linear-gradient(45deg,#f09433,#dc2743,#bc1888)",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:10,fontWeight:700}}>{name?.charAt(0)||"?"}</div>
+        <div><div style={{fontSize:11,fontWeight:700,color:fb?"#1c1e21":"#fff"}}>{name||"Business"}</div><div style={{fontSize:8,color:fb?"#65676B":"#8e8e8e"}}>{fb?"Just now":"Sponsored"}</div></div>
       </div>
-      {fb&&<div style={{padding:"5px 11px",fontSize:11,lineHeight:1.5,color:"#1c1e21",maxHeight:90,overflow:"hidden",whiteSpace:"pre-wrap"}}>{caption||"Caption..."}</div>}
+      {fb&&<div style={{padding:"6px 12px",fontSize:12,lineHeight:1.5,color:"#1c1e21",maxHeight:90,overflow:"hidden",whiteSpace:"pre-wrap"}}>{caption||"Your caption..."}</div>}
       {imageUrl?<div style={{width:"100%",aspectRatio:"1",overflow:"hidden"}}><img src={imageUrl} style={{width:"100%",height:"100%",objectFit:"cover"}} onError={e=>{e.target.style.display="none"}} /></div>
-      :<div style={{width:"100%",aspectRatio:"1",background:fb?"#f0f2f5":"#1a1a2e",display:"flex",alignItems:"center",justifyContent:"center"}}><span style={{fontSize:30,opacity:.3}}>📷</span></div>}
-      {!fb&&<div style={{padding:"7px 11px"}}><div style={{display:"flex",gap:12,marginBottom:5}}><span style={{fontSize:16}}>♡</span><span style={{fontSize:16}}>💬</span><span style={{fontSize:16}}>✈</span></div>
-      <div style={{fontSize:10,lineHeight:1.5,color:"#fff",maxHeight:60,overflow:"hidden"}}><strong>{name} </strong>{caption||"Caption..."}</div></div>}
-      {fb&&<div style={{padding:"5px 11px",borderTop:"1px solid #eee",display:"flex",justifyContent:"space-around"}}><span style={{fontSize:10,color:"#65676B"}}>👍 Like</span><span style={{fontSize:10,color:"#65676B"}}>💬 Comment</span><span style={{fontSize:10,color:"#65676B"}}>↗ Share</span></div>}
+      :<div style={{width:"100%",aspectRatio:"1",background:fb?"#f0f2f5":"#1a1a2e",display:"flex",alignItems:"center",justifyContent:"center"}}><span style={{fontSize:36,opacity:.3}}>Add photo</span></div>}
+      {!fb&&<div style={{padding:"8px 12px"}}><div style={{fontSize:11,lineHeight:1.5,color:"#fff",maxHeight:50,overflow:"hidden"}}><strong>{name} </strong>{caption||"Caption..."}</div></div>}
     </div>
   </div></div>;
 }
 
-function EditPostModal({post,onSave,onClose}){
-  const [c,setC]=useState(post.caption||"");const [img,setImg]=useState(post.imageUrl||"");const [pl,setPl]=useState(post.platforms||[]);const [sf,setSf]=useState(post.scheduledFor||"");
-  const tp=(p)=>setPl(x=>x.includes(p)?x.filter(v=>v!==p):[...x,p]);
-  return <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.7)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:100,padding:16}} onClick={onClose}>
-    <div style={{background:"var(--surface)",border:"1px solid var(--border)",borderRadius:16,padding:24,width:500,maxWidth:"100%",maxHeight:"85vh",overflow:"auto"}} onClick={e=>e.stopPropagation()}>
-      <h3 style={{fontSize:17,fontWeight:700,color:"#fff",marginBottom:14}}>Edit Post</h3>
-      <div style={S.lbl}>Caption</div>
-      <textarea value={c} onChange={e=>setC(e.target.value)} style={{...S.inp,minHeight:130,resize:"vertical",fontSize:14,lineHeight:1.6,marginBottom:10}} />
-      <div style={S.lbl}>Image URL</div>
-      <input value={img} onChange={e=>setImg(e.target.value)} style={{...S.inp,marginBottom:10}} />
-      <div style={S.lbl}>Platforms</div>
-      <div style={{display:"flex",gap:5,flexWrap:"wrap",marginBottom:10}}>{Object.entries(PI).filter(([k])=>k!=="pinterest").map(([k,v])=>
-        <button key={k} onClick={()=>tp(k)} style={{padding:"5px 10px",borderRadius:6,border:`1px solid ${pl.includes(k)?v.c:"var(--border)"}`,background:pl.includes(k)?v.c+"18":"transparent",color:pl.includes(k)?v.c:"var(--muted)",fontSize:11,cursor:"pointer",fontFamily:"inherit",fontWeight:600}}>{v.icon} {v.l}</button>
-      )}</div>
-      <div style={S.lbl}>Schedule</div>
-      <input type="datetime-local" value={sf} onChange={e=>setSf(e.target.value)} style={{...S.inp,colorScheme:"dark",marginBottom:14}} />
-      <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}><button onClick={onClose} style={S.btn(false)}>Cancel</button><button onClick={()=>onSave({...post,caption:c,imageUrl:img,platforms:pl,scheduledFor:sf,status:sf?"scheduled":"queued"})} style={S.btn(true)}>Save</button></div>
-    </div>
-  </div>;
-}
-
-function AICaptionGen({client,onInsert}){
-  const [pr,setPr]=useState("");const [ld,setLd]=useState(false);const [res,setRes]=useState("");const [tone,setTone]=useState("friendly");
-  const gen=async()=>{if(!pr.trim())return;setLd(true);setRes("");
-    try{const r=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:1000,system:`You write social media posts for "${client?.name||"a business"}". Tone: ${tone}. Include emojis & hashtags. Max 250 words. Ready to copy-paste.`,
-        messages:[{role:"user",content:`Write a post about: ${pr}`}]})});
-      const d=await r.json();setRes(d.content?.map(c=>c.text||"").join("")||"Error")}catch(e){setRes("Error: "+e.message)}setLd(false)};
-  return <div style={{...S.card,marginBottom:16}}>
-    <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}><span style={{fontSize:16}}>✨</span><span style={{fontSize:14,fontWeight:700,color:"#fff"}}>AI Caption Generator</span>
-      <span style={{fontSize:9,padding:"2px 8px",borderRadius:10,background:"linear-gradient(135deg,var(--accent),var(--pink))",color:"#fff",fontWeight:600}}>Beta</span></div>
-    <div style={{display:"flex",gap:4,marginBottom:8,flexWrap:"wrap"}}>{["friendly","professional","funny","urgent","inspirational"].map(t=>
-      <button key={t} onClick={()=>setTone(t)} style={{padding:"3px 9px",borderRadius:16,border:`1px solid ${tone===t?"var(--accent)":"var(--border)"}`,background:tone===t?"var(--accent-bg)":"transparent",color:tone===t?"var(--accent2)":"var(--muted)",fontSize:10,cursor:"pointer",fontFamily:"inherit",textTransform:"capitalize"}}>{t}</button>
-    )}</div>
-    <div style={{display:"flex",gap:6}}><input value={pr} onChange={e=>setPr(e.target.value)} onKeyDown={e=>e.key==="Enter"&&gen()} placeholder="Describe the post..." style={{...S.inp,flex:1}} />
-      <button onClick={gen} disabled={ld} style={{...S.btn(true),whiteSpace:"nowrap",opacity:ld?.6:1}}>{ld?"...":"Generate ✨"}</button></div>
-    {res&&<div style={{marginTop:10,padding:12,background:"var(--surface2)",borderRadius:10,border:"1px solid var(--border)"}}>
-      <div style={{fontSize:13,lineHeight:1.7,whiteSpace:"pre-wrap",maxHeight:180,overflow:"auto"}}>{res}</div>
-      <button onClick={()=>{onInsert(res);setRes("")}} style={{...S.sm("a"),marginTop:8}}>📋 Use This</button>
-    </div>}
-  </div>;
-}
-
-function HashtagBar({caption,onInsert}){
-  const tags=useMemo(()=>{const t=caption.toLowerCase();const a=[];
-    if(t.includes("repair")||t.includes("fix"))a.push("#HomeRepairs","#HandymanLife","#PropertyMaintenance");
-    if(t.includes("deck")||t.includes("garden"))a.push("#GardenDesign","#DeckingInstall","#OutdoorLiving");
-    if(t.includes("bath")||t.includes("kitchen"))a.push("#BathroomReno","#KitchenDesign","#HomeImprovement");
-    if(t.includes("roof")||t.includes("verge"))a.push("#RoofRepairs","#Guttering");
-    a.push("#SmallBusiness","#LocalTrades","#Ayrshire","#SupportLocal");
-    return a.filter(tag=>!caption.includes(tag)).slice(0,7)},[caption]);
-  if(!caption||!tags.length)return null;
-  return <div style={{display:"flex",gap:3,flexWrap:"wrap",padding:"6px 0"}}><span style={{fontSize:9,color:"var(--muted)",alignSelf:"center",marginRight:3}}>Tags:</span>
-    {tags.map(t=><button key={t} onClick={()=>onInsert(t)} style={{padding:"1px 7px",borderRadius:10,background:"var(--accent-bg)",border:"1px solid rgba(99,102,241,.2)",color:"var(--accent2)",fontSize:9,cursor:"pointer",fontFamily:"inherit"}}>{t}</button>)}</div>;
-}
-
-const TEMPLATES=[
-  {n:"Job Completed",t:"✅ Another job completed!\n\n[Describe the work]\n\nNo job too small — get in touch 👇\n📞 [phone]\n💬 WhatsApp us"},
-  {n:"Before & After",t:"Before ➡️ After\n\n[Describe transformation]\n\nIf you've been putting off that repair, now's the time 💪\nMessage us for a free quote"},
-  {n:"Tip / Advice",t:"💡 Quick tip from your local handyman:\n\n[Share advice]\n\nWant help? Drop us a message 📩"},
-  {n:"Customer Review",t:"⭐⭐⭐⭐⭐ Another happy customer!\n\n\"[Quote feedback]\"\n\nThank you for trusting us 🏠\nBook your job today 👇"},
-  {n:"Seasonal",t:"🌟 [Season] is here!\n\nPerfect time for:\n• [Service 1]\n• [Service 2]\n• [Service 3]\n\nMessage us to book ✉️"},
-];
-
 function App(){
-  const [key,setKey]=useState(localStorage.getItem("gsa_key")||"");const [authed,setAuthed]=useState(false);const [authErr,setAuthErr]=useState("");const [ki,setKi]=useState("");
+  const [key,setKey]=useState(localStorage.getItem("gsa_key")||"");const [authed,setAuthed]=useState(false);const [ki,setKi]=useState("");const [authErr,setAuthErr]=useState("");
   const [clients,setCl]=useState([]);const [ac,setAc]=useState(null);const [posts,setPs]=useState([]);
-  const [view,setView]=useState("dashboard");const [cm,setCm]=useState(new Date().getMonth());const [cy,setCy]=useState(new Date().getFullYear());
-  const [toast,setToast]=useState(null);const [showModal,setSM]=useState(false);const [showBulk,setSB]=useState(false);
-  const [ec,setEc]=useState(null);const [ep,setEp]=useState(null);const [showAI,setSA]=useState(false);const [sbOpen,setSbO]=useState(false);
-  const [comp,setComp]=useState({caption:"",imageUrl:"",fb:true,ig:false,tw:false,tt:false,li:false,gb:false,pi:false,scheduledFor:""});
-  const [dragO,setDragO]=useState(false);const fRef=useRef(null);const [pp,setPP]=useState("facebook");const [pub,setPub]=useState(null);const [showT,setST]=useState(false);
+  const [view,setView]=useState("compose");const [admin,setAdmin]=useState(false);
+  const [cm,setCm]=useState(new Date().getMonth());const [cy,setCy]=useState(new Date().getFullYear());
+  const [toast,setToast]=useState(null);const [showCM,setSCM]=useState(false);const [showBulk,setSB]=useState(false);
+  const [ec,setEc]=useState(null);const [ep,setEp]=useState(null);const [showAI,setSAI]=useState(false);const [sbOpen,setSbO]=useState(false);
+  const [comp,setComp]=useState({caption:"",imageUrl:"",fb:true,ig:false,tw:false,tt:false,li:false,gb:false,scheduledFor:""});
+  const [dragO,setDragO]=useState(false);const fRef=useRef(null);const [pp,setPP]=useState("facebook");const [pub,setPub]=useState(null);
 
   const st=(m,e)=>{setToast({m,e});setTimeout(()=>setToast(null),3500)};
   const api=useCallback(async(a,method,body,cid)=>{
@@ -146,326 +92,263 @@ function App(){
   const loadPs=useCallback(async()=>{if(!ac)return;const d=await api("get-posts","GET",null,ac.id);if(d)setPs(d)},[api,ac]);
   useEffect(()=>{if(authed)loadCl()},[authed]);
   useEffect(()=>{if(authed&&ac)loadPs()},[authed,ac]);
-  useEffect(()=>{if(ac)setComp(c=>({...c,fb:!!ac.fbPageId,ig:!!ac.igUserId,tw:!!ac.twitterAccessToken,tt:!!ac.tiktokAccessToken,li:!!ac.linkedinAccessToken,gb:!!ac.gbpAccessToken,pi:false}))},[ac?.id]);
-
-  const compressImg=(file,maxW=1200,quality=0.75)=>new Promise((resolve,reject)=>{
-    const img=new Image();img.onload=()=>{
-      let w=img.width,h=img.height;if(w>maxW){h=Math.round(h*(maxW/w));w=maxW}
-      const c=document.createElement("canvas");c.width=w;c.height=h;
-      c.getContext("2d").drawImage(img,0,0,w,h);
-      c.toBlob(blob=>{if(blob){const r=new FileReader();r.onload=()=>resolve(r.result.split(",")[1]);r.readAsDataURL(blob)}else reject(new Error("Compress failed"))},"image/jpeg",quality);
-    };img.onerror=()=>reject(new Error("Load failed"));
-    img.src=URL.createObjectURL(file);
-  });
-  const handleImg=async(file)=>{
-    if(!file?.type.startsWith("image/"))return st("Not an image file",true);
-    if(file.size>15*1024*1024)return st("Max 15MB",true);
-    st("Compressing & uploading...");
-    try{
-      const b64=await compressImg(file);
-      const res=await api("upload-image","POST",{filename:`up_${Date.now()}.jpg`,content:b64});
-      if(res?.success){setComp(p=>({...p,imageUrl:res.url}));st("Uploaded!")}
-      else st(res?.error||"Upload failed — try pasting a URL instead",true);
-    }catch(e){st("Upload error: "+e.message,true)}
-  };
-  const handleDrop=async(e)=>{
-    e.preventDefault();setDragO(false);
-    // 1. Check for dropped files (from desktop/file manager)
-    if(e.dataTransfer.files&&e.dataTransfer.files.length>0){return handleImg(e.dataTransfer.files[0])}
-    // 2. Check for dragged image URL (from browser)
-    const html=e.dataTransfer.getData("text/html");
-    if(html){const m=html.match(/src=["']([^"']+\.(jpg|jpeg|png|gif|webp)[^"']*)/i);if(m){setComp(p=>({...p,imageUrl:m[1]}));st("Image URL added!");return}}
-    const url=e.dataTransfer.getData("text/uri-list")||e.dataTransfer.getData("text/plain")||"";
-    if(url&&/^https?:\/\/.+\.(jpg|jpeg|png|gif|webp)/i.test(url)){setComp(p=>({...p,imageUrl:url}));st("Image URL added!");return}
-    // 3. Check for any URL that might be an image
-    if(url&&/^https?:\/\//.test(url)){setComp(p=>({...p,imageUrl:url}));st("URL added — check if it's a valid image");return}
-    st("Drop an image file or drag an image from a webpage",true);
-  };
-
+  useEffect(()=>{if(ac)setComp(c=>({...c,fb:!!ac.fbPageId,ig:!!ac.igUserId,tw:!!ac.twitterAccessToken,tt:!!ac.tiktokAccessToken,li:!!ac.linkedinAccessToken,gb:!!ac.gbpAccessToken}))},[ac?.id]);
   useEffect(()=>{if(key){fetch("/api/admin?action=config",{headers:{Authorization:"Bearer "+key}}).then(r=>{if(r.ok)setAuthed(true);else{localStorage.removeItem("gsa_key");setKey("")}}).catch(()=>{})}},[]);
-  // Clipboard paste support for images
-  useEffect(()=>{if(!authed)return;const h=async(e)=>{const items=e.clipboardData?.items;if(!items)return;
-    for(const item of items){if(item.type.startsWith("image/")){e.preventDefault();const file=item.getAsFile();if(file)handleImg(file);return}}
-    // Check for pasted URL
-    const text=e.clipboardData?.getData("text/plain")||"";
-    if(/^https?:\/\/.+\.(jpg|jpeg|png|gif|webp)/i.test(text)){/* let it paste into URL input naturally */}
-  };document.addEventListener("paste",h);return()=>document.removeEventListener("paste",h)},[authed,key]);
-  const login=async()=>{if(!ki.trim())return;try{const r=await fetch("/api/admin?action=config",{headers:{Authorization:"Bearer "+ki.trim()}});if(r.ok){setKey(ki.trim());localStorage.setItem("gsa_key",ki.trim());setAuthed(true);setAuthErr("")}else setAuthErr("Invalid key")}catch(e){setAuthErr("Failed")}};
 
+  const compressImg=(file,mW=1200,q=0.75)=>new Promise((res,rej)=>{const img=new Image();img.onload=()=>{let w=img.width,h=img.height;if(w>mW){h=Math.round(h*(mW/w));w=mW}const c=document.createElement("canvas");c.width=w;c.height=h;c.getContext("2d").drawImage(img,0,0,w,h);c.toBlob(b=>{if(b){const r=new FileReader();r.onload=()=>res(r.result.split(",")[1]);r.readAsDataURL(b)}else rej(new Error("fail"))},"image/jpeg",q)};img.onerror=()=>rej(new Error("fail"));img.src=URL.createObjectURL(file)});
+  const handleImg=async(file)=>{if(!file?.type.startsWith("image/"))return st("Not an image",true);if(file.size>15*1024*1024)return st("Max 15MB",true);
+    st("Uploading...");try{const b64=await compressImg(file);const res=await api("upload-image","POST",{filename:`up_${Date.now()}.jpg`,content:b64});
+    if(res?.success){setComp(p=>({...p,imageUrl:res.url}));st("Photo added!")}else st(res?.error||"Upload failed",true)}catch(e){st("Error: "+e.message,true)}};
+  const handleDrop=async(e)=>{e.preventDefault();setDragO(false);if(e.dataTransfer.files?.length>0)return handleImg(e.dataTransfer.files[0]);
+    const html=e.dataTransfer.getData("text/html");if(html){const m=html.match(/src=["']([^"']+\.(jpg|jpeg|png|gif|webp)[^"']*)/i);if(m){setComp(p=>({...p,imageUrl:m[1]}));st("Image added!");return}}
+    const url=e.dataTransfer.getData("text/uri-list")||e.dataTransfer.getData("text/plain")||"";if(url&&/^https?:\/\//.test(url)){setComp(p=>({...p,imageUrl:url}));st("URL added!");return}
+    st("Drop an image file",true)};
+  useEffect(()=>{if(!authed)return;const h=async(e)=>{const items=e.clipboardData?.items;if(!items)return;for(const item of items){if(item.type.startsWith("image/")){e.preventDefault();handleImg(item.getAsFile());return}}};document.addEventListener("paste",h);return()=>document.removeEventListener("paste",h)},[authed,key]);
+
+  const login=async()=>{if(!ki.trim())return;try{const r=await fetch("/api/admin?action=config",{headers:{Authorization:"Bearer "+ki.trim()}});if(r.ok){setKey(ki.trim());localStorage.setItem("gsa_key",ki.trim());setAuthed(true);setAuthErr("")}else setAuthErr("Wrong key")}catch(e){setAuthErr("Connection failed")}};
   const getPl=()=>{const p=[];if(comp.fb)p.push("facebook");if(comp.ig)p.push("instagram");if(comp.tw)p.push("twitter");if(comp.tt)p.push("tiktok");if(comp.li)p.push("linkedin");if(comp.gb)p.push("google_business");return p};
-  const resetC=()=>setComp({caption:"",imageUrl:"",fb:!!ac?.fbPageId,ig:!!ac?.igUserId,tw:!!ac?.twitterAccessToken,tt:!!ac?.tiktokAccessToken,li:!!ac?.linkedinAccessToken,gb:!!ac?.gbpAccessToken,pi:false,scheduledFor:""});
+  const resetC=()=>setComp({caption:"",imageUrl:"",fb:!!ac?.fbPageId,ig:!!ac?.igUserId,tw:!!ac?.twitterAccessToken,tt:!!ac?.tiktokAccessToken,li:!!ac?.linkedinAccessToken,gb:!!ac?.gbpAccessToken,scheduledFor:""});
 
-  const addPost=async()=>{if(!comp.caption.trim())return st("Write caption",true);if(!ac)return;const pl=getPl();if(!pl.length)return st("Select platform",true);
-    const r=await api("add-post","POST",{caption:comp.caption,imageUrl:comp.imageUrl||null,platforms:pl,scheduledFor:comp.scheduledFor||null},ac.id);if(r?.success){st(comp.scheduledFor?"Scheduled!":"Queued!");resetC();loadPs()}};
-
-  const publishPost=async(pid)=>{if(!confirm("Publish now?"))return;setPub(pid);st("Publishing...");
+  const addPost=async()=>{if(!comp.caption.trim())return st("Write a caption first!",true);const pl=getPl();if(!pl.length)return st("Pick a platform",true);
+    const r=await api("add-post","POST",{caption:comp.caption,imageUrl:comp.imageUrl||null,platforms:pl,scheduledFor:comp.scheduledFor||null},ac.id);if(r?.success){st(comp.scheduledFor?"Scheduled!":"Added to queue!");resetC();loadPs()}};
+  const publishPost=async(pid)=>{if(!confirm("Post this now?"))return;setPub(pid);st("Publishing...");
     const r=await api("publish-now","POST",{postId:pid},ac.id);setPub(null);
-    if(r){const m=[];Object.entries(r.results||{}).forEach(([k,v])=>m.push(`${PI[k]?.icon||k}${v.success?"✓":"✗"}`));st((r.success?"Published! ":"Error: ")+m.join(" "),!r.success);loadPs()}else st("Failed",true)};
-
-  const pubDirect=async()=>{if(!comp.caption.trim()||!ac)return;const pl=getPl();if(!pl.length)return st("Select platform",true);if(!confirm(`Post to ${pl.join(", ")}?`))return;
+    if(r){const m=[];Object.entries(r.results||{}).forEach(([k,v])=>m.push(`${PI[k]?.icon||k}${v.success?"\u2713":"\u2717"}`));st((r.success?"Posted! ":"Error: ")+m.join(" "),!r.success);loadPs()}else st("Failed",true)};
+  const pubDirect=async()=>{if(!comp.caption.trim()||!ac)return;const pl=getPl();if(!pl.length)return st("Pick a platform",true);if(!confirm(`Post to ${pl.map(p=>PI[p]?.l).join(", ")}?`))return;
     setPub("d");st("Publishing...");const r=await api("post-now","POST",{caption:comp.caption,imageUrl:comp.imageUrl||null,platforms:pl},ac.id);setPub(null);
-    if(r?.success){const m=[];Object.entries(r.results||{}).forEach(([k,v])=>m.push(`${PI[k]?.icon||k}${v.success?"✓":"✗"}`));st("Posted! "+m.join(" "));resetC();loadPs();setView("published")}else st("Failed",true)};
-
+    if(r?.success){st("Posted!");resetC();loadPs();setView("published")}else st("Failed",true)};
   const delPost=async(pid)=>{if(!confirm("Delete?"))return;await api("delete-post","DELETE",{postId:pid},ac.id);loadPs();st("Deleted")};
   const saveEp=async(u)=>{await api("update-post","PUT",{postId:u.id,...u},ac.id);setEp(null);loadPs();st("Updated!")};
   const moveP=async(pid,dir)=>{const q=posts.filter(p=>p.status==="queued"||p.status==="scheduled");const i=q.findIndex(p=>p.id===pid);if((dir==="u"&&i<=0)||(dir==="d"&&i>=q.length-1))return;const j=dir==="u"?i-1:i+1;const tmp=q[i].createdAt;await api("update-post","PUT",{postId:q[i].id,createdAt:q[j].createdAt},ac.id);await api("update-post","PUT",{postId:q[j].id,createdAt:tmp},ac.id);loadPs()};
-  const delPlat=async(pid,p)=>{if(!confirm(`Delete from ${p}?`))return;await api("delete-from-platform","POST",{postId:pid,platform:p},ac.id);loadPs();st("Deleted")};
-  const saveCl=async(d)=>{if(ec?.id)await api("update-client","PUT",{...d,id:ec.id});else await api("add-client","POST",d);loadCl();setSM(false);setEc(null);st("Saved")};
+  const delPlat=async(pid,p)=>{if(!confirm(`Remove from ${PI[p]?.l}?`))return;await api("delete-from-platform","POST",{postId:pid,platform:p},ac.id);loadPs();st("Removed")};
+  const saveCl=async(d)=>{if(ec?.id)await api("update-client","PUT",{...d,id:ec.id});else await api("add-client","POST",d);loadCl();setSCM(false);setEc(null);st("Saved!")};
   const delCl=async(id)=>{if(!confirm("Delete client?"))return;await api("delete-client","DELETE",{id});loadCl();setAc(null);st("Deleted")};
-  const bulkImp=async(items)=>{let c=0;for(const it of items){const r=await api("add-post","POST",{caption:it.caption,imageUrl:it.imageUrl||null,platforms:["facebook"]},ac.id);if(r?.success)c++}st(`Imported ${c}/${items.length}`);loadPs()};
-
+  const dupPost=(p)=>{setComp({caption:p.caption,imageUrl:p.imageUrl||"",fb:p.platforms?.includes("facebook"),ig:p.platforms?.includes("instagram"),tw:p.platforms?.includes("twitter"),tt:p.platforms?.includes("tiktok"),li:p.platforms?.includes("linkedin"),gb:p.platforms?.includes("google_business"),scheduledFor:""});setView("compose");st("Copied - edit and repost!")};
   const calDays=()=>{const f=new Date(cy,cm,1),l=new Date(cy,cm+1,0),s=(f.getDay()+6)%7,d=[];for(let i=0;i<s;i++)d.push(null);for(let i=1;i<=l.getDate();i++)d.push(i);return d};
   const getDp=(day)=>{const ds=new Date(cy,cm,day).toISOString().split("T")[0];return posts.filter(p=>{const pd=p.scheduledFor?p.scheduledFor.split("T")[0]:p.publishedAt?p.publishedAt.split("T")[0]:p.createdAt?.split("T")[0];return pd===ds})};
 
   const queued=posts.filter(p=>p.status==="queued"||p.status==="scheduled");
   const published=posts.filter(p=>p.status==="published"||p.status==="deleted");
-  const wk=published.filter(p=>{const d=new Date(p.publishedAt);return d>=new Date(Date.now()-7*864e5)}).length;
-  const sr=published.length?Math.round(published.filter(p=>Object.values(p.results||{}).some(r=>r.success)).length/published.length*100):0;
   const cc=comp.caption.length;
+  const wk=published.filter(p=>{const d=new Date(p.publishedAt);return d>=new Date(Date.now()-7*864e5)}).length;
+  const totalOk=published.length?Math.round(published.filter(p=>Object.values(p.results||{}).some(r=>r.success)).length/published.length*100):0;
 
+  // LOGIN
   if(!authed)return <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"radial-gradient(ellipse at top,#0f1320,#090b10 70%)"}}>
-    <div style={{textAlign:"center",animation:"slideUp .6s ease both",maxWidth:360,width:"100%",padding:"0 20px"}}>
-      <div style={{width:56,height:56,borderRadius:14,background:"linear-gradient(135deg,var(--accent),#818cf8)",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 16px",fontSize:24,fontWeight:800,color:"#fff",animation:"glow 3s ease infinite"}}>G</div>
-      <div style={{fontSize:26,fontWeight:800,color:"#fff",marginBottom:4}}>Grid<span style={{color:"var(--accent2)"}}>Social</span></div>
-      <p style={{color:"var(--muted)",fontSize:13,marginBottom:24}}>Social Media Management</p>
-      <input type="password" placeholder="Admin key" value={ki} onChange={e=>setKi(e.target.value)} onKeyDown={e=>e.key==="Enter"&&login()} autoFocus style={{...S.inp,marginBottom:10,padding:"13px 16px",fontSize:14,background:"var(--surface)",border:"1px solid var(--border2)"}} />
-      {authErr&&<p style={{color:"var(--red)",fontSize:12,marginBottom:8}}>{authErr}</p>}
-      <button onClick={login} style={{...S.btn(true),width:"100%",padding:13,fontSize:14,background:"linear-gradient(135deg,var(--accent),#818cf8)"}}>Sign in →</button>
+    <div style={{textAlign:"center",animation:"fadeIn .5s ease both",maxWidth:380,width:"100%",padding:"0 24px"}}>
+      <div style={{width:60,height:60,borderRadius:16,background:"linear-gradient(135deg,var(--ac),#818cf8)",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 20px",fontSize:26,fontWeight:800,color:"#fff",animation:"glow 3s ease infinite"}}>G</div>
+      <div style={{fontSize:28,fontWeight:800,color:"#fff",marginBottom:4}}>Grid<span style={{color:"var(--ac2)"}}>Social</span></div>
+      <p style={{color:"var(--mu)",fontSize:14,marginBottom:28}}>Social Media Manager</p>
+      <input type="password" placeholder="Enter your key" value={ki} onChange={e=>setKi(e.target.value)} onKeyDown={e=>e.key==="Enter"&&login()} autoFocus style={{...S.inp,marginBottom:12,padding:"14px 18px",fontSize:15,background:"var(--s1)",border:"1px solid var(--b2)",textAlign:"center"}} />
+      {authErr&&<p style={{color:"var(--rd)",fontSize:13,marginBottom:10}}>{authErr}</p>}
+      <button onClick={login} style={{...S.btn(true,"lg"),width:"100%",justifyContent:"center",background:"linear-gradient(135deg,var(--ac),#818cf8)"}}>Sign In</button>
     </div>
   </div>;
 
-  const navs=[{id:"dashboard",i:"📊",l:"Dashboard"},{id:"compose",i:"✏️",l:"Create Post"},{id:"queue",i:"📋",l:"Queue",c:queued.length},{id:"calendar",i:"📅",l:"Calendar"},{id:"published",i:"✅",l:"Published",c:published.length},{id:"health",i:"🩺",l:"API Health"},{id:"clients",i:"⚙️",l:"Clients & API"}];
+  const navs=[{id:"compose",i:"\u270F\uFE0F",l:"Create Post"},{id:"queue",i:"\uD83D\uDCCB",l:"Queue",c:queued.length},{id:"calendar",i:"\uD83D\uDCC5",l:"Calendar"},{id:"published",i:"\u2705",l:"Published",c:published.length}];
+  const adminNavs=[{id:"health",i:"\uD83E\uDE7A",l:"API Health"},{id:"clients",i:"\u2699\uFE0F",l:"Clients & API"}];
 
   return <div style={{display:"flex",minHeight:"100vh"}}>
-    {/* Mobile hamburger */}
-    <button className="mob" onClick={()=>setSbO(!sbOpen)} style={{position:"fixed",top:10,left:10,zIndex:60,width:38,height:38,borderRadius:10,background:"var(--surface)",border:"1px solid var(--border)",color:"#fff",fontSize:16,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>{sbOpen?"✕":"☰"}</button>
+    <button className="mob" onClick={()=>setSbO(!sbOpen)} style={{position:"fixed",top:12,left:12,zIndex:60,width:40,height:40,borderRadius:10,background:"var(--s1)",border:"1px solid var(--b1)",color:"#fff",fontSize:18,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>{sbOpen?"\u2715":"\u2630"}</button>
 
     {/* SIDEBAR */}
-    <div className={`mob-sb ${sbOpen?"open":""}`} style={{...S.sb,transition:"transform .25s ease"}}>
-      <div style={{padding:"16px 14px 10px",borderBottom:"1px solid var(--border)"}}>
-        <div style={{display:"flex",alignItems:"center",gap:8}}><div style={{width:28,height:28,borderRadius:7,background:"linear-gradient(135deg,var(--accent),#818cf8)",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:12,fontWeight:800}}>G</div>
-        <div><div style={{fontSize:16,fontWeight:800,color:"#fff"}}>Grid<span style={{color:"var(--accent2)"}}>Social</span></div><p style={{fontSize:9,color:"var(--muted)"}}>v4.0</p></div></div>
+    <div className={`mob-sb ${sbOpen?"open":""}`} style={{width:260,background:"#0c0f16",borderRight:"1px solid var(--b1)",display:"flex",flexDirection:"column",flexShrink:0,height:"100vh",position:"fixed",left:0,top:0,zIndex:55,transition:"transform .25s ease"}}>
+      <div style={{padding:"18px 16px 12px",borderBottom:"1px solid var(--b1)"}}>
+        <div style={{display:"flex",alignItems:"center",gap:9}}><div style={{width:30,height:30,borderRadius:8,background:"linear-gradient(135deg,var(--ac),#818cf8)",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:14,fontWeight:800}}>G</div>
+        <div style={{fontSize:17,fontWeight:800,color:"#fff"}}>Grid<span style={{color:"var(--ac2)"}}>Social</span></div></div>
       </div>
-      <div style={{padding:"8px 10px",borderBottom:"1px solid var(--border)"}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}><div style={S.lbl}>Client</div>
-        <button onClick={()=>{setEc(null);setSM(true)}} style={{background:"var(--accent)",color:"#fff",border:"none",borderRadius:5,width:18,height:18,fontSize:11,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>+</button></div>
-        <select value={ac?.id||""} onChange={e=>setAc(clients.find(x=>x.id===e.target.value))} style={{...S.inp,cursor:"pointer",fontSize:11,padding:"8px 10px"}}>
-          {!clients.length&&<option>No clients</option>}{clients.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
+      <div style={{padding:"10px 12px",borderBottom:"1px solid var(--b1)"}}>
+        <div style={S.lbl}>Posting as</div>
+        <select value={ac?.id||""} onChange={e=>{setAc(clients.find(x=>x.id===e.target.value));setSbO(false)}} style={{...S.inp,cursor:"pointer",fontSize:12,padding:"9px 10px",fontWeight:600}}>
+          {clients.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
         </select>
-        {ac&&<div style={{display:"flex",gap:2,marginTop:5,flexWrap:"wrap"}}>{Object.entries(PI).filter(([k])=>k!=="pinterest").map(([k,v])=>{const h=!!ac[v.f];return <span key={k} style={{fontSize:7,padding:"1px 4px",borderRadius:3,...S.bg(h,!h)}}>{h?"●":"○"}{v.l.split(" ")[0].substring(0,2).toUpperCase()}</span>})}</div>}
+        {ac&&<div style={{display:"flex",gap:3,marginTop:6,flexWrap:"wrap"}}>{Object.entries(PI).map(([k,v])=>{const h=!!ac[v.f];return h?<span key={k} style={{fontSize:8,padding:"2px 6px",borderRadius:4,...S.badge(true)}}>{v.icon}</span>:null})}</div>}
       </div>
-      <div style={{padding:"5px 7px",flex:1,overflow:"auto"}}>{navs.map(n=><button key={n.id} onClick={()=>{setView(n.id);setSbO(false)}} style={S.nav(view===n.id)}>
-        <span style={{fontSize:14}}>{n.i}</span>{n.l}
-        {n.c>0&&<span style={{marginLeft:"auto",background:view===n.id?"var(--accent)":"var(--surface2)",color:view===n.id?"#fff":"var(--muted)",fontSize:9,padding:"1px 6px",borderRadius:10,fontWeight:700}}>{n.c}</span>}
-      </button>)}</div>
-      <div style={{padding:"8px 12px",borderTop:"1px solid var(--border)"}}><div style={{fontSize:9,color:"#1e2230"}}>Mon/Wed/Fri 10am</div></div>
+      <div style={{padding:"6px 8px",flex:1,overflow:"auto"}}>
+        {navs.map(n=><button key={n.id} onClick={()=>{setView(n.id);setSbO(false)}} style={{width:"100%",padding:"10px 14px",background:view===n.id?"var(--acbg)":"transparent",border:view===n.id?"1px solid rgba(99,102,241,0.15)":"1px solid transparent",borderRadius:9,color:view===n.id?"var(--ac2)":"var(--mu)",fontSize:13,fontWeight:view===n.id?600:400,cursor:"pointer",textAlign:"left",display:"flex",alignItems:"center",gap:10,marginBottom:2,fontFamily:"inherit"}}>
+          <span style={{fontSize:15,width:22,textAlign:"center"}}>{n.i}</span>{n.l}
+          {n.c>0&&<span style={{marginLeft:"auto",background:view===n.id?"var(--ac)":"var(--s2)",color:view===n.id?"#fff":"var(--mu)",fontSize:9,padding:"2px 7px",borderRadius:10,fontWeight:700}}>{n.c}</span>}
+        </button>)}
+        <div style={{borderTop:"1px solid var(--b1)",marginTop:12,paddingTop:8}}>
+          <button onClick={()=>setAdmin(!admin)} style={{width:"100%",padding:"8px 14px",background:"transparent",border:"none",borderRadius:9,color:"var(--mu)",fontSize:12,cursor:"pointer",textAlign:"left",display:"flex",alignItems:"center",gap:10,fontFamily:"inherit"}}>
+            <span style={{fontSize:14}}>{"\uD83D\uDD27"}</span>Admin{admin?" \u25B2":" \u25BC"}
+          </button>
+          {admin&&adminNavs.map(n=><button key={n.id} onClick={()=>{setView(n.id);setSbO(false)}} style={{width:"100%",padding:"9px 14px 9px 24px",background:view===n.id?"var(--acbg)":"transparent",border:view===n.id?"1px solid rgba(99,102,241,0.15)":"1px solid transparent",borderRadius:9,color:view===n.id?"var(--ac2)":"var(--mu)",fontSize:12,cursor:"pointer",textAlign:"left",display:"flex",alignItems:"center",gap:10,marginBottom:2,fontFamily:"inherit"}}><span>{n.i}</span>{n.l}</button>)}
+        </div>
+      </div>
+      <div style={{padding:"10px 14px",borderTop:"1px solid var(--b1)",display:"flex",justifyContent:"space-around"}}>
+        <div style={{textAlign:"center"}}><div style={{fontSize:16,fontWeight:800,color:"var(--ac2)"}}>{queued.length}</div><div style={{fontSize:8,color:"var(--mu)"}}>Queued</div></div>
+        <div style={{textAlign:"center"}}><div style={{fontSize:16,fontWeight:800,color:"var(--gn)"}}>{published.length}</div><div style={{fontSize:8,color:"var(--mu)"}}>Posted</div></div>
+        <div style={{textAlign:"center"}}><div style={{fontSize:16,fontWeight:800,color:totalOk>80?"var(--gn)":"var(--am)"}}>{totalOk}%</div><div style={{fontSize:8,color:"var(--mu)"}}>OK</div></div>
+      </div>
     </div>
-
     <div className="desk" style={{width:260,flexShrink:0}} />
     {sbOpen&&<div className="mob" onClick={()=>setSbO(false)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,.5)",zIndex:52}} />}
 
     {/* MAIN */}
     <div style={{flex:1,overflow:"auto",minWidth:0}}>
-      <div style={{maxWidth:1020,margin:"0 auto",padding:"22px 18px",paddingTop:typeof window!=="undefined"&&window.innerWidth<769?"58px":"22px"}}>
-
-        {/* DASHBOARD */}
-        {view==="dashboard"&&<div className="animate">
-          <h2 style={{fontSize:22,fontWeight:800,color:"#fff",marginBottom:2}}>Dashboard</h2>
-          <p style={{fontSize:12,color:"var(--muted)",marginBottom:20}}>{ac?.name||"Select a client"}</p>
-          <div style={{display:"flex",gap:10,marginBottom:20,flexWrap:"wrap"}}>
-            {[{l:"Queued",v:queued.length,c:"var(--accent2)",i:"📋"},{l:"Published",v:published.length,c:"var(--green)",i:"✅"},{l:"This Week",v:wk,c:"var(--amber)",i:"📈"},{l:"Success",v:sr+"%",c:sr>80?"var(--green)":"var(--amber)",i:"🎯"}].map((s,i)=>
-              <div key={i} style={{...S.card,flex:"1 1 180px",animationDelay:`${i*70}ms`}}>
-                <div style={{display:"flex",justifyContent:"space-between"}}><div><div style={{fontSize:9,fontWeight:600,color:"var(--muted)",textTransform:"uppercase",letterSpacing:1,marginBottom:4}}>{s.l}</div>
-                <div style={{fontSize:24,fontWeight:800,color:s.c}}>{s.v}</div></div><span style={{fontSize:20}}>{s.i}</span></div>
-              </div>
-            )}
-          </div>
-          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(190px,1fr))",gap:10,marginBottom:20}}>
-            <button onClick={()=>setView("compose")} style={{...S.card,cursor:"pointer",display:"flex",alignItems:"center",gap:10,border:"1px solid rgba(99,102,241,.2)",background:"var(--accent-bg)"}}><span style={{fontSize:20}}>✏️</span><div><div style={{fontWeight:700,fontSize:13,color:"#fff"}}>Create Post</div><div style={{fontSize:10,color:"var(--muted)"}}>Write & schedule</div></div></button>
-            <button onClick={()=>{if(queued.length)publishPost(queued[0].id);else setView("compose")}} style={{...S.card,cursor:"pointer",display:"flex",alignItems:"center",gap:10,border:"1px solid rgba(16,185,129,.2)",background:"var(--green-bg)"}}><span style={{fontSize:20}}>🚀</span><div><div style={{fontWeight:700,fontSize:13,color:"#fff"}}>{queued.length?"Publish Next":"No Queue"}</div><div style={{fontSize:10,color:"var(--muted)"}}>{queued.length?queued[0].caption.substring(0,28)+"...":"Create a post"}</div></div></button>
-            <button onClick={()=>setView("calendar")} style={{...S.card,cursor:"pointer",display:"flex",alignItems:"center",gap:10}}><span style={{fontSize:20}}>📅</span><div><div style={{fontWeight:700,fontSize:13,color:"#fff"}}>Calendar</div><div style={{fontSize:10,color:"var(--muted)"}}>View schedule</div></div></button>
-          </div>
-          <div style={S.card}><h3 style={{fontSize:14,fontWeight:700,color:"#fff",marginBottom:12}}>Recent Activity</h3>
-            {!posts.length?<p style={{color:"var(--muted)",fontSize:12}}>No activity yet</p>
-            :posts.slice(-5).reverse().map((p,i)=><div key={p.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 0",borderBottom:i<4?"1px solid var(--border)":"none"}}>
-              <div style={{width:7,height:7,borderRadius:"50%",background:p.status==="published"?"var(--green)":p.status==="queued"?"var(--accent)":"var(--amber)",flexShrink:0}} />
-              <div style={{flex:1,minWidth:0}}><div style={{fontSize:12,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{p.caption}</div>
-              <div style={{fontSize:10,color:"var(--muted)"}}>{p.status} · {new Date(p.publishedAt||p.createdAt).toLocaleDateString("en-GB",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"})}</div></div>
-              <div style={{display:"flex",gap:2}}>{p.platforms?.map(pl=><span key={pl} style={{fontSize:11}}>{PI[pl]?.icon}</span>)}</div>
-            </div>)}
-          </div>
-        </div>}
+      <div style={{maxWidth:1020,margin:"0 auto",padding:"24px 20px",paddingTop:typeof window!=="undefined"&&window.innerWidth<769?"60px":"24px"}}>
 
         {/* CREATE POST */}
-        {view==="compose"&&<div className="animate">
-          <h2 style={{fontSize:22,fontWeight:800,color:"#fff",marginBottom:18}}>Create Post</h2>
-          {!ac?<div style={{...S.card,padding:40,textAlign:"center",color:"var(--muted)"}}><p>Add a client first</p><button onClick={()=>{setView("clients");setSM(true)}} style={{...S.btn(true),marginTop:10}}>Add Client</button></div>
-          :<div style={{display:"grid",gridTemplateColumns:"1fr 280px",gap:18}}>
+        {view==="compose"&&<div className="anim">
+          <h2 style={{fontSize:24,fontWeight:800,color:"#fff",marginBottom:6}}>Create a Post</h2>
+          <p style={{fontSize:13,color:"var(--mu)",marginBottom:18}}>Write it, add a photo, hit post</p>
+          {!ac?<div style={{...S.card,padding:50,textAlign:"center"}}><p style={{color:"var(--mu)"}}>Add a client to start</p></div>
+          :<>
+          <div style={{display:"flex",gap:6,marginBottom:14,overflowX:"auto",paddingBottom:4}}>
+            {TEMPLATES.map((t,i)=><button key={i} onClick={()=>setComp(c=>({...c,caption:t.t}))} style={{padding:"8px 14px",background:"var(--s2)",border:"1px solid var(--b1)",borderRadius:10,color:"var(--tx)",fontSize:12,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap",flexShrink:0,borderLeft:`3px solid ${t.color}`}}>{t.n}</button>)}
+            <button onClick={()=>setSAI(true)} style={{padding:"8px 14px",background:"linear-gradient(135deg,rgba(99,102,241,.12),rgba(236,72,153,.12))",border:"1px solid rgba(99,102,241,.2)",borderRadius:10,color:"var(--ac2)",fontSize:12,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap",fontWeight:600,flexShrink:0}}>AI Writer</button>
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 280px",gap:18,alignItems:"start"}}>
             <div>
-              {showAI&&<AICaptionGen client={ac} onInsert={(t)=>{setComp(c=>({...c,caption:t}));setSA(false)}} />}
-              {showT&&<div style={{...S.card,marginBottom:14}}>
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}><span style={{fontSize:13,fontWeight:700,color:"#fff"}}>📝 Templates</span><button onClick={()=>setST(false)} style={{background:"none",border:"none",color:"var(--muted)",cursor:"pointer",fontSize:14}}>✕</button></div>
-                <div style={{display:"grid",gap:6}}>{TEMPLATES.map((t,i)=><button key={i} onClick={()=>{setComp(c=>({...c,caption:t.t}));setST(false)}} style={{padding:10,background:"var(--surface2)",border:"1px solid var(--border)",borderRadius:8,textAlign:"left",cursor:"pointer",fontFamily:"inherit",color:"var(--text)"}}><div style={{fontWeight:600,fontSize:12,marginBottom:3}}>{t.n}</div><div style={{fontSize:10,color:"var(--muted)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{t.t.substring(0,55)}...</div></button>)}</div>
-              </div>}
               <div style={S.card}>
-                <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
-                  <div style={{width:32,height:32,borderRadius:8,background:"linear-gradient(135deg,var(--accent),#818cf8)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:700,color:"#fff"}}>{ac.name.charAt(0)}</div>
-                  <div style={{flex:1}}><div style={{fontWeight:600,fontSize:13,color:"#fff"}}>{ac.name}</div>
-                  <div style={{fontSize:10,color:"var(--muted)"}}>{[comp.fb&&"FB",comp.ig&&"IG",comp.tw&&"X",comp.tt&&"TT",comp.li&&"LI",comp.gb&&"GBP"].filter(Boolean).join(" + ")||"None"}</div></div>
-                  <div style={{display:"flex",gap:3}}>
-                    <button onClick={()=>setSA(!showAI)} title="AI" style={{padding:"5px 8px",background:showAI?"var(--accent-bg)":"var(--surface2)",border:`1px solid ${showAI?"rgba(99,102,241,.3)":"var(--border)"}`,borderRadius:5,cursor:"pointer",fontSize:11}}>✨</button>
-                    <button onClick={()=>setST(!showT)} title="Templates" style={{padding:"5px 8px",background:showT?"var(--accent-bg)":"var(--surface2)",border:`1px solid ${showT?"rgba(99,102,241,.3)":"var(--border)"}`,borderRadius:5,cursor:"pointer",fontSize:11}}>📝</button>
-                  </div>
+                <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14}}>
+                  <div style={{width:36,height:36,borderRadius:10,background:"linear-gradient(135deg,var(--ac),#818cf8)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,fontWeight:700,color:"#fff"}}>{ac.name.charAt(0)}</div>
+                  <div><div style={{fontWeight:700,fontSize:14,color:"#fff"}}>{ac.name}</div>
+                  <div style={{fontSize:11,color:"var(--mu)"}}>{getPl().map(p=>PI[p]?.icon).join(" ")||"Select platforms"}</div></div>
                 </div>
-                <textarea value={comp.caption} onChange={e=>setComp(p=>({...p,caption:e.target.value}))} placeholder="Write your post..."
-                  style={{width:"100%",minHeight:160,background:"transparent",border:"none",color:"var(--text)",fontSize:14,lineHeight:1.7,resize:"vertical",outline:"none",fontFamily:"inherit"}} />
-                <div style={{display:"flex",justifyContent:"flex-end",borderTop:"1px solid var(--border)",paddingTop:6,marginTop:4}}>
-                  <span style={{fontSize:11,color:cc>2200?"var(--red)":cc>1800?"var(--amber)":"var(--muted)"}}>{cc}/2,200</span></div>
-                <HashtagBar caption={comp.caption} onInsert={(t)=>setComp(c=>({...c,caption:c.caption+"\n"+t}))} />
-                <div style={{borderTop:"1px solid var(--border)",paddingTop:12,marginTop:6}}>
-                  <div style={S.lbl}>Image</div>
+                <textarea value={comp.caption} onChange={e=>setComp(p=>({...p,caption:e.target.value}))} placeholder="What do you want to post?" style={{width:"100%",minHeight:170,background:"transparent",border:"none",color:"var(--tx)",fontSize:15,lineHeight:1.7,resize:"vertical",outline:"none",fontFamily:"inherit"}} />
+                <div style={{display:"flex",justifyContent:"space-between",borderTop:"1px solid var(--b1)",paddingTop:8,marginTop:6}}>
+                  <div style={{display:"flex",gap:3,flexWrap:"wrap"}}>{getHashtags(comp.caption,ac?.name||"").map(t=><button key={t} onClick={()=>setComp(c=>({...c,caption:c.caption+"\n"+t}))} style={{padding:"2px 7px",borderRadius:12,background:"var(--acbg)",border:"1px solid rgba(99,102,241,.12)",color:"var(--ac2)",fontSize:9,cursor:"pointer",fontFamily:"inherit"}}>{t}</button>)}</div>
+                  <span style={{fontSize:11,color:cc>2200?"var(--rd)":"var(--mu)",flexShrink:0}}>{cc}/2200</span>
+                </div>
+                <div style={{borderTop:"1px solid var(--b1)",paddingTop:14,marginTop:10}}>
                   <div onDragOver={e=>{e.preventDefault();setDragO(true)}} onDragLeave={()=>setDragO(false)} onDrop={handleDrop} onClick={()=>fRef.current?.click()}
-                    style={{border:`2px dashed ${dragO?"var(--accent)":"var(--border)"}`,borderRadius:10,padding:comp.imageUrl?"6px":"18px 12px",textAlign:"center",cursor:"pointer",background:dragO?"rgba(99,102,241,.04)":"transparent",transition:"all .2s",marginBottom:6}}>
-                    {comp.imageUrl?<div style={{position:"relative"}}><img src={comp.imageUrl} style={{maxWidth:"100%",maxHeight:140,borderRadius:8,objectFit:"cover"}} onError={e=>{e.target.style.display="none"}} />
-                      <button onClick={e=>{e.stopPropagation();setComp(p=>({...p,imageUrl:""}))}} style={{position:"absolute",top:3,right:3,background:"rgba(0,0,0,.7)",color:"#fff",border:"none",borderRadius:"50%",width:20,height:20,cursor:"pointer",fontSize:12,display:"flex",alignItems:"center",justifyContent:"center"}}>×</button></div>
-                    :<div><div style={{fontSize:22,marginBottom:3}}>📷</div><div style={{fontSize:11,color:"var(--muted)"}}>Drop image from desktop or browser,<br/>tap to browse, or paste URL below</div></div>}
+                    style={{border:`2px dashed ${dragO?"var(--ac)":"var(--b1)"}`,borderRadius:12,padding:comp.imageUrl?"6px":"24px 14px",textAlign:"center",cursor:"pointer",background:dragO?"rgba(99,102,241,.03)":"transparent",transition:"all .2s"}}>
+                    {comp.imageUrl?<div style={{position:"relative"}}><img src={comp.imageUrl} style={{maxWidth:"100%",maxHeight:160,borderRadius:10,objectFit:"cover"}} onError={e=>{e.target.style.display="none"}} />
+                      <button onClick={e=>{e.stopPropagation();setComp(p=>({...p,imageUrl:""}))}} style={{position:"absolute",top:4,right:4,background:"rgba(0,0,0,.7)",color:"#fff",border:"none",borderRadius:"50%",width:24,height:24,cursor:"pointer",fontSize:14,display:"flex",alignItems:"center",justifyContent:"center"}}>{"\u00D7"}</button></div>
+                    :<div><div style={{fontSize:28,marginBottom:6}}>Photo</div><div style={{fontSize:13,color:"var(--mu)"}}>Drop, tap, or paste a photo</div></div>}
                     <input ref={fRef} type="file" accept="image/*" style={{display:"none"}} onChange={e=>{if(e.target.files[0])handleImg(e.target.files[0]);e.target.value=""}} />
                   </div>
-                  <input type="url" value={comp.imageUrl} onChange={e=>setComp(p=>({...p,imageUrl:e.target.value}))} placeholder="Or paste image URL..." style={{...S.inp,fontSize:11}} />
+                  <input type="url" value={comp.imageUrl} onChange={e=>setComp(p=>({...p,imageUrl:e.target.value}))} placeholder="Or paste image URL..." style={{...S.inp,fontSize:12,marginTop:6}} />
                 </div>
               </div>
-              {comp.caption&&<div style={{marginTop:14}}><div style={{display:"flex",justifyContent:"center",gap:5,marginBottom:10}}>
-                <button onClick={()=>setPP("facebook")} style={{...S.sm(pp==="facebook"?"a":null)}}>📘 FB</button>
-                <button onClick={()=>setPP("instagram")} style={{...S.sm(null),background:pp==="instagram"?"rgba(236,73,153,.12)":"var(--surface2)",color:pp==="instagram"?"#ec4899":"var(--muted)"}}>📸 IG</button>
-              </div><PhonePreview caption={comp.caption} imageUrl={comp.imageUrl} platform={pp} name={ac.name} /></div>}
+              {comp.caption&&<div style={{marginTop:16}}>
+                <div style={{display:"flex",justifyContent:"center",gap:6,marginBottom:10}}>
+                  <button onClick={()=>setPP("facebook")} style={{padding:"5px 12px",borderRadius:8,background:pp==="facebook"?"var(--acbg)":"var(--s2)",border:"1px solid var(--b1)",color:pp==="facebook"?"var(--ac2)":"var(--mu)",fontSize:11,cursor:"pointer",fontFamily:"inherit",fontWeight:600}}>Facebook</button>
+                  <button onClick={()=>setPP("instagram")} style={{padding:"5px 12px",borderRadius:8,background:pp==="instagram"?"rgba(236,73,153,.08)":"var(--s2)",border:"1px solid var(--b1)",color:pp==="instagram"?"#ec4899":"var(--mu)",fontSize:11,cursor:"pointer",fontFamily:"inherit",fontWeight:600}}>Instagram</button>
+                </div>
+                <PhonePreview caption={comp.caption} imageUrl={comp.imageUrl} platform={pp} name={ac.name} />
+              </div>}
             </div>
             <div>
-              <div style={{...S.card,padding:14,marginBottom:10}}>
-                <div style={S.lbl}>Platforms</div>
-                {Object.entries(PI).filter(([k])=>k!=="pinterest").map(([k,v])=>{const on=!!ac[v.f];const ck={facebook:"fb",instagram:"ig",twitter:"tw",tiktok:"tt",linkedin:"li",google_business:"gb"}[k];
-                  return <label key={k} style={{display:"flex",alignItems:"center",gap:7,padding:"4px 0",cursor:on?"pointer":"default",opacity:on?1:.4}}>
-                    <input type="checkbox" checked={!!comp[ck]} disabled={!on} onChange={e=>setComp(x=>({...x,[ck]:e.target.checked}))} style={{width:14,height:14,accentColor:"var(--accent)"}} />
-                    <span style={{fontSize:12}}>{v.icon}</span><span style={{fontSize:11}}>{v.l}</span>
-                    {!on&&<span style={{marginLeft:"auto",fontSize:8,...S.bg(false,true),padding:"1px 5px"}}>—</span>}
-                  </label>
-                })}
-                {comp.ig&&!comp.imageUrl&&<div style={{fontSize:10,color:"var(--amber)",padding:"4px 6px",background:"var(--amber-bg)",borderRadius:5,marginTop:3}}>⚠ IG needs image</div>}
+              <div style={{...S.card,padding:16,marginBottom:10}}>
+                <div style={S.lbl}>Post to</div>
+                {Object.entries(PI).map(([k,v])=>{const on=!!ac[v.f];const ck={facebook:"fb",instagram:"ig",twitter:"tw",tiktok:"tt",linkedin:"li",google_business:"gb"}[k];
+                  return <label key={k} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 0",cursor:on?"pointer":"default",opacity:on?1:.35}}>
+                    <input type="checkbox" checked={!!comp[ck]} disabled={!on} onChange={e=>setComp(x=>({...x,[ck]:e.target.checked}))} style={{width:16,height:16,accentColor:"var(--ac)"}} />
+                    <span style={{fontSize:14}}>{v.icon}</span><span style={{fontSize:13}}>{v.l}</span>
+                    {!on&&<span style={{marginLeft:"auto",fontSize:9,color:"var(--mu)"}}>not linked</span>}
+                  </label>})}
+                {comp.ig&&!comp.imageUrl&&<div style={{fontSize:11,color:"var(--am)",padding:"6px 8px",background:"var(--ambg)",borderRadius:6,marginTop:6}}>Instagram needs a photo</div>}
               </div>
-              <div style={{...S.card,padding:14,marginBottom:10}}><div style={S.lbl}>Schedule</div>
+              <div style={{...S.card,padding:16,marginBottom:10}}><div style={S.lbl}>Schedule</div>
                 <input type="datetime-local" value={comp.scheduledFor} onChange={e=>setComp(p=>({...p,scheduledFor:e.target.value}))} style={{...S.inp,colorScheme:"dark"}} />
-                <p style={{fontSize:9,color:"var(--muted)",marginTop:3}}>Empty = queue</p></div>
-              <button onClick={addPost} style={{...S.btn(true),width:"100%",padding:12,marginBottom:6,fontSize:13}}>{comp.scheduledFor?"📅 Schedule":"➕ Queue"}</button>
-              <button onClick={pubDirect} disabled={pub==="d"} style={{width:"100%",padding:12,fontSize:13,fontWeight:700,background:"linear-gradient(135deg,#10b981,#059669)",color:"#fff",border:"none",borderRadius:8,cursor:"pointer",fontFamily:"inherit",opacity:pub==="d"?.6:1,marginBottom:6}}>{pub==="d"?"Publishing...":"🚀 Post Now"}</button>
-              <div style={{display:"flex",gap:5}}><button onClick={()=>setSB(true)} style={{...S.btn(false),flex:1,fontSize:10,padding:"6px 8px"}}>📦 Bulk</button><button onClick={resetC} style={{...S.btn(false),fontSize:10,padding:"6px 8px"}}>Clear</button></div>
+                <p style={{fontSize:10,color:"var(--mu)",marginTop:4}}>Leave empty = add to queue</p></div>
+              <button onClick={pubDirect} disabled={pub==="d"} style={{width:"100%",padding:14,fontSize:15,fontWeight:700,background:"linear-gradient(135deg,#10b981,#059669)",color:"#fff",border:"none",borderRadius:10,cursor:"pointer",fontFamily:"inherit",opacity:pub==="d"?.6:1,marginBottom:8}}>Post Now</button>
+              <button onClick={addPost} style={{width:"100%",padding:12,fontSize:14,fontWeight:600,background:"var(--s2)",color:"var(--ac2)",border:"1px solid rgba(99,102,241,.2)",borderRadius:10,cursor:"pointer",fontFamily:"inherit",marginBottom:8}}>{comp.scheduledFor?"Schedule":"Add to Queue"}</button>
+              <div style={{display:"flex",gap:6}}><button onClick={()=>setSB(true)} style={{...S.btn(false,"sm"),flex:1,fontSize:11}}>Bulk Import</button><button onClick={resetC} style={{...S.btn(false,"sm"),fontSize:11}}>Clear</button></div>
             </div>
-          </div>}
+          </div></>}
         </div>}
 
         {/* QUEUE */}
-        {view==="queue"&&<div className="animate">
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18,flexWrap:"wrap",gap:6}}>
-            <h2 style={{fontSize:22,fontWeight:800,color:"#fff"}}>Post Queue</h2>
-            <div style={{display:"flex",gap:6,alignItems:"center"}}><span style={{fontSize:12,color:"var(--muted)"}}>{queued.length} queued</span>
-            {queued.length>0&&<button onClick={()=>publishPost(queued[0].id)} style={S.sm("g")}>▶ Next</button>}</div>
+        {view==="queue"&&<div className="anim">
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20,flexWrap:"wrap",gap:8}}>
+            <div><h2 style={{fontSize:24,fontWeight:800,color:"#fff"}}>Queue</h2><p style={{fontSize:13,color:"var(--mu)"}}>{queued.length} posts waiting</p></div>
+            {queued.length>0&&<button onClick={()=>publishPost(queued[0].id)} style={S.btn(true)}>Publish Next</button>}
           </div>
-          {!queued.length?<div style={{...S.card,padding:40,textAlign:"center",color:"var(--muted)"}}><p style={{fontSize:24,marginBottom:6}}>📝</p><p>Empty — <span onClick={()=>setView("compose")} style={{color:"var(--accent2)",cursor:"pointer"}}>create a post</span></p></div>
-          :queued.map((p,i)=><div key={p.id} style={{...S.card,marginBottom:6,display:"flex",gap:10,padding:14,animationDelay:`${i*35}ms`,opacity:pub===p.id?.5:1}}>
-            <div style={{display:"flex",flexDirection:"column",gap:1,justifyContent:"center",flexShrink:0}}>
-              <button onClick={()=>moveP(p.id,"u")} disabled={i===0} style={{background:"var(--surface2)",border:"none",borderRadius:3,width:20,height:20,cursor:i===0?"default":"pointer",color:i===0?"#151820":"var(--muted)",fontSize:9,display:"flex",alignItems:"center",justifyContent:"center"}}>▲</button>
-              <div style={{textAlign:"center",fontSize:10,color:"var(--muted)",fontWeight:700}}>{i+1}</div>
-              <button onClick={()=>moveP(p.id,"d")} disabled={i===queued.length-1} style={{background:"var(--surface2)",border:"none",borderRadius:3,width:20,height:20,cursor:i===queued.length-1?"default":"pointer",color:i===queued.length-1?"#151820":"var(--muted)",fontSize:9,display:"flex",alignItems:"center",justifyContent:"center"}}>▼</button>
+          {!queued.length?<div style={{...S.card,padding:50,textAlign:"center"}}><p style={{fontSize:28,marginBottom:8}}>Empty</p><p style={{color:"var(--mu)",marginBottom:12}}>No posts in queue</p><button onClick={()=>setView("compose")} style={S.btn(true,"lg")}>Create a Post</button></div>
+          :queued.map((p,i)=><div key={p.id} style={{...S.card,marginBottom:8,display:"flex",gap:12,padding:16,animationDelay:`${i*40}ms`,opacity:pub===p.id?.5:1}}>
+            <div style={{display:"flex",flexDirection:"column",gap:2,justifyContent:"center",flexShrink:0}}>
+              <button onClick={()=>moveP(p.id,"u")} disabled={i===0} style={{background:"var(--s2)",border:"none",borderRadius:4,width:22,height:22,cursor:i===0?"default":"pointer",color:i===0?"#151820":"var(--mu)",fontSize:10,display:"flex",alignItems:"center",justifyContent:"center"}}>{"\u25B2"}</button>
+              <div style={{textAlign:"center",fontSize:12,color:"var(--ac2)",fontWeight:800}}>{i+1}</div>
+              <button onClick={()=>moveP(p.id,"d")} disabled={i===queued.length-1} style={{background:"var(--s2)",border:"none",borderRadius:4,width:22,height:22,cursor:i===queued.length-1?"default":"pointer",color:i===queued.length-1?"#151820":"var(--mu)",fontSize:10,display:"flex",alignItems:"center",justifyContent:"center"}}>{"\u25BC"}</button>
             </div>
-            {p.imageUrl&&<div style={{width:46,height:46,borderRadius:7,overflow:"hidden",flexShrink:0}}><img src={p.imageUrl} style={{width:"100%",height:"100%",objectFit:"cover"}} /></div>}
-            <div style={{flex:1,minWidth:0}}><div style={{fontSize:13,lineHeight:1.5,whiteSpace:"pre-wrap",maxHeight:60,overflow:"hidden"}}>{p.caption}</div>
-              <div style={{display:"flex",gap:3,marginTop:5,flexWrap:"wrap"}}>{p.platforms.map(pl=><span key={pl} style={{fontSize:9,padding:"1px 5px",background:"var(--surface2)",border:"1px solid var(--border)",borderRadius:3,color:"var(--muted)"}}>{PI[pl]?.icon}</span>)}
-              {p.scheduledFor&&<span style={{fontSize:9,padding:"1px 5px",background:"var(--accent-bg)",borderRadius:3,color:"var(--accent2)"}}>📅 {new Date(p.scheduledFor).toLocaleDateString("en-GB",{day:"numeric",month:"short"})}</span>}</div>
+            {p.imageUrl&&<div style={{width:52,height:52,borderRadius:8,overflow:"hidden",flexShrink:0}}><img src={p.imageUrl} style={{width:"100%",height:"100%",objectFit:"cover"}} /></div>}
+            <div style={{flex:1,minWidth:0}}><div style={{fontSize:14,lineHeight:1.5,whiteSpace:"pre-wrap",maxHeight:60,overflow:"hidden"}}>{p.caption}</div>
+              <div style={{display:"flex",gap:4,marginTop:6,flexWrap:"wrap"}}>{p.platforms?.map(pl=><span key={pl} style={{fontSize:10,padding:"2px 6px",background:"var(--s2)",border:"1px solid var(--b1)",borderRadius:4,color:"var(--mu)"}}>{PI[pl]?.icon} {PI[pl]?.l}</span>)}</div>
             </div>
-            <div style={{display:"flex",gap:2,flexShrink:0,alignItems:"flex-start"}}>
-              <button onClick={()=>setEp(p)} style={S.sm("a")} title="Edit">✎</button>
-              <button onClick={()=>publishPost(p.id)} disabled={pub===p.id} style={S.sm("g")}>{pub===p.id?"…":"▶"}</button>
-              <button onClick={()=>delPost(p.id)} style={S.sm("r")}>×</button>
+            <div style={{display:"flex",gap:4,flexShrink:0,alignItems:"flex-start"}}>
+              <button onClick={()=>setEp(p)} style={S.btn(false,"sm")}>Edit</button>
+              <button onClick={()=>publishPost(p.id)} disabled={pub===p.id} style={{...S.btn(true,"sm"),background:"var(--gn)"}}>{pub===p.id?"...":"Post"}</button>
+              <button onClick={()=>delPost(p.id)} style={{...S.btn(false,"sm"),color:"var(--rd)"}}>{"\u2715"}</button>
             </div>
           </div>)}
         </div>}
 
         {/* CALENDAR */}
-        {view==="calendar"&&<div className="animate">
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18,flexWrap:"wrap",gap:6}}>
-            <h2 style={{fontSize:22,fontWeight:800,color:"#fff"}}>Calendar</h2>
-            <div style={{display:"flex",gap:6,alignItems:"center"}}>
-              <button onClick={()=>{if(cm===0){setCm(11);setCy(y=>y-1)}else setCm(m=>m-1)}} style={{padding:"5px 10px",background:"var(--surface2)",border:"1px solid var(--border)",borderRadius:6,color:"var(--muted)",cursor:"pointer",fontSize:14}}>‹</button>
-              <span style={{fontSize:14,fontWeight:700,color:"#fff",minWidth:140,textAlign:"center"}}>{MONTHS[cm]} {cy}</span>
-              <button onClick={()=>{if(cm===11){setCm(0);setCy(y=>y+1)}else setCm(m=>m+1)}} style={{padding:"5px 10px",background:"var(--surface2)",border:"1px solid var(--border)",borderRadius:6,color:"var(--muted)",cursor:"pointer",fontSize:14}}>›</button>
+        {view==="calendar"&&<div className="anim">
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+            <h2 style={{fontSize:24,fontWeight:800,color:"#fff"}}>Calendar</h2>
+            <div style={{display:"flex",gap:8,alignItems:"center"}}>
+              <button onClick={()=>{if(cm===0){setCm(11);setCy(y=>y-1)}else setCm(m=>m-1)}} style={{padding:"6px 12px",background:"var(--s2)",border:"1px solid var(--b1)",borderRadius:8,color:"var(--mu)",cursor:"pointer",fontSize:16}}>{"\u2039"}</button>
+              <span style={{fontSize:15,fontWeight:700,color:"#fff",minWidth:150,textAlign:"center"}}>{MFULL[cm]} {cy}</span>
+              <button onClick={()=>{if(cm===11){setCm(0);setCy(y=>y+1)}else setCm(m=>m+1)}} style={{padding:"6px 12px",background:"var(--s2)",border:"1px solid var(--b1)",borderRadius:8,color:"var(--mu)",cursor:"pointer",fontSize:16}}>{"\u203A"}</button>
             </div>
           </div>
-          <div style={{display:"flex",gap:8,marginBottom:12,fontSize:10,color:"var(--muted)",flexWrap:"wrap"}}><span>🟢 Published</span><span>🔵 Queued</span><span>🟣 Scheduled</span></div>
-          <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:1,background:"var(--border)",borderRadius:12,overflow:"hidden"}}>
-            {DAYS.map(d=><div key={d} style={{padding:7,textAlign:"center",fontSize:9,fontWeight:600,color:"var(--muted)",background:"var(--surface)",textTransform:"uppercase",letterSpacing:1}}>{d}</div>)}
-            {calDays().map((day,i)=>{const dp=day?getDp(day):[];const today=day&&new Date().getDate()===day&&new Date().getMonth()===cm&&new Date().getFullYear()===cy;const dow=day?new Date(cy,cm,day).getDay():-1;
-              return <div key={i} onClick={()=>{if(day){setComp(c=>({...c,scheduledFor:new Date(cy,cm,day,10,0).toISOString().slice(0,16)}));setView("compose")}}} style={{minHeight:72,padding:3,background:[1,3,5].includes(dow)&&day?"rgba(99,102,241,.02)":"var(--bg)",cursor:day?"pointer":"default"}}>
-                {day&&<><span style={{fontSize:10,color:today?"var(--accent2)":"var(--muted)",fontWeight:today?700:400,display:"inline-flex",alignItems:"center",justifyContent:"center",width:18,height:18,borderRadius:"50%",background:today?"var(--accent-bg)":"transparent"}}>{day}</span>
-                {dp.map(p=><div key={p.id} style={{fontSize:7,padding:"1px 2px",marginTop:1,borderRadius:2,background:p.status==="published"?"var(--green-bg)":p.status==="scheduled"?"rgba(168,85,247,.12)":"var(--accent-bg)",color:p.status==="published"?"var(--green)":p.status==="scheduled"?"#a855f7":"var(--accent2)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}} title={p.caption}>{p.status==="published"?"✓":"○"} {p.caption.substring(0,13)}</div>)}</>}
-              </div>
-            })}
+          <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:1,background:"var(--b1)",borderRadius:14,overflow:"hidden"}}>
+            {DAYS.map(d=><div key={d} style={{padding:8,textAlign:"center",fontSize:10,fontWeight:600,color:"var(--mu)",background:"var(--s1)"}}>{d}</div>)}
+            {calDays().map((day,i)=>{const dp=day?getDp(day):[];const today=day&&new Date().getDate()===day&&new Date().getMonth()===cm&&new Date().getFullYear()===cy;
+              return <div key={i} onClick={()=>{if(day){setComp(c=>({...c,scheduledFor:new Date(cy,cm,day,10,0).toISOString().slice(0,16)}));setView("compose")}}} style={{minHeight:78,padding:4,background:"var(--bg)",cursor:day?"pointer":"default"}}>
+                {day&&<><span style={{fontSize:11,color:today?"var(--ac2)":"var(--mu)",fontWeight:today?700:400,display:"inline-flex",alignItems:"center",justifyContent:"center",width:20,height:20,borderRadius:"50%",background:today?"var(--acbg)":"transparent"}}>{day}</span>
+                {dp.map(p=><div key={p.id} style={{fontSize:8,padding:"2px 3px",marginTop:1,borderRadius:3,background:p.status==="published"?"var(--gnbg)":"var(--acbg)",color:p.status==="published"?"var(--gn)":"var(--ac2)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.caption.substring(0,14)}</div>)}</>}
+              </div>})}
           </div>
+          <p style={{fontSize:11,color:"var(--mu)",marginTop:10}}>Click any day to schedule a post for that date</p>
         </div>}
 
         {/* PUBLISHED */}
-        {view==="published"&&<div className="animate">
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18}}><h2 style={{fontSize:22,fontWeight:800,color:"#fff"}}>Published</h2><span style={{fontSize:12,color:"var(--muted)"}}>{published.length}</span></div>
-          {!published.length?<div style={{...S.card,padding:40,textAlign:"center",color:"var(--muted)"}}><p style={{fontSize:24,marginBottom:6}}>📭</p><p>Nothing yet</p></div>
-          :published.slice().reverse().map((p,i)=><div key={p.id} style={{...S.card,marginBottom:6,padding:14,animationDelay:`${i*25}ms`}}>
-            <div style={{display:"flex",gap:10}}>
-              {p.imageUrl&&<div style={{width:48,height:48,borderRadius:7,overflow:"hidden",flexShrink:0}}><img src={p.imageUrl} style={{width:"100%",height:"100%",objectFit:"cover"}} /></div>}
-              <div style={{flex:1,minWidth:0}}><div style={{fontSize:12,lineHeight:1.5,whiteSpace:"pre-wrap",maxHeight:50,overflow:"hidden"}}>{p.caption}</div>
-                <div style={{fontSize:10,color:"var(--muted)",marginTop:3}}>📅 {new Date(p.publishedAt).toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"})}</div>
-                <div style={{display:"flex",gap:3,marginTop:4,flexWrap:"wrap"}}>{Object.entries(p.results||{}).map(([k,v])=><div key={k} style={{display:"inline-flex",alignItems:"center",gap:2,fontSize:10,padding:"2px 6px",borderRadius:4,background:v.success?"var(--green-bg)":"var(--red-bg)",color:v.success?"var(--green)":"var(--red)"}}>{PI[k]?.icon}{v.success?"✓":"✗"}
-                  {v.success&&v.id&&<button onClick={()=>delPlat(p.id,k)} style={{background:"none",border:"none",cursor:"pointer",color:"var(--red)",fontSize:9,opacity:.5}}>🗑</button>}
+        {view==="published"&&<div className="anim">
+          <div style={{marginBottom:20}}><h2 style={{fontSize:24,fontWeight:800,color:"#fff"}}>Published</h2><p style={{fontSize:13,color:"var(--mu)"}}>{published.length} posts | {wk} this week | {totalOk}% success</p></div>
+          {!published.length?<div style={{...S.card,padding:50,textAlign:"center"}}><p style={{color:"var(--mu)"}}>Nothing published yet</p></div>
+          :published.slice().reverse().map((p,i)=><div key={p.id} style={{...S.card,marginBottom:8,padding:16,animationDelay:`${i*30}ms`}}>
+            <div style={{display:"flex",gap:12}}>
+              {p.imageUrl&&<div style={{width:52,height:52,borderRadius:8,overflow:"hidden",flexShrink:0}}><img src={p.imageUrl} style={{width:"100%",height:"100%",objectFit:"cover"}} /></div>}
+              <div style={{flex:1,minWidth:0}}><div style={{fontSize:14,lineHeight:1.5,whiteSpace:"pre-wrap",maxHeight:50,overflow:"hidden"}}>{p.caption}</div>
+                <div style={{fontSize:11,color:"var(--mu)",marginTop:4}}>{new Date(p.publishedAt||p.createdAt).toLocaleDateString("en-GB",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"})}</div>
+                <div style={{display:"flex",gap:4,marginTop:5,flexWrap:"wrap"}}>{Object.entries(p.results||{}).map(([k,v])=><div key={k} style={{display:"inline-flex",alignItems:"center",gap:3,fontSize:11,padding:"3px 8px",borderRadius:6,...S.badge(v.success)}}>{PI[k]?.icon}{v.success?"OK":"Fail"}
+                  {v.success&&v.id&&<button onClick={()=>delPlat(p.id,k)} style={{background:"none",border:"none",cursor:"pointer",color:"var(--rd)",fontSize:10,opacity:.5}}>x</button>}
                 </div>)}</div>
               </div>
-              <button onClick={()=>delPost(p.id)} style={{...S.sm("r"),flexShrink:0,fontSize:10}}>×</button>
+              <div style={{display:"flex",gap:4,flexShrink:0}}><button onClick={()=>dupPost(p)} style={S.btn(false,"sm")} title="Reuse">Reuse</button><button onClick={()=>delPost(p.id)} style={{...S.btn(false,"sm"),color:"var(--rd)"}}>{"\u2715"}</button></div>
             </div>
           </div>)}
         </div>}
 
         {/* API HEALTH */}
-        {view==="health"&&<div className="animate">
-          <h2 style={{fontSize:22,fontWeight:800,color:"#fff",marginBottom:18}}>API Health</h2>
-          {!ac?<div style={{...S.card,padding:40,textAlign:"center",color:"var(--muted)"}}><p>Select client</p></div>
-          :<div style={S.card}><h3 style={{fontSize:15,fontWeight:700,color:"#fff",marginBottom:12}}>{ac.name}</h3>
+        {view==="health"&&<div className="anim">
+          <h2 style={{fontSize:24,fontWeight:800,color:"#fff",marginBottom:20}}>API Health</h2>
+          {ac&&<div style={S.card}><h3 style={{fontSize:16,fontWeight:700,color:"#fff",marginBottom:14}}>{ac.name}</h3>
             <ApiHealth client={ac} />
-            <div style={{borderTop:"1px solid var(--border)",marginTop:14,paddingTop:14}}><div style={S.lbl}>Connect</div>
-              <a href="/api/meta-auth" style={{display:"inline-flex",alignItems:"center",gap:6,padding:"9px 16px",background:"#1877F2",color:"#fff",borderRadius:8,textDecoration:"none",fontWeight:700,fontSize:12}}>📘 Connect Facebook</a></div>
-            <div style={{borderTop:"1px solid var(--border)",marginTop:14,paddingTop:14}}><div style={S.lbl}>Links</div>
-              {[["Graph Explorer","https://developers.facebook.com/tools/explorer/"],["Token Debugger","https://developers.facebook.com/tools/debug/accesstoken/"],["Meta Business","https://business.facebook.com/latest/settings/"]].map(([l,u])=><a key={l} href={u} target="_blank" style={{display:"block",fontSize:11,color:"var(--accent2)",textDecoration:"none",marginBottom:3}}>→ {l}</a>)}</div>
-            <div style={{borderTop:"1px solid var(--border)",marginTop:14,paddingTop:14}}><div style={S.lbl}>Stats</div>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>{[{l:"Queued",v:queued.length,c:"var(--accent2)"},{l:"Published",v:published.length,c:"var(--green)"},{l:"Total",v:posts.length,c:"#fff"}].map(s=><div key={s.l} style={{textAlign:"center",padding:8,background:"var(--surface2)",borderRadius:7}}><div style={{fontSize:20,fontWeight:800,color:s.c}}>{s.v}</div><div style={{fontSize:9,color:"var(--muted)"}}>{s.l}</div></div>)}</div></div>
+            <div style={{borderTop:"1px solid var(--b1)",marginTop:16,paddingTop:16}}><a href="/api/meta-auth" style={{display:"inline-flex",padding:"10px 18px",background:"#1877F2",color:"#fff",borderRadius:10,textDecoration:"none",fontWeight:700,fontSize:13}}>Reconnect Facebook</a></div>
           </div>}
         </div>}
 
         {/* CLIENTS */}
-        {view==="clients"&&<div className="animate">
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18}}><h2 style={{fontSize:22,fontWeight:800,color:"#fff"}}>Clients & API</h2><button onClick={()=>{setEc(null);setSM(true)}} style={S.btn(true)}>+ Add</button></div>
-          {!clients.length?<div style={{...S.card,padding:40,textAlign:"center",color:"var(--muted)"}}><p>No clients</p></div>
-          :clients.map((c,i)=><div key={c.id} style={{...S.card,marginBottom:8,animationDelay:`${i*50}ms`}}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:8}}>
-              <div><h3 style={{fontSize:15,fontWeight:700,color:"#fff",marginBottom:6}}>{c.name}</h3>
-                <div style={{display:"flex",gap:3,flexWrap:"wrap"}}><span style={S.bg(!!c.pageAccessToken)}>{c.pageAccessToken?"✓ Token":"✗ Token"}</span>
-                {Object.entries(PI).filter(([k])=>k!=="pinterest").map(([k,v])=><span key={k} style={S.bg(!!c[v.f],!c[v.f])}>{c[v.f]?"✓":"○"} {v.l.split("/")[0].split(" ")[0]}</span>)}</div>
-                <div style={{fontSize:10,color:"var(--muted)",marginTop:4}}>Added {new Date(c.createdAt).toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"})}</div>
-                {!c.pageAccessToken&&<a href="/api/meta-auth" style={{display:"inline-flex",alignItems:"center",gap:5,marginTop:6,padding:"5px 12px",background:"#1877F2",color:"#fff",borderRadius:6,textDecoration:"none",fontWeight:600,fontSize:11}}>📘 Connect</a>}
+        {view==="clients"&&<div className="anim">
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}><h2 style={{fontSize:24,fontWeight:800,color:"#fff"}}>Clients</h2><button onClick={()=>{setEc(null);setSCM(true)}} style={S.btn(true)}>Add Client</button></div>
+          {clients.map((c,i)=><div key={c.id} style={{...S.card,marginBottom:10}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:10}}>
+              <div><h3 style={{fontSize:16,fontWeight:700,color:"#fff",marginBottom:8}}>{c.name}</h3>
+                <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
+                  <span style={S.badge(!!c.pageAccessToken)}>{c.pageAccessToken?"Token OK":"No Token"}</span>
+                  {Object.entries(PI).map(([k,v])=>c[v.f]?<span key={k} style={S.badge(true)}>{v.icon}</span>:null)}
+                </div>
+                {!c.pageAccessToken&&<a href="/api/meta-auth" style={{display:"inline-flex",marginTop:8,padding:"7px 14px",background:"#1877F2",color:"#fff",borderRadius:8,textDecoration:"none",fontWeight:600,fontSize:12}}>Connect Facebook</a>}
               </div>
-              <div style={{display:"flex",gap:5}}><button onClick={()=>{setEc(c);setSM(true)}} style={S.btn(false)}>Edit</button><button onClick={()=>delCl(c.id)} style={{...S.btn(false),color:"var(--red)",borderColor:"rgba(239,68,68,.3)"}}>Delete</button></div>
+              <div style={{display:"flex",gap:6}}><button onClick={()=>{setEc(c);setSCM(true)}} style={S.btn(false)}>Edit</button><button onClick={()=>delCl(c.id)} style={{...S.btn(false),color:"var(--rd)"}}>Delete</button></div>
             </div>
           </div>)}
         </div>}
       </div>
     </div>
 
-    {showModal&&<ClientModal client={ec} onSave={saveCl} onClose={()=>{setSM(false);setEc(null)}} />}
-    {showBulk&&<BulkImportModal onImport={bulkImp} onClose={()=>setSB(false)} />}
+    {showCM&&<ClientModal client={ec} onSave={saveCl} onClose={()=>{setSCM(false);setEc(null)}} />}
+    {showBulk&&<BulkImportModal onImport={async(items)=>{let c=0;for(const it of items){const r=await api("add-post","POST",{caption:it.caption,imageUrl:it.imageUrl||null,platforms:["facebook"]},ac.id);if(r?.success)c++}st(`Imported ${c}/${items.length}`);loadPs()}} onClose={()=>setSB(false)} />}
     {ep&&<EditPostModal post={ep} onSave={saveEp} onClose={()=>setEp(null)} />}
-    {toast&&<div style={{position:"fixed",bottom:16,right:16,left:16,maxWidth:340,marginLeft:"auto",padding:"10px 16px",borderRadius:10,background:toast.e?"var(--red)":"var(--green)",color:"#fff",fontSize:12,fontWeight:600,zIndex:999,animation:"slideIn .3s ease both",boxShadow:"var(--shadow)"}}>{toast.m}</div>}
+    {showAI&&<AICaptionGen client={ac} onInsert={(t)=>setComp(c=>({...c,caption:t}))} onClose={()=>setSAI(false)} />}
+    {toast&&<div style={{position:"fixed",bottom:20,left:"50%",transform:"translateX(-50%)",padding:"12px 24px",borderRadius:12,background:toast.e?"var(--rd)":"var(--gn)",color:"#fff",fontSize:14,fontWeight:600,zIndex:999,animation:"slideIn .3s ease both",boxShadow:"0 8px 32px rgba(0,0,0,.4)",whiteSpace:"nowrap"}}>{toast.m}</div>}
   </div>;
 }
 
@@ -476,65 +359,83 @@ function ApiHealth({client:c}){
       if(d.error)setH({s:"err",m:d.error.message});else{const i={s:"ok",name:d.name};
         try{const dr=await fetch(`https://graph.facebook.com/v21.0/debug_token?input_token=${c.pageAccessToken}&access_token=${c.pageAccessToken}`);const dd=await dr.json();if(dd.data){i.exp=dd.data.expires_at?new Date(dd.data.expires_at*1000).toLocaleDateString("en-GB"):null;i.sc=dd.data.scopes||[]}}catch(e){}setH(i)}}catch(e){setH({s:"err",m:e.message})}setCk(false)};
   useEffect(()=>{if(c)chk()},[c?.id,c?.pageAccessToken]);
-  if(!h)return <div className="shimmer" style={{height:50,borderRadius:7}} />;
+  if(!h)return <div className="shimmer" style={{height:60,borderRadius:8}} />;
   const items=[];
-  if(h.s==="no")items.push({l:"Token",ok:false,t:"Not set"});else if(h.s==="err")items.push({l:"Token",ok:false,t:h.m?.substring(0,45)});
-  else{items.push({l:"Token",ok:true,t:h.name||"Valid"});items.push({l:"Facebook",ok:!!c.fbPageId,t:c.fbPageId||"—"});items.push({l:"Instagram",ok:!!c.igUserId,t:c.igUserId||"—"});items.push({l:"Expires",ok:true,t:!h.exp||h.exp==="Invalid Date"?"Permanent ✓":h.exp});if(h.sc?.length)items.push({l:"Scopes",ok:true,t:`${h.sc.length} active`})}
-  return <div style={{display:"flex",flexDirection:"column",gap:5}}>{items.map((it,i)=><div key={i} style={{display:"flex",justifyContent:"space-between",padding:"4px 0"}}><span style={{fontSize:11,color:"var(--muted)"}}>{it.l}</span><span style={{fontSize:11,...S.bg(it.ok)}}>{it.t}</span></div>)}
-    <button onClick={chk} disabled={ck} style={{marginTop:3,padding:"5px 10px",background:"var(--surface2)",border:"1px solid var(--border)",borderRadius:5,color:"var(--muted)",fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>{ck?"...":"↻ Refresh"}</button></div>;
+  if(h.s==="no")items.push({l:"Token",ok:false,t:"Not set"});else if(h.s==="err")items.push({l:"Token",ok:false,t:h.m?.substring(0,50)});
+  else{items.push({l:"Token",ok:true,t:h.name||"Valid"});items.push({l:"Facebook",ok:!!c.fbPageId,t:c.fbPageId?"Connected":"No"});items.push({l:"Instagram",ok:!!c.igUserId,t:c.igUserId?"Connected":"No"});items.push({l:"Expires",ok:true,t:!h.exp||h.exp==="Invalid Date"?"Never":""+h.exp})}
+  return <div style={{display:"flex",flexDirection:"column",gap:6}}>{items.map((it,i)=><div key={i} style={{display:"flex",justifyContent:"space-between",padding:"6px 0"}}><span style={{fontSize:12,color:"var(--mu)"}}>{it.l}</span><span style={S.badge(it.ok)}>{it.t}</span></div>)}
+    <button onClick={chk} disabled={ck} style={{marginTop:6,padding:"8px 14px",background:"var(--s2)",border:"1px solid var(--b1)",borderRadius:8,color:"var(--mu)",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>{ck?"Checking...":"Check Again"}</button></div>;
 }
 
-function BulkImportModal({onImport,onClose}){
-  const [raw,setRaw]=useState("");const [parsed,setParsed]=useState([]);const [sep,setSep]=useState("---");
-  const parse=()=>{const chunks=raw.split(sep).map(c=>c.trim()).filter(Boolean);setParsed(chunks.map(c=>{const m=c.match(/https?:\/\/\S+\.(jpg|jpeg|png|gif|webp)\S*/i);return{caption:m?c.replace(m[0],"").trim():c,imageUrl:m?m[0]:""}}))};
+function EditPostModal({post,onSave,onClose}){
+  const [c,setC]=useState(post.caption||"");const [img,setImg]=useState(post.imageUrl||"");const [pl,setPl]=useState(post.platforms||[]);const [sf,setSf]=useState(post.scheduledFor||"");
   return <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.7)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:100,padding:16}} onClick={onClose}>
-    <div style={{background:"var(--surface)",border:"1px solid var(--border)",borderRadius:16,padding:22,width:520,maxWidth:"100%",maxHeight:"85vh",overflow:"auto"}} onClick={e=>e.stopPropagation()}>
-      <h3 style={{fontSize:16,fontWeight:700,color:"#fff",marginBottom:10}}>Bulk Import</h3>
-      <div style={{display:"flex",gap:4,marginBottom:10}}>{["---","===","\\n\\n"].map(s=><button key={s} onClick={()=>setSep(s==="\\n\\n"?"\n\n":s)} style={{padding:"3px 8px",background:sep===(s==="\\n\\n"?"\n\n":s)?"var(--accent)":"var(--surface2)",border:"1px solid var(--border)",borderRadius:5,color:sep===(s==="\\n\\n"?"\n\n":s)?"#fff":"var(--muted)",fontSize:10,cursor:"pointer"}}>{s==="\\n\\n"?"blank":s}</button>)}</div>
-      <textarea value={raw} onChange={e=>setRaw(e.target.value)} placeholder="Post 1\n---\nPost 2" style={{...S.inp,minHeight:140,resize:"vertical",fontSize:12,lineHeight:1.6}} />
-      <button onClick={parse} style={{...S.btn(false),marginTop:6}}>Preview ({raw.split(sep).filter(c=>c.trim()).length})</button>
-      {parsed.length>0&&<div style={{marginTop:10,borderTop:"1px solid var(--border)",paddingTop:10}}>
-        {parsed.map((p,i)=><div key={i} style={{padding:6,background:"var(--surface2)",borderRadius:5,marginBottom:3,fontSize:11}}><span style={{color:"#fff"}}>#{i+1}: {p.caption.substring(0,60)}...</span></div>)}
-        <button onClick={()=>{onImport(parsed);onClose()}} style={{...S.btn(true),marginTop:6,width:"100%"}}>Import {parsed.length}</button>
+    <div style={{background:"var(--s1)",border:"1px solid var(--b1)",borderRadius:16,padding:24,width:520,maxWidth:"100%",maxHeight:"85vh",overflow:"auto",animation:"pop .2s ease"}} onClick={e=>e.stopPropagation()}>
+      <h3 style={{fontSize:18,fontWeight:700,color:"#fff",marginBottom:16}}>Edit Post</h3>
+      <textarea value={c} onChange={e=>setC(e.target.value)} style={{...S.inp,minHeight:140,resize:"vertical",lineHeight:1.6,marginBottom:12}} />
+      <div style={S.lbl}>Image URL</div><input value={img} onChange={e=>setImg(e.target.value)} style={{...S.inp,marginBottom:12}} />
+      <div style={S.lbl}>Schedule</div><input type="datetime-local" value={sf} onChange={e=>setSf(e.target.value)} style={{...S.inp,colorScheme:"dark",marginBottom:16}} />
+      <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}><button onClick={onClose} style={S.btn(false)}>Cancel</button><button onClick={()=>onSave({...post,caption:c,imageUrl:img,platforms:pl,scheduledFor:sf,status:sf?"scheduled":"queued"})} style={S.btn(true)}>Save</button></div>
+    </div>
+  </div>;
+}
+
+function AICaptionGen({client,onInsert,onClose}){
+  const [pr,setPr]=useState("");const [ld,setLd]=useState(false);const [res,setRes]=useState("");const [tone,setTone]=useState("friendly");
+  const gen=async()=>{if(!pr.trim())return;setLd(true);setRes("");
+    try{const r=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:1000,system:`Write social media posts for "${client?.name||"a business"}". Tone: ${tone}. Include emojis and hashtags. Max 200 words. Output ONLY the post.`,
+        messages:[{role:"user",content:`Write a post about: ${pr}`}]})});
+      const d=await r.json();setRes(d.content?.map(c=>c.text||"").join("")||"Error")}catch(e){setRes("Error: "+e.message)}setLd(false)};
+  return <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.7)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:100,padding:16}} onClick={onClose}>
+    <div style={{background:"var(--s1)",border:"1px solid var(--b1)",borderRadius:16,padding:24,width:520,maxWidth:"100%",animation:"pop .2s ease"}} onClick={e=>e.stopPropagation()}>
+      <div style={{display:"flex",justifyContent:"space-between",marginBottom:16}}><span style={{fontSize:17,fontWeight:700,color:"#fff"}}>AI Writer</span><button onClick={onClose} style={{background:"none",border:"none",color:"var(--mu)",cursor:"pointer",fontSize:18}}>{"\u2715"}</button></div>
+      <div style={{display:"flex",gap:5,marginBottom:12,flexWrap:"wrap"}}>{["friendly","professional","funny","urgent","inspirational"].map(t=>
+        <button key={t} onClick={()=>setTone(t)} style={{padding:"5px 12px",borderRadius:20,border:`1px solid ${tone===t?"var(--ac)":"var(--b1)"}`,background:tone===t?"var(--acbg)":"transparent",color:tone===t?"var(--ac2)":"var(--mu)",fontSize:11,cursor:"pointer",fontFamily:"inherit",textTransform:"capitalize"}}>{t}</button>)}</div>
+      <div style={{display:"flex",gap:8}}><input value={pr} onChange={e=>setPr(e.target.value)} onKeyDown={e=>e.key==="Enter"&&gen()} placeholder="What's the post about?" style={{...S.inp,flex:1}} />
+        <button onClick={gen} disabled={ld} style={{...S.btn(true),opacity:ld?.6:1}}>{ld?"...":"Generate"}</button></div>
+      {res&&<div style={{marginTop:14,padding:14,background:"var(--s2)",borderRadius:12,border:"1px solid var(--b1)"}}>
+        <div style={{fontSize:14,lineHeight:1.7,whiteSpace:"pre-wrap",maxHeight:200,overflow:"auto",marginBottom:10}}>{res}</div>
+        <div style={{display:"flex",gap:6}}><button onClick={()=>{onInsert(res);onClose()}} style={{...S.btn(true,"sm"),background:"var(--gn)"}}>Use This</button><button onClick={gen} style={S.btn(false,"sm")}>Rewrite</button></div>
       </div>}
     </div>
   </div>;
 }
 
-function ClientModal({client,onSave,onClose}){
-  const [f,setF]=useState({name:client?.name||"",fbPageId:client?.fbPageId||"",igUserId:client?.igUserId||"",pageAccessToken:client?.pageAccessToken||"",twitterId:client?.twitterId||"",twitterApiKey:client?.twitterApiKey||"",twitterApiSecret:client?.twitterApiSecret||"",twitterAccessToken:client?.twitterAccessToken||"",twitterAccessSecret:client?.twitterAccessSecret||"",tiktokId:client?.tiktokId||"",tiktokAccessToken:client?.tiktokAccessToken||"",linkedinId:client?.linkedinId||"",linkedinAccessToken:client?.linkedinAccessToken||"",gbpId:client?.gbpId||"",gbpAccessToken:client?.gbpAccessToken||"",pinterestId:client?.pinterestId||"",pinterestAccessToken:client?.pinterestAccessToken||""});
-  const [ss,setSs]=useState(null);const [st2,setSt2]=useState(false);
-  const sections=[
-    {id:"meta",l:"Facebook & Instagram",i:"📘",fs:[{k:"fbPageId",l:"Page ID",p:"Auto via Connect"},{k:"igUserId",l:"IG Business ID",p:"Auto via Connect"}],tk:{k:"pageAccessToken",l:"Access Token",p:"Auto or paste"},
-      h:<div><p style={{fontSize:11,color:"var(--muted)",marginBottom:6}}>Works with any FB Page.</p><a href="/api/meta-auth" style={{display:"inline-flex",padding:"6px 12px",background:"#1877F2",color:"#fff",borderRadius:5,textDecoration:"none",fontWeight:600,fontSize:11}}>📘 Connect</a></div>},
-    {id:"twitter",l:"X / Twitter",i:"𝕏",fs:[{k:"twitterId",l:"Username"},{k:"twitterApiKey",l:"API Key"},{k:"twitterApiSecret",l:"API Secret"},{k:"twitterAccessToken",l:"Access Token"},{k:"twitterAccessSecret",l:"Access Secret"}],
-      h:<a href="https://developer.x.com/en/portal/dashboard" target="_blank" style={{fontSize:11,color:"var(--accent2)",textDecoration:"none"}}>→ X Developer Portal</a>},
-    {id:"tiktok",l:"TikTok",i:"🎵",fs:[{k:"tiktokId",l:"Username"},{k:"tiktokAccessToken",l:"Token"}],h:<a href="https://developers.tiktok.com/" target="_blank" style={{fontSize:11,color:"var(--accent2)",textDecoration:"none"}}>→ TikTok Portal</a>},
-    {id:"linkedin",l:"LinkedIn",i:"💼",fs:[{k:"linkedinId",l:"Page ID"},{k:"linkedinAccessToken",l:"Token"}],h:<a href="https://www.linkedin.com/developers/apps" target="_blank" style={{fontSize:11,color:"var(--accent2)",textDecoration:"none"}}>→ LinkedIn Portal</a>},
-    {id:"gbp",l:"Google Business",i:"📍",fs:[{k:"gbpId",l:"Location ID"},{k:"gbpAccessToken",l:"Token"}],h:<a href="https://console.cloud.google.com/" target="_blank" style={{fontSize:11,color:"var(--accent2)",textDecoration:"none"}}>→ Google Cloud</a>},
-    {id:"pinterest",l:"Pinterest",i:"📌",fs:[{k:"pinterestId",l:"Board ID"},{k:"pinterestAccessToken",l:"Token"}],h:<a href="https://developers.pinterest.com/" target="_blank" style={{fontSize:11,color:"var(--accent2)",textDecoration:"none"}}>→ Pinterest Portal</a>},
-  ];
+function BulkImportModal({onImport,onClose}){
+  const [raw,setRaw]=useState("");const [parsed,setParsed]=useState([]);
+  const parse=()=>{const chunks=raw.split("---").map(c=>c.trim()).filter(Boolean);setParsed(chunks.map(c=>{const m=c.match(/https?:\/\/\S+\.(jpg|jpeg|png|gif|webp)\S*/i);return{caption:m?c.replace(m[0],"").trim():c,imageUrl:m?m[0]:""}}))}
   return <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.7)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:100,padding:16}} onClick={onClose}>
-    <div style={{background:"var(--surface)",border:"1px solid var(--border)",borderRadius:16,padding:22,width:520,maxWidth:"100%",maxHeight:"90vh",overflow:"auto",animation:"fadeIn .2s ease both"}} onClick={e=>e.stopPropagation()}>
-      <h3 style={{fontSize:16,fontWeight:700,color:"#fff",marginBottom:14}}>{client?"Edit":"Add"} Client</h3>
-      <div style={{marginBottom:12}}><div style={S.lbl}>Name</div><input value={f.name} onChange={e=>setF(v=>({...v,name:e.target.value}))} placeholder="Business name" style={S.inp} /></div>
-      <div style={{marginBottom:6}}><div style={S.lbl}>Platforms</div></div>
-      {sections.map(sec=>{const open=ss===sec.id;const conn=sec.fs.some(fi=>!!f[fi.k]);
-        return <div key={sec.id} style={{marginBottom:5,borderRadius:8,border:"1px solid var(--border)",overflow:"hidden",background:"var(--surface2)"}}>
-          <button onClick={()=>setSs(s=>s===sec.id?null:sec.id)} style={{width:"100%",display:"flex",alignItems:"center",gap:7,padding:"9px 11px",background:"transparent",border:"none",cursor:"pointer",fontFamily:"inherit",color:"#fff"}}>
-            <span style={{fontSize:13}}>{sec.i}</span><span style={{fontSize:11,fontWeight:600,flex:1,textAlign:"left"}}>{sec.l}</span>
-            <span style={{fontSize:8,...S.bg(conn,!conn)}}>{conn?"✓":"—"}</span>
-            <span style={{fontSize:10,color:"var(--muted)",transform:open?"rotate(180deg)":"none",transition:"transform .2s"}}>▼</span>
-          </button>
-          {open&&<div style={{padding:"0 11px 11px",borderTop:"1px solid var(--border)",paddingTop:8}}>
-            {sec.h}<div style={{marginTop:8}}>{sec.fs.map(fi=><div key={fi.k} style={{marginBottom:5}}><div style={{fontSize:8,fontWeight:600,color:"var(--muted)",marginBottom:2}}>{fi.l}</div><input value={f[fi.k]||""} onChange={e=>setF(v=>({...v,[fi.k]:e.target.value}))} placeholder={fi.p||""} style={{...S.inp,fontSize:11,padding:"5px 9px"}} /></div>)}
-            {sec.tk&&<div style={{marginBottom:5}}><div style={{display:"flex",justifyContent:"space-between"}}><div style={{fontSize:8,fontWeight:600,color:"var(--muted)",marginBottom:2}}>{sec.tk.l}</div><button onClick={()=>setSt2(!st2)} style={{fontSize:8,color:"var(--accent2)",background:"none",border:"none",cursor:"pointer"}}>{st2?"Hide":"Show"}</button></div>
-            <input type={st2?"text":"password"} value={f[sec.tk.k]||""} onChange={e=>setF(v=>({...v,[sec.tk.k]:e.target.value}))} placeholder={sec.tk.p} style={{...S.inp,fontSize:11,padding:"5px 9px"}} /></div>}
-            </div>
-          </div>}
-        </div>
-      })}
-      <div style={{display:"flex",gap:6,marginTop:14,justifyContent:"flex-end"}}><button onClick={onClose} style={S.btn(false)}>Cancel</button><button onClick={()=>onSave(f)} style={S.btn(true)}>{client?"Save":"Add"}</button></div>
+    <div style={{background:"var(--s1)",border:"1px solid var(--b1)",borderRadius:16,padding:24,width:540,maxWidth:"100%",maxHeight:"85vh",overflow:"auto",animation:"pop .2s ease"}} onClick={e=>e.stopPropagation()}>
+      <h3 style={{fontSize:18,fontWeight:700,color:"#fff",marginBottom:12}}>Bulk Import</h3>
+      <p style={{fontSize:12,color:"var(--mu)",marginBottom:12}}>Separate posts with ---</p>
+      <textarea value={raw} onChange={e=>setRaw(e.target.value)} placeholder={"First post\n---\nSecond post"} style={{...S.inp,minHeight:160,resize:"vertical",fontSize:13,lineHeight:1.6,marginBottom:8}} />
+      <button onClick={parse} style={{...S.btn(false),marginBottom:10}}>Preview ({raw.split("---").filter(c=>c.trim()).length})</button>
+      {parsed.length>0&&<div><button onClick={()=>{onImport(parsed);onClose()}} style={{...S.btn(true),width:"100%"}}>Import {parsed.length}</button></div>}
+    </div>
+  </div>;
+}
+
+function ClientModal({client,onSave,onClose}){
+  const [f,setF]=useState({name:client?.name||"",fbPageId:client?.fbPageId||"",igUserId:client?.igUserId||"",pageAccessToken:client?.pageAccessToken||"",twitterApiKey:client?.twitterApiKey||"",twitterApiSecret:client?.twitterApiSecret||"",twitterAccessToken:client?.twitterAccessToken||"",twitterAccessSecret:client?.twitterAccessSecret||"",tiktokAccessToken:client?.tiktokAccessToken||"",linkedinId:client?.linkedinId||"",linkedinAccessToken:client?.linkedinAccessToken||"",gbpId:client?.gbpId||"",gbpAccessToken:client?.gbpAccessToken||""});
+  const [ss,setSs]=useState(null);
+  const secs=[{id:"meta",l:"Facebook & Instagram",fs:[{k:"fbPageId",l:"Page ID"},{k:"igUserId",l:"IG ID"},{k:"pageAccessToken",l:"Token"}],h:<a href="/api/meta-auth" style={{display:"inline-flex",padding:"7px 14px",background:"#1877F2",color:"#fff",borderRadius:8,textDecoration:"none",fontWeight:600,fontSize:12,marginBottom:8}}>Connect Facebook</a>},
+    {id:"tw",l:"X / Twitter",fs:[{k:"twitterApiKey",l:"API Key"},{k:"twitterApiSecret",l:"API Secret"},{k:"twitterAccessToken",l:"Access Token"},{k:"twitterAccessSecret",l:"Access Secret"}]},
+    {id:"li",l:"LinkedIn",fs:[{k:"linkedinId",l:"Page ID"},{k:"linkedinAccessToken",l:"Token"}]},
+    {id:"gbp",l:"Google Business",fs:[{k:"gbpId",l:"Location ID"},{k:"gbpAccessToken",l:"Token"}]}];
+  return <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.7)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:100,padding:16}} onClick={onClose}>
+    <div style={{background:"var(--s1)",border:"1px solid var(--b1)",borderRadius:16,padding:24,width:520,maxWidth:"100%",maxHeight:"90vh",overflow:"auto",animation:"pop .2s ease"}} onClick={e=>e.stopPropagation()}>
+      <h3 style={{fontSize:18,fontWeight:700,color:"#fff",marginBottom:16}}>{client?"Edit":"Add"} Client</h3>
+      <div style={{marginBottom:14}}><div style={S.lbl}>Name</div><input value={f.name} onChange={e=>setF(v=>({...v,name:e.target.value}))} style={S.inp} /></div>
+      {secs.map(sec=>{const open=ss===sec.id;return <div key={sec.id} style={{marginBottom:5,borderRadius:10,border:"1px solid var(--b1)",overflow:"hidden",background:"var(--s2)"}}>
+        <button onClick={()=>setSs(s=>s===sec.id?null:sec.id)} style={{width:"100%",display:"flex",alignItems:"center",gap:8,padding:"10px 12px",background:"transparent",border:"none",cursor:"pointer",fontFamily:"inherit",color:"#fff",fontSize:12,fontWeight:600}}>
+          {sec.l}<span style={{marginLeft:"auto",fontSize:10,color:"var(--mu)",transform:open?"rotate(180deg)":"none",transition:"transform .2s"}}>{"\u25BC"}</span>
+        </button>
+        {open&&<div style={{padding:"0 12px 12px",borderTop:"1px solid var(--b1)",paddingTop:10}}>
+          {sec.h}{sec.fs.map(fi=><div key={fi.k} style={{marginBottom:6}}><div style={{fontSize:9,fontWeight:600,color:"var(--mu)",marginBottom:2}}>{fi.l}</div><input value={f[fi.k]||""} onChange={e=>setF(v=>({...v,[fi.k]:e.target.value}))} style={{...S.inp,fontSize:12,padding:"7px 10px"}} /></div>)}
+        </div>}
+      </div>})}
+      <div style={{display:"flex",gap:8,marginTop:16,justifyContent:"flex-end"}}><button onClick={onClose} style={S.btn(false)}>Cancel</button><button onClick={()=>onSave(f)} style={S.btn(true)}>{client?"Save":"Add"}</button></div>
     </div>
   </div>;
 }
