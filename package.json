@@ -1,0 +1,11 @@
+{
+  "name": "grid-social-autoposter",
+  "version": "1.0.0",
+  "description": "Automated social media posting for Grid Social clients — Facebook Pages + Instagram Business via Meta Graph API",
+  "type": "module",
+  "dependencies": {
+    "@netlify/blobs": "^8.1.0",
+    "@netlify/functions": "^2.8.0",
+    "node-fetch": "^3.3.2"
+  }
+}
