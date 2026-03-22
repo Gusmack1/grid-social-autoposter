@@ -3,445 +3,339 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Grid Social — Auto-Poster Admin</title>
-<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
+<title>Grid Social — Social Media Manager</title>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
 <style>
-:root {
-  --bg: #0F1117;
-  --surface: #1A1D27;
-  --surface-2: #242833;
-  --border: #2E3340;
-  --text: #E8E9ED;
-  --text-muted: #8B8F9E;
-  --accent: #3B82F6;
-  --accent-hover: #2563EB;
-  --green: #22C55E;
-  --amber: #F59E0B;
-  --red: #EF4444;
-  --radius: 10px;
-}
-
-* { margin: 0; padding: 0; box-sizing: border-box; }
-
-body {
-  font-family: 'DM Sans', sans-serif;
-  background: var(--bg);
-  color: var(--text);
-  min-height: 100vh;
-}
-
-/* ─── LAYOUT ─── */
-.container { max-width: 960px; margin: 0 auto; padding: 2rem 1.5rem; }
-
-header {
-  display: flex; align-items: center; justify-content: space-between;
-  margin-bottom: 2rem; padding-bottom: 1.5rem;
-  border-bottom: 1px solid var(--border);
-}
-.logo { font-weight: 700; font-size: 1.3rem; }
-.logo span { color: var(--accent); }
-
-.status-pills { display: flex; gap: 0.5rem; }
-.pill {
-  font-size: 0.75rem; padding: 0.3rem 0.7rem; border-radius: 20px;
-  font-weight: 500; display: flex; align-items: center; gap: 0.35rem;
-}
-.pill-green { background: rgba(34,197,94,0.15); color: var(--green); }
-.pill-amber { background: rgba(245,158,11,0.15); color: var(--amber); }
-.pill-red { background: rgba(239,68,68,0.15); color: var(--red); }
-.dot { width: 6px; height: 6px; border-radius: 50%; }
-.dot-green { background: var(--green); }
-.dot-amber { background: var(--amber); }
-.dot-red { background: var(--red); }
-
-/* ─── AUTH ─── */
-#auth-screen {
-  display: flex; flex-direction: column; align-items: center;
-  justify-content: center; min-height: 80vh; gap: 1rem;
-}
-#auth-screen h2 { font-size: 1.4rem; font-weight: 700; }
-#auth-screen p { color: var(--text-muted); font-size: 0.9rem; }
-#auth-screen input {
-  background: var(--surface); border: 1px solid var(--border);
-  color: var(--text); padding: 0.8rem 1rem; border-radius: var(--radius);
-  font-size: 0.95rem; width: 320px; font-family: inherit;
-}
-#auth-screen input:focus { outline: none; border-color: var(--accent); }
-
-/* ─── TABS ─── */
-.tabs { display: flex; gap: 0; margin-bottom: 1.5rem; }
-.tab {
-  padding: 0.6rem 1.2rem; font-size: 0.85rem; font-weight: 500;
-  background: transparent; border: 1px solid var(--border);
-  color: var(--text-muted); cursor: pointer; font-family: inherit;
-  transition: all 0.15s;
-}
-.tab:first-child { border-radius: var(--radius) 0 0 var(--radius); }
-.tab:last-child { border-radius: 0 var(--radius) var(--radius) 0; }
-.tab:not(:first-child) { border-left: none; }
-.tab.active { background: var(--accent); color: #fff; border-color: var(--accent); }
-
-/* ─── ADD POST FORM ─── */
-.form-card {
-  background: var(--surface); border: 1px solid var(--border);
-  border-radius: var(--radius); padding: 1.5rem; margin-bottom: 1.5rem;
-}
-.form-card h3 { font-size: 1rem; font-weight: 700; margin-bottom: 1rem; }
-
-.form-row { margin-bottom: 1rem; }
-.form-row label {
-  display: block; font-size: 0.8rem; font-weight: 500;
-  color: var(--text-muted); margin-bottom: 0.4rem; text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-textarea, input[type="text"], input[type="url"] {
-  width: 100%; background: var(--surface-2); border: 1px solid var(--border);
-  color: var(--text); padding: 0.7rem 0.9rem; border-radius: 8px;
-  font-size: 0.9rem; font-family: inherit; resize: vertical;
-}
-textarea:focus, input:focus { outline: none; border-color: var(--accent); }
-textarea { min-height: 120px; }
-
-.checkbox-row {
-  display: flex; gap: 1rem; align-items: center;
-}
-.checkbox-row label {
-  display: flex; align-items: center; gap: 0.4rem; font-size: 0.9rem;
-  color: var(--text); cursor: pointer; text-transform: none; letter-spacing: 0;
-}
-.checkbox-row input[type="checkbox"] {
-  width: 18px; height: 18px; accent-color: var(--accent);
-}
-
-.btn {
-  padding: 0.65rem 1.3rem; border-radius: 8px; font-size: 0.85rem;
-  font-weight: 600; cursor: pointer; border: none; font-family: inherit;
-  transition: all 0.15s;
-}
-.btn-primary { background: var(--accent); color: #fff; }
-.btn-primary:hover { background: var(--accent-hover); }
-.btn-danger { background: rgba(239,68,68,0.15); color: var(--red); }
-.btn-danger:hover { background: rgba(239,68,68,0.25); }
-.btn-ghost { background: transparent; color: var(--text-muted); border: 1px solid var(--border); }
-.btn-ghost:hover { border-color: var(--text-muted); color: var(--text); }
-.btn-sm { padding: 0.4rem 0.8rem; font-size: 0.78rem; }
-.btn-row { display: flex; gap: 0.5rem; margin-top: 1rem; }
-
-/* ─── POST QUEUE ─── */
-.post-card {
-  background: var(--surface); border: 1px solid var(--border);
-  border-radius: var(--radius); padding: 1.2rem; margin-bottom: 0.75rem;
-  display: flex; gap: 1rem; align-items: flex-start;
-}
-.post-num {
-  background: var(--surface-2); color: var(--text-muted);
-  width: 32px; height: 32px; border-radius: 8px;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 0.8rem; font-weight: 700; flex-shrink: 0;
-}
-.post-body { flex: 1; min-width: 0; }
-.post-caption {
-  font-size: 0.88rem; line-height: 1.55; color: var(--text);
-  white-space: pre-wrap; word-break: break-word;
-  max-height: 100px; overflow: hidden; position: relative;
-}
-.post-meta {
-  display: flex; gap: 0.8rem; margin-top: 0.5rem;
-  font-size: 0.75rem; color: var(--text-muted);
-}
-.post-meta .platform-tag {
-  background: var(--surface-2); padding: 0.15rem 0.5rem;
-  border-radius: 4px; font-weight: 500;
-}
-.post-actions { display: flex; gap: 0.3rem; flex-shrink: 0; }
-.icon-btn {
-  width: 32px; height: 32px; border-radius: 6px; border: none;
-  background: var(--surface-2); color: var(--text-muted);
-  cursor: pointer; display: flex; align-items: center; justify-content: center;
-  font-size: 0.9rem; transition: all 0.15s;
-}
-.icon-btn:hover { background: var(--border); color: var(--text); }
-.icon-btn.delete:hover { background: rgba(239,68,68,0.2); color: var(--red); }
-
-.post-card.published { opacity: 0.5; }
-.post-card.published .post-num { background: rgba(34,197,94,0.15); color: var(--green); }
-
-/* ─── HISTORY ─── */
-.history-item {
-  background: var(--surface); border: 1px solid var(--border);
-  border-radius: var(--radius); padding: 1rem; margin-bottom: 0.5rem;
-}
-.history-item .caption { font-size: 0.85rem; color: var(--text); margin-bottom: 0.4rem; }
-.history-item .meta { font-size: 0.75rem; color: var(--text-muted); }
-.result-tag { font-size: 0.7rem; padding: 0.15rem 0.45rem; border-radius: 4px; font-weight: 600; }
-.result-ok { background: rgba(34,197,94,0.15); color: var(--green); }
-.result-fail { background: rgba(239,68,68,0.15); color: var(--red); }
-
-.empty {
-  text-align: center; padding: 3rem; color: var(--text-muted);
-  font-size: 0.9rem;
-}
-
-.toast {
-  position: fixed; bottom: 2rem; right: 2rem;
-  background: var(--green); color: #fff; padding: 0.8rem 1.2rem;
-  border-radius: var(--radius); font-size: 0.85rem; font-weight: 600;
-  transform: translateY(100px); opacity: 0; transition: all 0.3s;
-  z-index: 100;
-}
-.toast.show { transform: translateY(0); opacity: 1; }
-.toast.error { background: var(--red); }
+:root{--bg:#0a0c10;--surface:#12151c;--surface2:#1a1e28;--border:#252a36;--text:#e5e7eb;--muted:#6b7280;--accent:#3b82f6;--accent2:#2563eb;--green:#22c55e;--amber:#f59e0b;--red:#ef4444;--radius:10px}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Instrument Sans',system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+::-webkit-scrollbar{width:6px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:#333;border-radius:3px}
+input,textarea,select,button{font-family:inherit}
 </style>
 </head>
 <body>
+<div id="root"></div>
+<script type="text/babel">
+const {useState,useEffect,useCallback} = React;
+const DAYS=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+const MONTHS=["January","February","March","April","May","June","July","August","September","October","November","December"];
 
-<!-- AUTH SCREEN -->
-<div id="auth-screen">
-  <h2>Grid Social Auto-Poster</h2>
-  <p>Enter your admin key to manage posts</p>
-  <input type="password" id="key-input" placeholder="Admin key" onkeydown="if(event.key==='Enter')login()">
-  <button class="btn btn-primary" onclick="login()">Sign in</button>
-</div>
+function App(){
+  const [key,setKey]=useState(localStorage.getItem("gsa_key")||"");
+  const [authed,setAuthed]=useState(false);
+  const [authErr,setAuthErr]=useState("");
+  const [keyInput,setKeyInput]=useState("");
+  const [clients,setClients]=useState([]);
+  const [activeClient,setActiveClient]=useState(null);
+  const [posts,setPosts]=useState([]);
+  const [view,setView]=useState("compose");
+  const [calMonth,setCalMonth]=useState(new Date().getMonth());
+  const [calYear,setCalYear]=useState(new Date().getFullYear());
+  const [toast,setToast]=useState(null);
+  const [showModal,setShowModal]=useState(false);
+  const [editClient,setEditClient]=useState(null);
+  const [compose,setCompose]=useState({caption:"",imageUrl:"",fb:true,ig:true,scheduledFor:""});
 
-<!-- MAIN APP -->
-<div id="app" style="display:none">
-  <div class="container">
-    <header>
-      <div class="logo">Grid<span>Social</span> Auto-Poster</div>
-      <div class="status-pills" id="status-pills"></div>
-    </header>
+  const showToast=(msg,err)=>{setToast({msg,err});setTimeout(()=>setToast(null),3000)};
 
-    <div class="tabs">
-      <button class="tab active" onclick="switchTab('queue')">Queue</button>
-      <button class="tab" onclick="switchTab('add')">Add Post</button>
-      <button class="tab" onclick="switchTab('history')">History</button>
-    </div>
+  const api=useCallback(async(action,method,body,cid)=>{
+    method=method||"GET";
+    let url="/api/admin?action="+action;
+    if(cid)url+="&clientId="+cid;
+    const opts={method,headers:{Authorization:"Bearer "+key}};
+    if(body){opts.headers["Content-Type"]="application/json";opts.body=JSON.stringify(body)}
+    try{
+      const r=await fetch(url,opts);
+      if(r.status===401){setAuthed(false);localStorage.removeItem("gsa_key");return null}
+      return await r.json();
+    }catch(e){showToast(e.message,true);return null}
+  },[key]);
 
-    <!-- ADD POST -->
-    <div id="tab-add" style="display:none">
-      <div class="form-card">
-        <h3>Add Post to Queue</h3>
-        <div class="form-row">
-          <label>Caption / Post Text</label>
-          <textarea id="f-caption" placeholder="Write the post caption here..."></textarea>
-        </div>
-        <div class="form-row">
-          <label>Image URL (must be publicly accessible)</label>
-          <input type="url" id="f-image" placeholder="https://example.com/photo.jpg">
-        </div>
-        <div class="form-row">
-          <label>Platforms</label>
-          <div class="checkbox-row">
-            <label><input type="checkbox" id="f-fb" checked> Facebook</label>
-            <label><input type="checkbox" id="f-ig" checked> Instagram</label>
-          </div>
-        </div>
-        <div class="btn-row">
-          <button class="btn btn-primary" onclick="addPost()">Add to Queue</button>
-        </div>
-      </div>
-    </div>
+  const loadClients=useCallback(async()=>{
+    const d=await api("get-clients");
+    if(d){setClients(d);if(d.length>0&&!activeClient)setActiveClient(d[0])}
+  },[api]);
 
-    <!-- QUEUE -->
-    <div id="tab-queue">
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
-        <p style="font-size:0.85rem; color:var(--text-muted);" id="queue-summary"></p>
-        <button class="btn btn-ghost btn-sm" onclick="publishNow()">Publish Next Now</button>
-      </div>
-      <div id="queue-list"></div>
-    </div>
+  const loadPosts=useCallback(async()=>{
+    if(!activeClient)return;
+    const d=await api("get-posts","GET",null,activeClient.id);
+    if(d)setPosts(d);
+  },[api,activeClient]);
 
-    <!-- HISTORY -->
-    <div id="tab-history" style="display:none">
-      <div id="history-list"></div>
-    </div>
-  </div>
-</div>
+  useEffect(()=>{if(authed)loadClients()},[authed]);
+  useEffect(()=>{if(authed&&activeClient)loadPosts()},[authed,activeClient]);
 
-<div class="toast" id="toast"></div>
+  useEffect(()=>{
+    if(key){
+      fetch("/api/admin?action=config",{headers:{Authorization:"Bearer "+key}})
+        .then(r=>{if(r.ok)setAuthed(true);else{localStorage.removeItem("gsa_key");setKey("")}})
+        .catch(()=>{})
+    }
+  },[]);
 
-<script>
-let API_KEY = "";
-const BASE = "";
-
-// ─── AUTH ───
-function login() {
-  API_KEY = document.getElementById("key-input").value.trim();
-  if (!API_KEY) return;
-  localStorage.setItem("gsa_key", API_KEY);
-  document.getElementById("auth-screen").style.display = "none";
-  document.getElementById("app").style.display = "block";
-  loadAll();
-}
-
-// Auto-login
-const saved = localStorage.getItem("gsa_key");
-if (saved) { API_KEY = saved; login(); }
-
-// ─── API ───
-async function api(action, method = "GET", body = null) {
-  const opts = {
-    method,
-    headers: { Authorization: `Bearer ${API_KEY}`, "Content-Type": "application/json" },
+  const doLogin=async()=>{
+    if(!keyInput.trim())return;
+    try{
+      const r=await fetch("/api/admin?action=config",{headers:{Authorization:"Bearer "+keyInput.trim()}});
+      if(r.ok){setKey(keyInput.trim());localStorage.setItem("gsa_key",keyInput.trim());setAuthed(true);setAuthErr("")}
+      else setAuthErr("Invalid admin key")
+    }catch(e){setAuthErr("Connection failed")}
   };
-  if (body) opts.body = JSON.stringify(body);
-  const res = await fetch(`/api/admin?action=${action}`, opts);
-  if (res.status === 401) {
-    localStorage.removeItem("gsa_key");
-    location.reload();
-    return null;
-  }
-  return res.json();
-}
 
-// ─── LOAD ───
-async function loadAll() {
-  loadConfig();
-  loadQueue();
-}
+  const addPost=async()=>{
+    if(!compose.caption.trim())return showToast("Write a caption first",true);
+    if(!activeClient)return showToast("Select a client first",true);
+    const pl=[];if(compose.fb)pl.push("facebook");if(compose.ig)pl.push("instagram");
+    if(!pl.length)return showToast("Select a platform",true);
+    const res=await api("add-post","POST",{caption:compose.caption,imageUrl:compose.imageUrl||null,platforms:pl,scheduledFor:compose.scheduledFor||null},activeClient.id);
+    if(res&&res.success){showToast(compose.scheduledFor?"Scheduled!":"Added to queue!");setCompose({caption:"",imageUrl:"",fb:true,ig:true,scheduledFor:""});loadPosts()}
+  };
 
-async function loadConfig() {
-  const cfg = await api("config");
-  if (!cfg) return;
-  const pills = document.getElementById("status-pills");
-  pills.innerHTML = `
-    <div class="pill ${cfg.hasPageToken ? "pill-green" : "pill-red"}">
-      <div class="dot ${cfg.hasPageToken ? "dot-green" : "dot-red"}"></div>
-      FB Token
+  const deletePost=async(pid)=>{if(!confirm("Delete?"))return;await api("delete-post","DELETE",{postId:pid},activeClient.id);loadPosts();showToast("Deleted")};
+  const publishPost=async(pid)=>{if(!confirm("Publish now?"))return;showToast("Publishing...");const r=await api("publish-now","POST",{postId:pid},activeClient.id);if(r&&r.success){showToast("Published!");loadPosts()}else showToast(r?.error||"Failed",true)};
+
+  const saveClient=async(data)=>{
+    if(editClient&&editClient.id){await api("update-client","PUT",{...data,id:editClient.id})}
+    else{await api("add-client","POST",data)}
+    loadClients();setShowModal(false);setEditClient(null);showToast("Client saved");
+  };
+
+  const calDays=()=>{const f=new Date(calYear,calMonth,1);const l=new Date(calYear,calMonth+1,0);const s=(f.getDay()+6)%7;const d=[];for(let i=0;i<s;i++)d.push(null);for(let i=1;i<=l.getDate();i++)d.push(i);return d};
+  const getDayPosts=(day)=>{const ds=new Date(calYear,calMonth,day).toISOString().split("T")[0];return posts.filter(p=>{const pd=p.scheduledFor?p.scheduledFor.split("T")[0]:p.createdAt?.split("T")[0];return pd===ds})};
+
+  const queued=posts.filter(p=>p.status==="queued"||p.status==="scheduled");
+  const published=posts.filter(p=>p.status==="published");
+
+  const S={
+    sidebar:{width:256,background:"#0e1018",borderRight:"1px solid var(--border)",display:"flex",flexDirection:"column",flexShrink:0,height:"100vh",position:"sticky",top:0},
+    navBtn:(active)=>({width:"100%",padding:"10px 14px",background:active?"var(--surface2)":"transparent",border:active?"1px solid var(--border)":"1px solid transparent",borderRadius:8,color:active?"#fff":"var(--muted)",fontSize:13,fontWeight:active?600:400,cursor:"pointer",textAlign:"left",display:"flex",alignItems:"center",gap:10,marginBottom:2,fontFamily:"inherit"}),
+    card:{background:"var(--surface)",border:"1px solid var(--border)",borderRadius:12,padding:20},
+    input:{width:"100%",padding:"10px 12px",background:"var(--surface2)",border:"1px solid var(--border)",borderRadius:8,color:"#fff",fontSize:13,outline:"none",fontFamily:"inherit"},
+    label:{fontSize:10,fontWeight:600,color:"var(--muted)",textTransform:"uppercase",letterSpacing:1,display:"block",marginBottom:6},
+    badge:(ok,warn)=>({fontSize:11,padding:"3px 8px",borderRadius:4,background:ok?"rgba(34,197,94,0.15)":warn?"rgba(245,158,11,0.15)":"rgba(239,68,68,0.15)",color:ok?"var(--green)":warn?"var(--amber)":"var(--red)"}),
+    btn:(primary)=>({padding:"10px 20px",background:primary?"var(--accent)":"transparent",color:primary?"#fff":"var(--muted)",border:primary?"none":"1px solid var(--border)",borderRadius:8,fontSize:13,fontWeight:primary?700:400,cursor:"pointer",fontFamily:"inherit"})
+  };
+
+  if(!authed)return(
+    <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"var(--bg)"}}>
+      <div style={{textAlign:"center"}}>
+        <div style={{fontSize:32,fontWeight:800,color:"#fff",marginBottom:4,letterSpacing:"-0.5px"}}>Grid<span style={{color:"var(--accent)"}}>Social</span></div>
+        <p style={{color:"var(--muted)",fontSize:13,marginBottom:28}}>Social Media Management</p>
+        <input type="password" placeholder="Admin key" value={keyInput} onChange={e=>setKeyInput(e.target.value)} onKeyDown={e=>e.key==="Enter"&&doLogin()} autoFocus
+          style={{...S.input,width:320,marginBottom:12,display:"block"}} />
+        {authErr&&<p style={{color:"var(--red)",fontSize:12,marginBottom:8}}>{authErr}</p>}
+        <button onClick={doLogin} style={{...S.btn(true),width:320}}>Sign in</button>
+      </div>
     </div>
-    <div class="pill ${cfg.hasIgUserId ? "pill-green" : "pill-amber"}">
-      <div class="dot ${cfg.hasIgUserId ? "dot-green" : "dot-amber"}"></div>
-      Instagram
-    </div>
-  `;
-}
+  );
 
-async function loadQueue() {
-  const data = await api("queue");
-  if (!data) return;
-  const list = document.getElementById("queue-list");
-  const queued = data.posts.filter(p => p.status === "queued");
-  const published = data.posts.filter(p => p.status === "published");
+  return(
+    <div style={{display:"flex",minHeight:"100vh",background:"var(--bg)"}}>
+      {/* SIDEBAR */}
+      <div style={S.sidebar}>
+        <div style={{padding:"20px 16px 14px",borderBottom:"1px solid var(--border)"}}>
+          <div style={{fontSize:20,fontWeight:800,color:"#fff",letterSpacing:"-0.3px"}}>Grid<span style={{color:"var(--accent)"}}>Social</span></div>
+          <p style={{fontSize:11,color:"var(--muted)",marginTop:2}}>Social Media Manager</p>
+        </div>
+        <div style={{padding:"12px 16px",borderBottom:"1px solid var(--border)"}}>
+          <div style={S.label}>Client</div>
+          <select value={activeClient?.id||""} onChange={e=>{const c=clients.find(x=>x.id===e.target.value);setActiveClient(c)}}
+            style={{...S.input,cursor:"pointer"}}>
+            {clients.length===0&&<option>No clients</option>}
+            {clients.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+        </div>
+        <div style={{padding:"8px",flex:1}}>
+          {[{id:"compose",icon:"✏️",label:"Create Post"},{id:"queue",icon:"📋",label:"Queue"},{id:"calendar",icon:"📅",label:"Calendar"},{id:"published",icon:"✅",label:"Published"},{id:"clients",icon:"⚙️",label:"Clients & API"}].map(item=>
+            <button key={item.id} onClick={()=>setView(item.id)} style={S.navBtn(view===item.id)}>
+              <span style={{fontSize:16}}>{item.icon}</span>{item.label}
+              {item.id==="queue"&&queued.length>0&&<span style={{marginLeft:"auto",background:"var(--accent)",color:"#fff",fontSize:10,padding:"1px 7px",borderRadius:10,fontWeight:700}}>{queued.length}</span>}
+            </button>
+          )}
+        </div>
+        <div style={{padding:"12px 16px",borderTop:"1px solid var(--border)",fontSize:11,color:"#374151"}}>Grid Social v2.0</div>
+      </div>
 
-  document.getElementById("queue-summary").textContent =
-    `${queued.length} queued · ${published.length} published`;
+      {/* MAIN */}
+      <div style={{flex:1,overflow:"auto"}}>
+        <div style={{maxWidth:920,margin:"0 auto",padding:"28px 36px"}}>
 
-  if (data.posts.length === 0) {
-    list.innerHTML = '<div class="empty">No posts in queue. Add one!</div>';
-    return;
-  }
+          {/* CREATE POST */}
+          {view==="compose"&&<div>
+            <h2 style={{fontSize:22,fontWeight:700,color:"#fff",marginBottom:20}}>Create Post</h2>
+            {!activeClient?<div style={{...S.card,padding:48,textAlign:"center",color:"var(--muted)"}}>
+              <p style={{fontSize:15,marginBottom:12}}>Add a client first</p>
+              <button onClick={()=>{setView("clients");setShowModal(true)}} style={S.btn(true)}>Add Client</button>
+            </div>:<div style={{display:"grid",gridTemplateColumns:"1fr 320px",gap:20}}>
+              <div style={S.card}>
+                <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
+                  <div style={{width:40,height:40,borderRadius:"50%",background:"var(--accent)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,fontWeight:700,color:"#fff"}}>{activeClient.name.charAt(0)}</div>
+                  <div><div style={{fontWeight:600,fontSize:14,color:"#fff"}}>{activeClient.name}</div>
+                  <div style={{fontSize:11,color:"var(--muted)"}}>{compose.fb&&compose.ig?"Facebook + Instagram":compose.fb?"Facebook":compose.ig?"Instagram":"None"}</div></div>
+                </div>
+                <textarea value={compose.caption} onChange={e=>setCompose(p=>({...p,caption:e.target.value}))}
+                  placeholder="Write your post here..."
+                  style={{width:"100%",minHeight:180,background:"transparent",border:"none",color:"var(--text)",fontSize:15,lineHeight:1.7,resize:"vertical",outline:"none",fontFamily:"inherit"}} />
+                <div style={{borderTop:"1px solid var(--border)",paddingTop:14,marginTop:14}}>
+                  <div style={S.label}>Image URL</div>
+                  <input type="url" value={compose.imageUrl} onChange={e=>setCompose(p=>({...p,imageUrl:e.target.value}))}
+                    placeholder="https://grid-social-autoposter.netlify.app/photos/example.jpg" style={S.input} />
+                </div>
+                {compose.imageUrl&&<div style={{marginTop:12}}><img src={compose.imageUrl} style={{maxWidth:"100%",maxHeight:180,borderRadius:8,objectFit:"cover"}} onError={e=>{e.target.style.display="none"}} /></div>}
+              </div>
+              <div>
+                <div style={{...S.card,padding:16,marginBottom:12}}>
+                  <div style={S.label}>Platforms</div>
+                  {[{k:"fb",l:"Facebook",i:"📘",on:!!activeClient.fbPageId},{k:"ig",l:"Instagram",i:"📸",on:!!activeClient.igUserId}].map(p=>
+                    <label key={p.k} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 0",cursor:"pointer"}}>
+                      <input type="checkbox" checked={compose[p.k]} onChange={e=>setCompose(x=>({...x,[p.k]:e.target.checked}))} style={{width:18,height:18,accentColor:"var(--accent)"}} />
+                      <span>{p.i}</span><span style={{fontSize:13}}>{p.l}</span>
+                      {!p.on&&<span style={{marginLeft:"auto",...S.badge(false,true)}}>Not linked</span>}
+                    </label>
+                  )}
+                </div>
+                <div style={{...S.card,padding:16,marginBottom:12}}>
+                  <div style={S.label}>Schedule</div>
+                  <input type="datetime-local" value={compose.scheduledFor} onChange={e=>setCompose(p=>({...p,scheduledFor:e.target.value}))}
+                    style={{...S.input,colorScheme:"dark"}} />
+                  <p style={{fontSize:11,color:"var(--muted)",marginTop:6}}>Leave empty to add to queue</p>
+                </div>
+                <button onClick={addPost} style={{...S.btn(true),width:"100%",padding:12,marginBottom:8}}>{compose.scheduledFor?"Schedule Post":"Add to Queue"}</button>
+              </div>
+            </div>}
+          </div>}
 
-  list.innerHTML = data.posts.map((p, i) => `
-    <div class="post-card ${p.status === "published" ? "published" : ""}">
-      <div class="post-num">${p.status === "published" ? "✓" : i + 1}</div>
-      <div class="post-body">
-        <div class="post-caption">${escHtml(p.caption)}</div>
-        <div class="post-meta">
-          ${p.platforms.map(pl => `<span class="platform-tag">${pl}</span>`).join("")}
-          ${p.imageUrl ? '<span class="platform-tag">📷 image</span>' : '<span class="platform-tag">📝 text only</span>'}
-          ${p.publishedAt ? `<span>Published ${new Date(p.publishedAt).toLocaleDateString("en-GB")}</span>` : ""}
+          {/* QUEUE */}
+          {view==="queue"&&<div>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+              <h2 style={{fontSize:22,fontWeight:700,color:"#fff"}}>Post Queue</h2>
+              <span style={{fontSize:13,color:"var(--muted)"}}>{queued.length} queued</span>
+            </div>
+            {queued.length===0?<div style={{...S.card,padding:48,textAlign:"center",color:"var(--muted)"}}><p style={{fontSize:28,marginBottom:8}}>📝</p><p>Queue is empty</p></div>
+            :queued.map((p,i)=>
+              <div key={p.id} style={{...S.card,marginBottom:8,display:"flex",gap:14,padding:16}}>
+                <div style={{width:36,height:36,borderRadius:8,background:"var(--surface2)",display:"flex",alignItems:"center",justifyContent:"center",color:"var(--muted)",fontSize:13,fontWeight:700,flexShrink:0}}>{i+1}</div>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontSize:14,lineHeight:1.5,whiteSpace:"pre-wrap",maxHeight:80,overflow:"hidden"}}>{p.caption}</div>
+                  <div style={{display:"flex",gap:6,marginTop:8,flexWrap:"wrap"}}>
+                    {p.platforms.map(pl=><span key={pl} style={{fontSize:11,padding:"2px 8px",background:"var(--surface2)",border:"1px solid var(--border)",borderRadius:4,color:"var(--muted)"}}>{pl}</span>)}
+                    {p.imageUrl&&<span style={{fontSize:11,padding:"2px 8px",background:"var(--surface2)",borderRadius:4,color:"var(--muted)"}}>📷</span>}
+                    {p.scheduledFor&&<span style={{fontSize:11,padding:"2px 8px",background:"rgba(59,130,246,0.12)",borderRadius:4,color:"var(--accent)"}}>📅 {new Date(p.scheduledFor).toLocaleDateString("en-GB",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"})}</span>}
+                  </div>
+                </div>
+                <div style={{display:"flex",gap:4,flexShrink:0,alignItems:"flex-start"}}>
+                  <button onClick={()=>publishPost(p.id)} style={{padding:"6px 12px",background:"rgba(34,197,94,0.12)",color:"var(--green)",border:"none",borderRadius:6,fontSize:12,cursor:"pointer",fontWeight:600}}>Publish</button>
+                  <button onClick={()=>deletePost(p.id)} style={{padding:"6px 8px",background:"rgba(239,68,68,0.1)",color:"var(--red)",border:"none",borderRadius:6,fontSize:14,cursor:"pointer"}}>×</button>
+                </div>
+              </div>
+            )}
+          </div>}
+
+          {/* CALENDAR */}
+          {view==="calendar"&&<div>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+              <h2 style={{fontSize:22,fontWeight:700,color:"#fff"}}>Content Calendar</h2>
+              <div style={{display:"flex",gap:8,alignItems:"center"}}>
+                <button onClick={()=>{if(calMonth===0){setCalMonth(11);setCalYear(y=>y-1)}else setCalMonth(m=>m-1)}} style={{padding:"6px 12px",background:"var(--surface2)",border:"1px solid var(--border)",borderRadius:6,color:"var(--muted)",cursor:"pointer",fontSize:16}}>‹</button>
+                <span style={{fontSize:15,fontWeight:600,color:"#fff",minWidth:160,textAlign:"center"}}>{MONTHS[calMonth]} {calYear}</span>
+                <button onClick={()=>{if(calMonth===11){setCalMonth(0);setCalYear(y=>y+1)}else setCalMonth(m=>m+1)}} style={{padding:"6px 12px",background:"var(--surface2)",border:"1px solid var(--border)",borderRadius:6,color:"var(--muted)",cursor:"pointer",fontSize:16}}>›</button>
+              </div>
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:1,background:"var(--border)",borderRadius:12,overflow:"hidden"}}>
+              {DAYS.map(d=><div key={d} style={{padding:10,textAlign:"center",fontSize:10,fontWeight:600,color:"var(--muted)",background:"var(--surface)",textTransform:"uppercase",letterSpacing:1}}>{d}</div>)}
+              {calDays().map((day,i)=>{
+                const dp=day?getDayPosts(day):[];
+                const today=day&&new Date().getDate()===day&&new Date().getMonth()===calMonth&&new Date().getFullYear()===calYear;
+                return <div key={i} style={{minHeight:88,padding:5,background:"var(--bg)"}}>
+                  {day&&<React.Fragment>
+                    <span style={{fontSize:11,color:today?"var(--accent)":"var(--muted)",fontWeight:today?700:400,display:"inline-flex",alignItems:"center",justifyContent:"center",width:22,height:22,borderRadius:"50%",background:today?"rgba(59,130,246,0.15)":"transparent"}}>{day}</span>
+                    {dp.map(p=><div key={p.id} style={{fontSize:9,padding:"2px 4px",marginTop:2,borderRadius:3,background:p.status==="published"?"rgba(34,197,94,0.12)":"rgba(59,130,246,0.12)",color:p.status==="published"?"var(--green)":"var(--accent)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",cursor:"pointer"}} title={p.caption}>{p.status==="published"?"✓":"○"} {p.caption.substring(0,18)}</div>)}
+                  </React.Fragment>}
+                </div>
+              })}
+            </div>
+          </div>}
+
+          {/* PUBLISHED */}
+          {view==="published"&&<div>
+            <h2 style={{fontSize:22,fontWeight:700,color:"#fff",marginBottom:20}}>Published Posts</h2>
+            {published.length===0?<div style={{...S.card,padding:48,textAlign:"center",color:"var(--muted)"}}><p>No published posts yet</p></div>
+            :published.map(p=>
+              <div key={p.id} style={{...S.card,marginBottom:8,padding:16}}>
+                <div style={{fontSize:14,lineHeight:1.5,whiteSpace:"pre-wrap",maxHeight:60,overflow:"hidden"}}>{p.caption}</div>
+                <div style={{display:"flex",gap:8,marginTop:8,fontSize:11,color:"var(--muted)"}}>
+                  <span>{new Date(p.publishedAt).toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"})}</span>
+                  {p.results?.facebook&&<span style={S.badge(p.results.facebook.success,false)}>FB {p.results.facebook.success?"✓":"✗"}</span>}
+                  {p.results?.instagram&&<span style={S.badge(p.results.instagram.success,false)}>IG {p.results.instagram.success?"✓":"✗"}</span>}
+                </div>
+              </div>
+            )}
+          </div>}
+
+          {/* CLIENTS & API */}
+          {view==="clients"&&<div>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+              <h2 style={{fontSize:22,fontWeight:700,color:"#fff"}}>Clients & API Settings</h2>
+              <button onClick={()=>{setEditClient(null);setShowModal(true)}} style={S.btn(true)}>+ Add Client</button>
+            </div>
+            {clients.length===0?<div style={{...S.card,padding:48,textAlign:"center",color:"var(--muted)"}}><p style={{fontSize:28,marginBottom:8}}>👥</p><p>No clients yet</p></div>
+            :clients.map(c=>
+              <div key={c.id} style={{...S.card,marginBottom:10}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+                  <div>
+                    <h3 style={{fontSize:16,fontWeight:700,color:"#fff",marginBottom:8}}>{c.name}</h3>
+                    <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                      <span style={S.badge(!!c.pageAccessToken,false)}>{c.pageAccessToken?"✓ API Token":"✗ No Token"}</span>
+                      <span style={S.badge(!!c.fbPageId,!c.fbPageId)}>{c.fbPageId?"✓ Facebook":"○ Facebook"}</span>
+                      <span style={S.badge(!!c.igUserId,!c.igUserId)}>{c.igUserId?"✓ Instagram":"○ Instagram"}</span>
+                    </div>
+                  </div>
+                  <button onClick={()=>{setEditClient(c);setShowModal(true)}} style={S.btn(false)}>Edit</button>
+                </div>
+              </div>
+            )}
+          </div>}
         </div>
       </div>
-      ${p.status === "queued" ? `
-      <div class="post-actions">
-        <button class="icon-btn" onclick="reorder('${p.id}','up')" title="Move up">↑</button>
-        <button class="icon-btn" onclick="reorder('${p.id}','down')" title="Move down">↓</button>
-        <button class="icon-btn delete" onclick="deletePost('${p.id}')" title="Delete">×</button>
-      </div>` : ""}
+
+      {/* CLIENT MODAL */}
+      {showModal&&<ClientModal client={editClient} onSave={saveClient} onClose={()=>{setShowModal(false);setEditClient(null)}} S={S} />}
+
+      {/* TOAST */}
+      {toast&&<div style={{position:"fixed",bottom:24,right:24,padding:"12px 20px",borderRadius:10,background:toast.err?"var(--red)":"var(--green)",color:"#fff",fontSize:14,fontWeight:600,zIndex:999}}>{toast.msg}</div>}
     </div>
-  `).join("");
+  );
 }
 
-async function loadHistory() {
-  const data = await api("history");
-  if (!data) return;
-  const list = document.getElementById("history-list");
-  if (!data.posts || data.posts.length === 0) {
-    list.innerHTML = '<div class="empty">No posts published yet</div>';
-    return;
-  }
-  list.innerHTML = data.posts.reverse().map(p => `
-    <div class="history-item">
-      <div class="caption">${escHtml(p.caption)}</div>
-      <div class="meta">
-        ${new Date(p.publishedAt).toLocaleString("en-GB")}
-        ${p.results?.facebook ? `<span class="result-tag ${p.results.facebook.success ? "result-ok" : "result-fail"}">${p.results.facebook.success ? "FB ✓" : "FB ✗"}</span>` : ""}
-        ${p.results?.instagram ? `<span class="result-tag ${p.results.instagram.success ? "result-ok" : "result-fail"}">${p.results.instagram.success ? "IG ✓" : "IG ✗"}</span>` : ""}
+function ClientModal({client,onSave,onClose,S}){
+  const [f,setF]=useState({name:client?.name||"",fbPageId:client?.fbPageId||"",igUserId:client?.igUserId||"",pageAccessToken:client?.pageAccessToken||""});
+  return(
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.7)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:100}} onClick={onClose}>
+      <div style={{background:"var(--surface)",border:"1px solid var(--border)",borderRadius:16,padding:28,width:480,maxHeight:"80vh",overflow:"auto"}} onClick={e=>e.stopPropagation()}>
+        <h3 style={{fontSize:18,fontWeight:700,color:"#fff",marginBottom:20}}>{client?"Edit Client":"Add New Client"}</h3>
+        {[{k:"name",l:"Business Name",p:"e.g. Sorn Handyman Services",t:"text"},
+          {k:"fbPageId",l:"Facebook Page ID",p:"Numeric ID from Meta",t:"text"},
+          {k:"igUserId",l:"Instagram Business Account ID",p:"From Meta Graph API",t:"text"},
+          {k:"pageAccessToken",l:"Page Access Token",p:"Long-lived token from Meta",t:"password"}
+        ].map(x=>
+          <div key={x.k} style={{marginBottom:14}}>
+            <div style={S.label}>{x.l}</div>
+            <input type={x.t} value={f[x.k]} onChange={e=>setF(v=>({...v,[x.k]:e.target.value}))} placeholder={x.p} style={S.input} />
+          </div>
+        )}
+        <div style={{display:"flex",gap:8,marginTop:20,justifyContent:"flex-end"}}>
+          <button onClick={onClose} style={S.btn(false)}>Cancel</button>
+          <button onClick={()=>onSave(f)} style={S.btn(true)}>{client?"Save":"Add Client"}</button>
+        </div>
       </div>
     </div>
-  `).join("");
+  );
 }
 
-// ─── ACTIONS ───
-async function addPost() {
-  const caption = document.getElementById("f-caption").value.trim();
-  const imageUrl = document.getElementById("f-image").value.trim();
-  const fb = document.getElementById("f-fb").checked;
-  const ig = document.getElementById("f-ig").checked;
-
-  if (!caption) return toast("Caption is required", true);
-
-  const platforms = [];
-  if (fb) platforms.push("facebook");
-  if (ig) platforms.push("instagram");
-  if (!platforms.length) return toast("Select at least one platform", true);
-
-  const res = await api("add", "POST", { caption, imageUrl: imageUrl || null, platforms });
-  if (res?.success) {
-    toast("Post added to queue");
-    document.getElementById("f-caption").value = "";
-    document.getElementById("f-image").value = "";
-    switchTab("queue");
-    loadQueue();
-  } else {
-    toast(res?.error || "Failed to add", true);
-  }
-}
-
-async function reorder(postId, direction) {
-  await api("reorder", "PUT", { postId, direction });
-  loadQueue();
-}
-
-async function deletePost(postId) {
-  if (!confirm("Delete this post from the queue?")) return;
-  await api("delete", "DELETE", { postId });
-  loadQueue();
-  toast("Post deleted");
-}
-
-async function publishNow() {
-  if (!confirm("Publish the next queued post right now?")) return;
-  toast("Publishing...");
-  const res = await api("publish-now", "POST");
-  if (res?.triggered) {
-    toast("Post published!");
-    setTimeout(loadQueue, 1500);
-  } else {
-    toast("Failed to publish", true);
-  }
-}
-
-// ─── UI ───
-function switchTab(name) {
-  document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
-  document.querySelectorAll("[id^='tab-']").forEach(t => t.style.display = "none");
-  document.getElementById(`tab-${name}`).style.display = "block";
-  event.target.classList.add("active");
-  if (name === "history") loadHistory();
-  if (name === "queue") loadQueue();
-}
-
-function toast(msg, error = false) {
-  const el = document.getElementById("toast");
-  el.textContent = msg;
-  el.className = `toast show ${error ? "error" : ""}`;
-  setTimeout(() => el.className = "toast", 3000);
-}
-
-function escHtml(s) {
-  return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
-}
+ReactDOM.render(<App/>,document.getElementById("root"));
 </script>
 </body>
 </html>
