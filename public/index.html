@@ -535,9 +535,14 @@ function App(){
               <h3 style={{fontSize:16,fontWeight:700,color:"#fff",marginBottom:16}}>{activeClient.name}</h3>
               <ApiHealth client={activeClient} />
               <div style={{borderTop:"1px solid var(--border)",marginTop:16,paddingTop:16}}>
+                <div style={S.label}>Connect / Reconnect Facebook</div>
+                <p style={{fontSize:12,color:"var(--muted)",marginBottom:10}}>Click below to connect your Facebook Pages. This will generate a permanent Page Access Token and auto-link it to matching clients.</p>
+                <a href="/api/meta-auth" style={{display:"inline-flex",alignItems:"center",gap:8,padding:"12px 20px",background:"#1877F2",color:"#fff",borderRadius:8,textDecoration:"none",fontWeight:700,fontSize:14,fontFamily:"inherit"}}>📘 Connect Facebook Pages</a>
+              </div>
+              <div style={{borderTop:"1px solid var(--border)",marginTop:16,paddingTop:16}}>
                 <div style={S.label}>Quick Links</div>
                 <div style={{display:"flex",flexDirection:"column",gap:6}}>
-                  <a href="https://developers.facebook.com/tools/explorer/" target="_blank" style={{fontSize:12,color:"var(--accent)",textDecoration:"none"}}>→ Graph API Explorer (generate tokens)</a>
+                  <a href="https://developers.facebook.com/tools/explorer/" target="_blank" style={{fontSize:12,color:"var(--accent)",textDecoration:"none"}}>→ Graph API Explorer (manual tokens)</a>
                   <a href="https://developers.facebook.com/tools/debug/accesstoken/" target="_blank" style={{fontSize:12,color:"var(--accent)",textDecoration:"none"}}>→ Access Token Debugger</a>
                   <a href="https://business.facebook.com/latest/settings/" target="_blank" style={{fontSize:12,color:"var(--accent)",textDecoration:"none"}}>→ Meta Business Settings</a>
                 </div>
@@ -580,6 +585,7 @@ function App(){
                       <span style={S.badge(!!c.igUserId,!c.igUserId)}>{c.igUserId?"✓ Instagram ("+c.igUserId+")":"○ Instagram"}</span>
                     </div>
                     <div style={{fontSize:11,color:"var(--muted)",marginTop:6}}>Added {new Date(c.createdAt).toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"})}</div>
+                    {!c.pageAccessToken&&c.fbPageId&&<a href="/api/meta-auth" style={{display:"inline-flex",alignItems:"center",gap:6,marginTop:8,padding:"6px 14px",background:"#1877F2",color:"#fff",borderRadius:6,textDecoration:"none",fontWeight:600,fontSize:12,fontFamily:"inherit"}}>📘 Connect Facebook</a>}
                   </div>
                   <div style={{display:"flex",gap:6}}>
                     <button onClick={()=>{setEditClient(c);setShowModal(true)}} style={S.btn(false)}>Edit</button>
