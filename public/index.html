@@ -148,11 +148,48 @@ function App(){
   useEffect(()=>{if(authed&&ac)loadPs()},[authed,ac]);
   useEffect(()=>{if(ac)setComp(c=>({...c,fb:!!ac.fbPageId,ig:!!ac.igUserId,tw:!!ac.twitterAccessToken,tt:!!ac.tiktokAccessToken,li:!!ac.linkedinAccessToken,gb:!!ac.gbpAccessToken,pi:false}))},[ac?.id]);
 
-  const handleImg=async(file)=>{if(!file?.type.startsWith("image/"))return st("Select image",true);if(file.size>10*1024*1024)return st("Max 10MB",true);st("Uploading...");
-    const r=new FileReader();r.onload=async()=>{const b=r.result.split(",")[1];const res=await api("upload-image","POST",{filename:`up_${Date.now()}.${file.name.split(".").pop()||"jpg"}`,content:b});
-    if(res?.success){setComp(p=>({...p,imageUrl:res.url}));st("Uploaded!")}else st(res?.error||"Failed",true)};r.readAsDataURL(file)};
+  const compressImg=(file,maxW=1200,quality=0.75)=>new Promise((resolve,reject)=>{
+    const img=new Image();img.onload=()=>{
+      let w=img.width,h=img.height;if(w>maxW){h=Math.round(h*(maxW/w));w=maxW}
+      const c=document.createElement("canvas");c.width=w;c.height=h;
+      c.getContext("2d").drawImage(img,0,0,w,h);
+      c.toBlob(blob=>{if(blob){const r=new FileReader();r.onload=()=>resolve(r.result.split(",")[1]);r.readAsDataURL(blob)}else reject(new Error("Compress failed"))},"image/jpeg",quality);
+    };img.onerror=()=>reject(new Error("Load failed"));
+    img.src=URL.createObjectURL(file);
+  });
+  const handleImg=async(file)=>{
+    if(!file?.type.startsWith("image/"))return st("Not an image file",true);
+    if(file.size>15*1024*1024)return st("Max 15MB",true);
+    st("Compressing & uploading...");
+    try{
+      const b64=await compressImg(file);
+      const res=await api("upload-image","POST",{filename:`up_${Date.now()}.jpg`,content:b64});
+      if(res?.success){setComp(p=>({...p,imageUrl:res.url}));st("Uploaded!")}
+      else st(res?.error||"Upload failed — try pasting a URL instead",true);
+    }catch(e){st("Upload error: "+e.message,true)}
+  };
+  const handleDrop=async(e)=>{
+    e.preventDefault();setDragO(false);
+    // 1. Check for dropped files (from desktop/file manager)
+    if(e.dataTransfer.files&&e.dataTransfer.files.length>0){return handleImg(e.dataTransfer.files[0])}
+    // 2. Check for dragged image URL (from browser)
+    const html=e.dataTransfer.getData("text/html");
+    if(html){const m=html.match(/src=["']([^"']+\.(jpg|jpeg|png|gif|webp)[^"']*)/i);if(m){setComp(p=>({...p,imageUrl:m[1]}));st("Image URL added!");return}}
+    const url=e.dataTransfer.getData("text/uri-list")||e.dataTransfer.getData("text/plain")||"";
+    if(url&&/^https?:\/\/.+\.(jpg|jpeg|png|gif|webp)/i.test(url)){setComp(p=>({...p,imageUrl:url}));st("Image URL added!");return}
+    // 3. Check for any URL that might be an image
+    if(url&&/^https?:\/\//.test(url)){setComp(p=>({...p,imageUrl:url}));st("URL added — check if it's a valid image");return}
+    st("Drop an image file or drag an image from a webpage",true);
+  };
 
   useEffect(()=>{if(key){fetch("/api/admin?action=config",{headers:{Authorization:"Bearer "+key}}).then(r=>{if(r.ok)setAuthed(true);else{localStorage.removeItem("gsa_key");setKey("")}}).catch(()=>{})}},[]);
+  // Clipboard paste support for images
+  useEffect(()=>{if(!authed)return;const h=async(e)=>{const items=e.clipboardData?.items;if(!items)return;
+    for(const item of items){if(item.type.startsWith("image/")){e.preventDefault();const file=item.getAsFile();if(file)handleImg(file);return}}
+    // Check for pasted URL
+    const text=e.clipboardData?.getData("text/plain")||"";
+    if(/^https?:\/\/.+\.(jpg|jpeg|png|gif|webp)/i.test(text)){/* let it paste into URL input naturally */}
+  };document.addEventListener("paste",h);return()=>document.removeEventListener("paste",h)},[authed,key]);
   const login=async()=>{if(!ki.trim())return;try{const r=await fetch("/api/admin?action=config",{headers:{Authorization:"Bearer "+ki.trim()}});if(r.ok){setKey(ki.trim());localStorage.setItem("gsa_key",ki.trim());setAuthed(true);setAuthErr("")}else setAuthErr("Invalid key")}catch(e){setAuthErr("Failed")}};
 
   const getPl=()=>{const p=[];if(comp.fb)p.push("facebook");if(comp.ig)p.push("instagram");if(comp.tw)p.push("twitter");if(comp.tt)p.push("tiktok");if(comp.li)p.push("linkedin");if(comp.gb)p.push("google_business");return p};
@@ -287,11 +324,11 @@ function App(){
                 <HashtagBar caption={comp.caption} onInsert={(t)=>setComp(c=>({...c,caption:c.caption+"\n"+t}))} />
                 <div style={{borderTop:"1px solid var(--border)",paddingTop:12,marginTop:6}}>
                   <div style={S.lbl}>Image</div>
-                  <div onDragOver={e=>{e.preventDefault();setDragO(true)}} onDragLeave={()=>setDragO(false)} onDrop={e=>{e.preventDefault();setDragO(false);if(e.dataTransfer.files[0])handleImg(e.dataTransfer.files[0])}} onClick={()=>fRef.current?.click()}
+                  <div onDragOver={e=>{e.preventDefault();setDragO(true)}} onDragLeave={()=>setDragO(false)} onDrop={handleDrop} onClick={()=>fRef.current?.click()}
                     style={{border:`2px dashed ${dragO?"var(--accent)":"var(--border)"}`,borderRadius:10,padding:comp.imageUrl?"6px":"18px 12px",textAlign:"center",cursor:"pointer",background:dragO?"rgba(99,102,241,.04)":"transparent",transition:"all .2s",marginBottom:6}}>
                     {comp.imageUrl?<div style={{position:"relative"}}><img src={comp.imageUrl} style={{maxWidth:"100%",maxHeight:140,borderRadius:8,objectFit:"cover"}} onError={e=>{e.target.style.display="none"}} />
                       <button onClick={e=>{e.stopPropagation();setComp(p=>({...p,imageUrl:""}))}} style={{position:"absolute",top:3,right:3,background:"rgba(0,0,0,.7)",color:"#fff",border:"none",borderRadius:"50%",width:20,height:20,cursor:"pointer",fontSize:12,display:"flex",alignItems:"center",justifyContent:"center"}}>×</button></div>
-                    :<div><div style={{fontSize:22,marginBottom:3}}>📷</div><div style={{fontSize:11,color:"var(--muted)"}}>Drop, browse, or paste URL</div></div>}
+                    :<div><div style={{fontSize:22,marginBottom:3}}>📷</div><div style={{fontSize:11,color:"var(--muted)"}}>Drop image from desktop or browser,<br/>tap to browse, or paste URL below</div></div>}
                     <input ref={fRef} type="file" accept="image/*" style={{display:"none"}} onChange={e=>{if(e.target.files[0])handleImg(e.target.files[0]);e.target.value=""}} />
                   </div>
                   <input type="url" value={comp.imageUrl} onChange={e=>setComp(p=>({...p,imageUrl:e.target.value}))} placeholder="Or paste image URL..." style={{...S.inp,fontSize:11}} />
