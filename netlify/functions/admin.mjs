@@ -261,12 +261,28 @@ export default async (req) => {
       await posts.setJSON(clientId,pl); return json({success:true,deleteResults:dr});
     }
     if (action === "upload-image" && req.method === "POST") {
-      const body = await req.json(); if(!body.filename||!body.content) return json({error:"filename and content required"},400);
-      const ghToken = process.env.GITHUB_TOKEN; if(!ghToken) return json({error:"GITHUB_TOKEN not set"},500);
-      const path = `public/photos/${Date.now()}-${body.filename}`;
-      const gd = await (await fetch(`https://api.github.com/repos/Gusmack1/grid-social-autoposter/contents/${path}`, { method:"PUT", headers:{Authorization:`token ${ghToken}`,"Content-Type":"application/json"}, body:JSON.stringify({message:`Upload ${body.filename}`,content:body.content}) })).json();
-      if(gd.content?.download_url) return json({success:true,url:gd.content.download_url,path});
-      return json({error:"GitHub upload failed",details:gd.message},500);
+      let body;
+      try { body = await req.json(); } catch(e) { return json({error:"Request body too large or invalid JSON. Try a smaller image."},413); }
+      if(!body.filename||!body.content) return json({error:"filename and content required"},400);
+      // Check base64 size (~1.37x the actual file size)
+      const estSize = Math.round(body.content.length * 0.75 / 1024);
+      if(body.content.length > 6 * 1024 * 1024) return json({error:`Image too large (${estSize}KB). Max ~4MB after compression.`},413);
+      const ghToken = process.env.GITHUB_TOKEN; if(!ghToken) return json({error:"GITHUB_TOKEN not set on server"},500);
+      const path = `public/photos/${Date.now()}-${body.filename.replace(/[^a-zA-Z0-9._-]/g,'')}`;
+      try {
+        const ghRes = await fetch(`https://api.github.com/repos/Gusmack1/grid-social-autoposter/contents/${path}`, { 
+          method:"PUT", 
+          headers:{Authorization:`token ${ghToken}`,"Content-Type":"application/json"}, 
+          body:JSON.stringify({message:`Upload ${body.filename}`,content:body.content}) 
+        });
+        const gd = await ghRes.json();
+        if(gd.content?.download_url) return json({success:true,url:gd.content.download_url,path,size:`${estSize}KB`});
+        console.error("[upload] GitHub error:", JSON.stringify(gd));
+        return json({error:gd.message||"GitHub upload failed. Check GITHUB_TOKEN permissions.",details:gd.documentation_url||null},500);
+      } catch(e) {
+        console.error("[upload] Fetch error:", e.message);
+        return json({error:"Upload request failed: "+e.message},500);
+      }
     }
     if (action === "config") { return json({metaAppId:process.env.META_APP_ID||"",hasSecret:!!process.env.META_APP_SECRET,hasGithubToken:!!process.env.GITHUB_TOKEN}); }
     return json({error:"Unknown action: "+action},400);
