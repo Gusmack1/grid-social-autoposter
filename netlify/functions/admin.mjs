@@ -1,146 +1,206 @@
-// Admin API — manage the post queue
-// Auth via ADMIN_KEY env var in Authorization header
-
+// Admin API v2 — Multi-client social media management
 import { getStore } from "@netlify/blobs";
-
-function unauthorized() {
-  return new Response(JSON.stringify({ error: "Unauthorized" }), {
-    status: 401,
-    headers: { "Content-Type": "application/json" },
-  });
-}
 
 function json(data, status = 200) {
   return new Response(JSON.stringify(data, null, 2), {
     status,
-    headers: {
-      "Content-Type": "application/json",
-      "Access-Control-Allow-Origin": "*",
-    },
+    headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS", "Access-Control-Allow-Headers": "Content-Type, Authorization" },
   });
 }
 
-export default async (req) => {
-  // Handle CORS preflight
-  if (req.method === "OPTIONS") {
-    return new Response("", {
-      status: 200,
-      headers: {
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-        "Access-Control-Allow-Headers": "Content-Type, Authorization",
-      },
-    });
-  }
+function unauthorized() { return json({ error: "Unauthorized" }, 401); }
 
-  // Auth check
+export default async (req) => {
+  if (req.method === "OPTIONS") return new Response("", { status: 200, headers: { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS", "Access-Control-Allow-Headers": "Content-Type, Authorization" } });
+
   const adminKey = process.env.ADMIN_KEY;
   const authHeader = req.headers.get("Authorization");
-  if (!adminKey || authHeader !== `Bearer ${adminKey}`) {
-    return unauthorized();
-  }
+  if (!adminKey || authHeader !== `Bearer ${adminKey}`) return unauthorized();
 
-  const store = getStore("posts");
   const url = new URL(req.url);
   const action = url.searchParams.get("action");
+  const clientId = url.searchParams.get("clientId");
 
   try {
-    // ─── GET QUEUE ───
-    if (req.method === "GET" && action === "queue") {
-      const queue = await store.get("queue", { type: "json" }).catch(() => null);
-      return json(queue || { posts: [] });
+    const clients = getStore("clients");
+    const posts = getStore("posts");
+
+    // ─── CLIENT MANAGEMENT ───
+    if (action === "get-clients") {
+      const data = await clients.get("list", { type: "json" }).catch(() => null);
+      return json(data || []);
     }
 
-    // ─── GET HISTORY ───
-    if (req.method === "GET" && action === "history") {
-      const history = await store.get("history", { type: "json" }).catch(() => null);
-      return json(history || { posts: [] });
-    }
-
-    // ─── GET CONFIG (safe — no tokens) ───
-    if (req.method === "GET" && action === "config") {
-      return json({
-        hasPageToken: !!process.env.META_PAGE_ACCESS_TOKEN,
-        hasPageId: !!process.env.META_PAGE_ID,
-        hasIgUserId: !!process.env.META_IG_USER_ID,
-        pageId: process.env.META_PAGE_ID || "not set",
-        igUserId: process.env.META_IG_USER_ID || "not set",
-      });
-    }
-
-    // ─── ADD POST TO QUEUE ───
-    if (req.method === "POST" && action === "add") {
+    if (action === "add-client" && req.method === "POST") {
       const body = await req.json();
-      const { caption, imageUrl, platforms } = body;
+      const { name, fbPageId, igUserId, pageAccessToken, logo } = body;
+      if (!name) return json({ error: "Client name required" }, 400);
+      const list = (await clients.get("list", { type: "json" }).catch(() => null)) || [];
+      const newClient = {
+        id: "client_" + Date.now(),
+        name,
+        fbPageId: fbPageId || "",
+        igUserId: igUserId || "",
+        pageAccessToken: pageAccessToken || "",
+        logo: logo || "",
+        createdAt: new Date().toISOString(),
+      };
+      list.push(newClient);
+      await clients.setJSON("list", list);
+      return json({ success: true, client: newClient });
+    }
 
-      if (!caption) {
-        return json({ error: "Caption is required" }, 400);
-      }
+    if (action === "update-client" && req.method === "PUT") {
+      const body = await req.json();
+      const list = (await clients.get("list", { type: "json" }).catch(() => null)) || [];
+      const idx = list.findIndex((c) => c.id === body.id);
+      if (idx === -1) return json({ error: "Client not found" }, 404);
+      list[idx] = { ...list[idx], ...body, updatedAt: new Date().toISOString() };
+      await clients.setJSON("list", list);
+      return json({ success: true, client: list[idx] });
+    }
 
-      const queue = (await store.get("queue", { type: "json" }).catch(() => null)) || { posts: [] };
+    if (action === "delete-client" && req.method === "DELETE") {
+      const body = await req.json();
+      let list = (await clients.get("list", { type: "json" }).catch(() => null)) || [];
+      list = list.filter((c) => c.id !== body.id);
+      await clients.setJSON("list", list);
+      return json({ success: true });
+    }
 
+    // ─── POST MANAGEMENT (per client) ───
+    if (!clientId && ["get-posts", "add-post", "update-post", "delete-post", "reorder-post"].includes(action)) {
+      return json({ error: "clientId required" }, 400);
+    }
+
+    if (action === "get-posts") {
+      const data = await posts.get(clientId, { type: "json" }).catch(() => null);
+      return json(data || []);
+    }
+
+    if (action === "add-post" && req.method === "POST") {
+      const body = await req.json();
+      const { caption, imageUrl, platforms, scheduledFor } = body;
+      if (!caption) return json({ error: "Caption required" }, 400);
+      const list = (await posts.get(clientId, { type: "json" }).catch(() => null)) || [];
       const newPost = {
-        id: `post_${Date.now()}`,
+        id: "post_" + Date.now(),
+        clientId,
         caption,
         imageUrl: imageUrl || null,
         platforms: platforms || ["facebook", "instagram"],
-        status: "queued",
+        status: scheduledFor ? "scheduled" : "queued",
+        scheduledFor: scheduledFor || null,
         createdAt: new Date().toISOString(),
         publishedAt: null,
         results: null,
       };
-
-      queue.posts.push(newPost);
-      await store.setJSON("queue", queue);
-
+      list.push(newPost);
+      await posts.setJSON(clientId, list);
       return json({ success: true, post: newPost });
     }
 
-    // ─── REORDER POST (move up/down) ───
-    if (req.method === "PUT" && action === "reorder") {
-      const { postId, direction } = await req.json();
-      const queue = (await store.get("queue", { type: "json" }).catch(() => null)) || { posts: [] };
-
-      const idx = queue.posts.findIndex((p) => p.id === postId);
+    if (action === "update-post" && req.method === "PUT") {
+      const body = await req.json();
+      const list = (await posts.get(clientId, { type: "json" }).catch(() => null)) || [];
+      const idx = list.findIndex((p) => p.id === body.postId);
       if (idx === -1) return json({ error: "Post not found" }, 404);
+      Object.assign(list[idx], body.updates);
+      await posts.setJSON(clientId, list);
+      return json({ success: true });
+    }
 
-      const newIdx = direction === "up" ? idx - 1 : idx + 1;
-      if (newIdx < 0 || newIdx >= queue.posts.length) {
-        return json({ error: "Cannot move further" }, 400);
+    if (action === "delete-post" && req.method === "DELETE") {
+      const body = await req.json();
+      let list = (await posts.get(clientId, { type: "json" }).catch(() => null)) || [];
+      list = list.filter((p) => p.id !== body.postId);
+      await posts.setJSON(clientId, list);
+      return json({ success: true });
+    }
+
+    // ─── PUBLISH NOW ───
+    if (action === "publish-now" && req.method === "POST") {
+      const body = await req.json();
+      const postId = body.postId;
+      const clientList = (await clients.get("list", { type: "json" }).catch(() => null)) || [];
+      const client = clientList.find((c) => c.id === clientId);
+      if (!client || !client.pageAccessToken) return json({ error: "Client not configured with API token" }, 400);
+
+      const postList = (await posts.get(clientId, { type: "json" }).catch(() => null)) || [];
+      const post = postList.find((p) => p.id === postId);
+      if (!post) return json({ error: "Post not found" }, 404);
+
+      const results = { facebook: null, instagram: null };
+      const GRAPH = "https://graph.facebook.com/v21.0";
+
+      // Post to Facebook
+      if (post.platforms.includes("facebook") && client.fbPageId) {
+        try {
+          let ep, bd;
+          if (post.imageUrl) {
+            ep = `${GRAPH}/${client.fbPageId}/photos`;
+            bd = new URLSearchParams({ url: post.imageUrl, message: post.caption, access_token: client.pageAccessToken });
+          } else {
+            ep = `${GRAPH}/${client.fbPageId}/feed`;
+            bd = new URLSearchParams({ message: post.caption, access_token: client.pageAccessToken });
+          }
+          const r = await fetch(ep, { method: "POST", body: bd });
+          const d = await r.json();
+          results.facebook = d.error ? { success: false, error: d.error.message } : { success: true, id: d.id || d.post_id };
+        } catch (e) { results.facebook = { success: false, error: e.message }; }
       }
 
-      [queue.posts[idx], queue.posts[newIdx]] = [queue.posts[newIdx], queue.posts[idx]];
-      await store.setJSON("queue", queue);
+      // Post to Instagram
+      if (post.platforms.includes("instagram") && client.igUserId && post.imageUrl) {
+        try {
+          const cr = await fetch(`${GRAPH}/${client.igUserId}/media`, {
+            method: "POST",
+            body: new URLSearchParams({ image_url: post.imageUrl, caption: post.caption, access_token: client.pageAccessToken }),
+          });
+          const cd = await cr.json();
+          if (cd.error) { results.instagram = { success: false, error: cd.error.message }; }
+          else {
+            let ready = false, attempts = 0;
+            while (!ready && attempts < 10) {
+              await new Promise((r) => setTimeout(r, 3000));
+              const sr = await fetch(`${GRAPH}/${cd.id}?fields=status_code&access_token=${client.pageAccessToken}`);
+              const sd = await sr.json();
+              if (sd.status_code === "FINISHED") ready = true;
+              else if (sd.status_code === "ERROR") { results.instagram = { success: false, error: "Processing failed" }; break; }
+              attempts++;
+            }
+            if (ready) {
+              const pr = await fetch(`${GRAPH}/${client.igUserId}/media_publish`, {
+                method: "POST",
+                body: new URLSearchParams({ creation_id: cd.id, access_token: client.pageAccessToken }),
+              });
+              const pd = await pr.json();
+              results.instagram = pd.error ? { success: false, error: pd.error.message } : { success: true, id: pd.id };
+            }
+          }
+        } catch (e) { results.instagram = { success: false, error: e.message }; }
+      }
 
-      return json({ success: true });
+      // Update post status
+      const pi = postList.findIndex((p) => p.id === postId);
+      postList[pi].status = "published";
+      postList[pi].publishedAt = new Date().toISOString();
+      postList[pi].results = results;
+      await posts.setJSON(clientId, postList);
+
+      return json({ success: true, results });
     }
 
-    // ─── DELETE POST FROM QUEUE ───
-    if (req.method === "DELETE" && action === "delete") {
-      const { postId } = await req.json();
-      const queue = (await store.get("queue", { type: "json" }).catch(() => null)) || { posts: [] };
-
-      queue.posts = queue.posts.filter((p) => p.id !== postId);
-      await store.setJSON("queue", queue);
-
-      return json({ success: true });
+    // ─── CONFIG CHECK ───
+    if (action === "config") {
+      const clientList = (await clients.get("list", { type: "json" }).catch(() => null)) || [];
+      return json({ clientCount: clientList.length, clients: clientList.map((c) => ({ id: c.id, name: c.name, hasToken: !!c.pageAccessToken, hasFbPage: !!c.fbPageId, hasIg: !!c.igUserId })) });
     }
 
-    // ─── TRIGGER MANUAL POST NOW ───
-    if (req.method === "POST" && action === "publish-now") {
-      // Import and call the scheduled function logic
-      const triggerUrl = `${url.origin}/.netlify/functions/scheduled-post`;
-      const res = await fetch(triggerUrl);
-      const result = await res.json().catch(() => ({ status: res.status }));
-      return json({ triggered: true, result });
-    }
-
-    return json({ error: "Unknown action", available: ["queue", "history", "config", "add", "reorder", "delete", "publish-now"] }, 400);
+    return json({ error: "Unknown action" }, 400);
   } catch (err) {
     return json({ error: err.message }, 500);
   }
 };
 
-export const config = {
-  path: "/api/admin",
-};
+export const config = { path: "/api/admin" };
