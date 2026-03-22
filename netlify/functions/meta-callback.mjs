@@ -75,6 +75,25 @@ export default async (req) => {
       }
     }
 
+    // Step 5: For any clients with a fbPageId that didn't get matched, try direct page token fetch
+    // This handles "New Pages Experience" pages that don't appear in /me/accounts
+    for (let i = 0; i < clientList.length; i++) {
+      const c = clientList[i];
+      if (c.fbPageId && !results.find(r => r.pageId === c.fbPageId && r.status === "updated")) {
+        try {
+          const directRes = await fetch(`https://graph.facebook.com/v21.0/${c.fbPageId}?fields=access_token,name,instagram_business_account&access_token=${longLivedUserToken}`);
+          const directData = await directRes.json();
+          if (directData.access_token) {
+            clientList[i].pageAccessToken = directData.access_token;
+            if (directData.instagram_business_account?.id && !clientList[i].igUserId) clientList[i].igUserId = directData.instagram_business_account.id;
+            clientList[i].tokenUpdatedAt = new Date().toISOString();
+            clientList[i].updatedAt = new Date().toISOString();
+            results.push({ name: directData.name || c.name, pageId: c.fbPageId, igId: directData.instagram_business_account?.id || null, status: "updated", clientName: c.name });
+          }
+        } catch(e) { /* skip if direct fetch fails */ }
+      }
+    }
+
     await clients.setJSON("list", clientList);
 
     // Build interactive results page
