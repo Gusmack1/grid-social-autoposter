@@ -1,4 +1,5 @@
 [build]
+  command = "npm install"
   publish = "public"
   functions = "netlify/functions"
 
@@ -9,5 +10,15 @@
   for = "/*"
   [headers.values]
     Access-Control-Allow-Origin = "*"
-    Access-Control-Allow-Methods = "GET, POST, OPTIONS"
+    Access-Control-Allow-Methods = "GET, POST, PUT, DELETE, OPTIONS"
     Access-Control-Allow-Headers = "Content-Type, Authorization"
+
+[[redirects]]
+  from = "/api/admin"
+  to = "/.netlify/functions/admin"
+  status = 200
+
+[[redirects]]
+  from = "/api/admin/*"
+  to = "/.netlify/functions/admin/:splat"
+  status = 200
