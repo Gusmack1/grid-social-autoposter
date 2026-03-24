@@ -7,6 +7,9 @@ import { db } from './lib/db/index.mjs';
 import { verifyApprovalToken } from './lib/invites.mjs';
 import { json, cors } from './lib/http.mjs';
 import { logger } from './lib/logger.mjs';
+import { notifyAdminPostApproved, notifyAdminPostRejected } from './lib/email.mjs';
+
+const ADMIN_EMAIL = process.env.ADMIN_NOTIFICATION_EMAIL || 'gus@gridsocial.co.uk';
 
 export default async (req) => {
   if (req.method === 'OPTIONS') return cors();
@@ -46,6 +49,8 @@ export default async (req) => {
         posts[idx].approvedBy = 'client';
         await db.savePosts(clientId, posts);
         logger.info('Post approved by client', { clientId, postId });
+        // Notify admin (fire-and-forget)
+        notifyAdminPostApproved({ adminEmail: ADMIN_EMAIL, clientName, postCaption: posts[idx].caption, postId }).catch(() => {});
       }
       return Response.redirect(`${url.origin}/approve?token=${token}&msg=approved`, 302);
     }
@@ -68,6 +73,8 @@ export default async (req) => {
         posts[idx].clientComment = body.comment || '';
         await db.savePosts(clientId, posts);
         logger.info('Post rejected by client', { clientId, postId, comment: body.comment });
+        // Notify admin (fire-and-forget)
+        notifyAdminPostRejected({ adminEmail: ADMIN_EMAIL, clientName, postCaption: posts[idx].caption, clientComment: body.comment, postId }).catch(() => {});
       }
       return Response.redirect(`${url.origin}/approve?token=${token}&msg=feedback`, 302);
     }

@@ -80,6 +80,29 @@ textarea { resize: vertical; min-height: 80px; }
 .badge-scheduled { background: #854d0e; color: #fbbf24; }
 .badge-published { background: #166534; color: #86efac; }
 .badge-deleted { background: #7f1d1d; color: #fca5a5; }
+.badge-pending { background: #78350f; color: #fcd34d; }
+.badge-approved { background: #14532d; color: #86efac; }
+.badge-changes_requested { background: #7f1d1d; color: #fca5a5; }
+
+.approval-comment {
+  margin-top: 6px;
+  padding: 6px 10px;
+  background: rgba(239, 68, 68, 0.1);
+  border-left: 3px solid #ef4444;
+  border-radius: 0 6px 6px 0;
+  font-size: 12px;
+  color: #fca5a5;
+}
+
+.approval-warning {
+  padding: 10px 14px;
+  background: rgba(245, 158, 11, 0.1);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  border-radius: 8px;
+  font-size: 13px;
+  color: #fbbf24;
+  margin-bottom: 14px;
+}
 
 /* Layout */
 .layout { display: flex; min-height: 100vh; }

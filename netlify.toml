@@ -83,6 +83,17 @@
   to = "/.netlify/functions/linkedin-callback"
   status = 200
 
+# Stripe
+[[redirects]]
+  from = "/api/stripe-checkout"
+  to = "/.netlify/functions/stripe-checkout"
+  status = 200
+
+[[redirects]]
+  from = "/api/stripe-webhook"
+  to = "/.netlify/functions/stripe-webhook"
+  status = 200
+
 # Client approval portal
 [[redirects]]
   from = "/approve"

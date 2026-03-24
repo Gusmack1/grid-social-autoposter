@@ -291,6 +291,16 @@ export default function App({ user, onLogout }) {
                 <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>GMT</span>
               </div>
 
+              {/* Approval mode warning */}
+              {currentClient?.approvalMode && currentClient.approvalMode !== 'auto' && (
+                <div className="approval-warning">
+                  ⚠️ {currentClient.name} uses <strong>{currentClient.approvalMode}</strong> approval
+                  {currentClient.approvalMode === 'manual'
+                    ? ' — posts will need client approval before publishing.'
+                    : ` — posts auto-approve after ${currentClient.passiveApprovalHours || 72} hours if no feedback.`}
+                </div>
+              )}
+
               {/* Actions */}
               <div style={{ display: 'flex', gap: 8 }}>
                 <button className="btn-primary" onClick={() => handleSubmit(false)} disabled={!caption.trim() || loading}>
@@ -327,15 +337,33 @@ export default function App({ user, onLogout }) {
                     <div className="post-meta">
                       <span className={`badge badge-${post.status}`}>{post.status}</span>
                       {' '}
+                      {post.approvalStatus && post.approvalStatus !== 'approved' && (
+                        <span className={`badge badge-${post.approvalStatus}`}>
+                          {post.approvalStatus === 'pending' ? '⏳ pending approval' : post.approvalStatus === 'changes_requested' ? '✎ changes requested' : post.approvalStatus}
+                        </span>
+                      )}
+                      {post.approvalStatus === 'approved' && post.approvalMode && post.approvalMode !== 'auto' && (
+                        <span className="badge badge-approved">✓ approved</span>
+                      )}
+                      {' '}
                       {post.platforms?.map(p => <PlatformIcon key={p} platform={p} />)}
                       {' '}
                       {post.postType && post.postType !== 'feed' && <span className="badge" style={{ background: '#4338ca', color: '#c7d2fe' }}>{post.postType}</span>}
                       {' '}
                       {post.scheduledFor && <span style={{ color: 'var(--warning)' }}>{formatDateGMT(post.scheduledFor)}</span>}
                     </div>
+                    {post.approvalStatus === 'changes_requested' && post.clientComment && (
+                      <div className="approval-comment">
+                        💬 Client: {post.clientComment}
+                      </div>
+                    )}
                   </div>
                   <div className="post-actions">
-                    <button className="btn-success btn-sm" onClick={() => handlePublish(post.id)} disabled={loading}>Publish</button>
+                    <button className="btn-success btn-sm" onClick={() => handlePublish(post.id)}
+                      disabled={loading || post.approvalStatus === 'pending' || post.approvalStatus === 'changes_requested'}
+                      title={post.approvalStatus === 'pending' ? 'Awaiting client approval' : post.approvalStatus === 'changes_requested' ? 'Client requested changes' : 'Publish now'}>
+                      Publish
+                    </button>
                     <button className="btn-danger btn-sm" onClick={() => setDeleteModal({ post, type: 'queue' })}>✕</button>
                   </div>
                 </div>
@@ -436,6 +464,23 @@ export default function App({ user, onLogout }) {
                         Approval: <span style={{ color: c.approvalMode === 'manual' ? '#f59e0b' : '#a78bfa' }}>{c.approvalMode}</span>
                       </div>
                     )}
+                    <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Approval:</span>
+                      <select
+                        value={c.approvalMode || 'auto'}
+                        onChange={async (e) => {
+                          try {
+                            await apiPut('/admin?action=set-approval-mode', { clientId: c.id, approvalMode: e.target.value });
+                            loadClients();
+                          } catch (err) { alert('Error: ' + err.message); }
+                        }}
+                        style={{ fontSize: 12, padding: '2px 6px', background: 'var(--bg-main)', color: 'var(--text-main)', border: '1px solid var(--border)', borderRadius: 6 }}
+                      >
+                        <option value="auto">Auto (no approval)</option>
+                        <option value="manual">Manual (client approves)</option>
+                        <option value="passive">Passive (72h auto-approve)</option>
+                      </select>
+                    </div>
                   </div>
                   <div style={{ display: 'flex', gap: 6, flexShrink: 0, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                     <button className="btn-ghost btn-sm" onClick={async () => {
@@ -507,6 +552,9 @@ export default function App({ user, onLogout }) {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               <label style={{ fontSize: 12, color: 'var(--text-muted)' }}>Client Name</label>
               <input value={clientModal.name || ''} onChange={e => setClientModal({ ...clientModal, name: e.target.value })} />
+
+              <label style={{ fontSize: 12, color: 'var(--text-muted)' }}>Client Email <span style={{ fontSize: 10, color: '#6b7280' }}>(for approval notifications)</span></label>
+              <input type="email" value={clientModal.clientEmail || ''} onChange={e => setClientModal({ ...clientModal, clientEmail: e.target.value })} placeholder="client@example.com" />
 
               <label style={{ fontSize: 12, color: 'var(--text-muted)' }}>
                 Facebook Page ID

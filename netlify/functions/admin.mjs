@@ -6,6 +6,7 @@ import { publishToAll, deleteFromPlatforms } from './lib/publisher.mjs';
 import { uploadMedia } from './lib/r2.mjs';
 import { migrateTokens } from './lib/migrate-tokens.mjs';
 import { generateInviteLink, generateApprovalLink } from './lib/invites.mjs';
+import { notifyClientPostsReady } from './lib/email.mjs';
 import { json, cors, unauthorized, forbidden, badRequest, notFound, serverError } from './lib/http.mjs';
 import { logger } from './lib/logger.mjs';
 
