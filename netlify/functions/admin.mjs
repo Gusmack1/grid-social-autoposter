@@ -55,7 +55,10 @@ export default async (req) => {
         linkedinAccessToken: c.linkedinAccessToken ? '••••' : null,
         gbpAccessToken: c.gbpAccessToken ? '••••' : null,
         tiktokAccessToken: c.tiktokAccessToken ? '••••' : null,
-        _hasTokens: !!(c.pageAccessToken || c.twitterAccessToken || c.linkedinAccessToken || c.gbpAccessToken || c.tiktokAccessToken),
+        threadsAccessToken: c.threadsAccessToken ? '••••' : null,
+        blueskyAppPassword: c.blueskyAppPassword ? '••••' : null,
+        linkedinRefreshToken: c.linkedinRefreshToken ? '••••' : null,
+        _hasTokens: !!(c.pageAccessToken || c.twitterAccessToken || c.linkedinAccessToken || c.gbpAccessToken || c.tiktokAccessToken || c.threadsAccessToken || c.blueskyAppPassword),
       })));
     }
 
@@ -73,6 +76,9 @@ export default async (req) => {
       if (nc.linkedinAccessToken) nc.linkedinAccessToken = encrypt(nc.linkedinAccessToken);
       if (nc.gbpAccessToken) nc.gbpAccessToken = encrypt(nc.gbpAccessToken);
       if (nc.tiktokAccessToken) nc.tiktokAccessToken = encrypt(nc.tiktokAccessToken);
+      if (nc.threadsAccessToken) nc.threadsAccessToken = encrypt(nc.threadsAccessToken);
+      if (nc.blueskyAppPassword) nc.blueskyAppPassword = encrypt(nc.blueskyAppPassword);
+      if (nc.linkedinRefreshToken) nc.linkedinRefreshToken = encrypt(nc.linkedinRefreshToken);
       list.push(nc);
       await db.saveClients(list);
       return json({ success: true, client: nc });
@@ -84,7 +90,7 @@ export default async (req) => {
       const idx = list.findIndex(c => c.id === body.id);
       if (idx === -1) return notFound('Client not found');
       // Encrypt any new token values (skip masked values)
-      const tokenFields = ['pageAccessToken', 'twitterApiKey', 'twitterApiSecret', 'twitterAccessToken', 'twitterAccessSecret', 'linkedinAccessToken', 'gbpAccessToken', 'tiktokAccessToken'];
+      const tokenFields = ['pageAccessToken', 'twitterApiKey', 'twitterApiSecret', 'twitterAccessToken', 'twitterAccessSecret', 'linkedinAccessToken', 'linkedinRefreshToken', 'gbpAccessToken', 'tiktokAccessToken', 'threadsAccessToken', 'blueskyAppPassword'];
       for (const f of tokenFields) {
         if (body[f] && !body[f].startsWith('••••') && !body[f].startsWith('enc:')) {
           body[f] = encrypt(body[f]);
@@ -136,6 +142,18 @@ export default async (req) => {
       };
       list.push(np);
       await db.savePosts(clientId, list);
+
+      // Email client if post needs approval
+      if (approvalStatus === 'pending' && client?.clientEmail) {
+        const approvalUrl = `${url.origin}/approve`;
+        await notifyClientPostsReady({
+          clientEmail: client.clientEmail,
+          clientName: client.name,
+          approvalUrl,
+          postCount: 1,
+        }).catch(e => logger.warn('Approval email failed', { error: e.message }));
+      }
+
       return json({ success: true, post: np });
     }
 

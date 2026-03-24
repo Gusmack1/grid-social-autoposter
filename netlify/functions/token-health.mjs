@@ -1,7 +1,9 @@
 // Token Health Monitor — runs daily, checks all client tokens are valid
 // Logs results and marks unhealthy tokens for admin attention
+// Auto-refreshes LinkedIn tokens within 7 days of expiry
 import { db } from './lib/db/index.mjs';
-import { decrypt } from './lib/crypto/encryption.mjs';
+import { decrypt, encrypt } from './lib/crypto/encryption.mjs';
+import { notifyClientTokenExpiring } from './lib/email.mjs';
 import { logger } from './lib/logger.mjs';
 
 const GRAPH_API = 'https://graph.facebook.com/v21.0';
@@ -22,6 +24,60 @@ async function checkFacebookPage(pageId, token) {
     if (data.error) return { valid: false, error: data.error.message, code: data.error.code };
     return { valid: true, pageId: data.id, name: data.name };
   } catch (e) { return { valid: false, error: e.message }; }
+}
+
+async function refreshLinkedInToken(client) {
+  const CLIENT_ID = process.env.LINKEDIN_CLIENT_ID;
+  const CLIENT_SECRET = process.env.LINKEDIN_CLIENT_SECRET;
+
+  if (!CLIENT_ID || !CLIENT_SECRET) {
+    return { success: false, error: 'LINKEDIN_CLIENT_ID or SECRET not configured' };
+  }
+
+  if (!client.linkedinRefreshToken) {
+    return { success: false, error: 'No refresh token stored — client must reconnect' };
+  }
+
+  try {
+    const refreshToken = decrypt(client.linkedinRefreshToken);
+    const res = await fetch('https://www.linkedin.com/oauth/v2/accessToken', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type: 'refresh_token',
+        refresh_token: refreshToken,
+        client_id: CLIENT_ID,
+        client_secret: CLIENT_SECRET,
+      }),
+    });
+
+    const data = await res.json();
+
+    if (data.error || !data.access_token) {
+      return { success: false, error: data.error_description || data.error || 'Unknown error' };
+    }
+
+    // Update client record with new tokens
+    const clientList = await db.getClients();
+    const idx = clientList.findIndex(c => c.id === client.id);
+    if (idx === -1) return { success: false, error: 'Client not found in DB' };
+
+    const newExpiresAt = new Date(Date.now() + (data.expires_in * 1000)).toISOString();
+    clientList[idx].linkedinAccessToken = encrypt(data.access_token);
+    clientList[idx].linkedinTokenExpiresAt = newExpiresAt;
+    clientList[idx].linkedinUpdatedAt = new Date().toISOString();
+
+    // Store new refresh token if provided (LinkedIn may rotate it)
+    if (data.refresh_token) {
+      clientList[idx].linkedinRefreshToken = encrypt(data.refresh_token);
+    }
+
+    await db.saveClients(clientList);
+
+    return { success: true, expiresAt: newExpiresAt };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
 }
 
 export default async (req) => {
@@ -99,15 +155,44 @@ export default async (req) => {
       if (client.linkedinTokenExpiresAt) {
         const expiresAt = new Date(client.linkedinTokenExpiresAt).getTime();
         const daysUntilExpiry = Math.floor((expiresAt - Date.now()) / (24 * 3600 * 1000));
+
         if (daysUntilExpiry <= 7 && daysUntilExpiry > 0) {
-          health.platforms.linkedin = {
-            ...health.platforms.linkedin,
-            warning: `Token expires in ${daysUntilExpiry} days — needs refresh`,
-          };
-          logger.warn('LinkedIn token expiring soon', { client: client.name, daysUntilExpiry });
+          // Attempt auto-refresh
+          const refreshResult = await refreshLinkedInToken(client);
+          if (refreshResult.success) {
+            health.platforms.linkedin = {
+              ...health.platforms.linkedin,
+              refreshed: true,
+              newExpiresAt: refreshResult.expiresAt,
+            };
+            logger.info('LinkedIn token auto-refreshed', { client: client.name, newExpiresAt: refreshResult.expiresAt });
+          } else {
+            health.platforms.linkedin = {
+              ...health.platforms.linkedin,
+              warning: `Token expires in ${daysUntilExpiry} days — refresh failed: ${refreshResult.error}`,
+            };
+            logger.warn('LinkedIn token refresh failed', { client: client.name, daysUntilExpiry, error: refreshResult.error });
+            // Notify client via email if they have an email address
+            if (client.clientEmail) {
+              await notifyClientTokenExpiring({
+                clientEmail: client.clientEmail,
+                clientName: client.name,
+                platform: 'LinkedIn',
+                daysUntilExpiry,
+              });
+            }
+          }
         } else if (daysUntilExpiry <= 0) {
           health.platforms.linkedin = { valid: false, error: 'Token has expired' };
           logger.warn('LinkedIn token expired', { client: client.name });
+          if (client.clientEmail) {
+            await notifyClientTokenExpiring({
+              clientEmail: client.clientEmail,
+              clientName: client.name,
+              platform: 'LinkedIn',
+              daysUntilExpiry: 0,
+            });
+          }
         }
       }
     }

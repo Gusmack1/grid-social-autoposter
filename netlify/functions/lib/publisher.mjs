@@ -5,6 +5,8 @@ import { postTweet, deleteTweet } from './platforms/twitter.mjs';
 import { postLinkedIn } from './platforms/linkedin.mjs';
 import { postGBP } from './platforms/google-business.mjs';
 import { postTikTok } from './platforms/tiktok.mjs';
+import { postThreads } from './platforms/threads.mjs';
+import { postBluesky, deleteBlueskyPost } from './platforms/bluesky.mjs';
 import { logger } from './logger.mjs';
 
 export async function publishToAll(client, post) {
@@ -44,6 +46,12 @@ export async function publishToAll(client, post) {
     if (post.platforms.includes('tiktok') && client.tiktokAccessToken) {
       tasks.push({ platform: 'tiktok', fn: () => postTikTok(client, post.caption, post.imageUrl) });
     }
+    if (post.platforms.includes('threads') && client.threadsUserId) {
+      tasks.push({ platform: 'threads', fn: () => postThreads(client, post.caption, post.imageUrl) });
+    }
+    if (post.platforms.includes('bluesky') && client.blueskyIdentifier) {
+      tasks.push({ platform: 'bluesky', fn: () => postBluesky(client, post.caption, post.imageUrl) });
+    }
   }
 
   if (tasks.length === 0) {
@@ -80,6 +88,9 @@ export async function deleteFromPlatforms(client, post) {
   }
   if (post.results?.twitter?.success && post.results.twitter.id) {
     r.twitter = await deleteTweet(client, post.results.twitter.id);
+  }
+  if (post.results?.bluesky?.success && post.results.bluesky.id) {
+    r.bluesky = await deleteBlueskyPost(client, post.results.bluesky.id);
   }
   return r;
 }

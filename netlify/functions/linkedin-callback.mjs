@@ -65,6 +65,7 @@ export default async (req) => {
     }
 
     const accessToken = tokenData.access_token;
+    const refreshToken = tokenData.refresh_token || null; // LinkedIn may provide a refresh token
     const expiresIn = tokenData.expires_in; // typically 5184000 (60 days)
 
     // Step 2: Get user profile to identify who connected
@@ -119,6 +120,7 @@ export default async (req) => {
       if (organizations.length === 0) {
         // No company pages — save as personal LinkedIn
         clientList[clientIdx].linkedinAccessToken = encrypt(accessToken);
+        clientList[clientIdx].linkedinRefreshToken = refreshToken ? encrypt(refreshToken) : null;
         clientList[clientIdx].linkedinId = profile.sub; // OpenID user ID
         clientList[clientIdx].linkedinType = 'personal';
         clientList[clientIdx].linkedinName = profile.name || `${profile.given_name} ${profile.family_name}`;
@@ -133,6 +135,7 @@ export default async (req) => {
         // Auto-assign single organization
         const org = organizations[0];
         clientList[clientIdx].linkedinAccessToken = encrypt(accessToken);
+        clientList[clientIdx].linkedinRefreshToken = refreshToken ? encrypt(refreshToken) : null;
         clientList[clientIdx].linkedinId = org.id;
         clientList[clientIdx].linkedinType = 'organization';
         clientList[clientIdx].linkedinName = org.name;
@@ -200,6 +203,7 @@ export default async (req) => {
 
       if (matchIdx !== -1) {
         clientList[matchIdx].linkedinAccessToken = encrypt(accessToken);
+        clientList[matchIdx].linkedinRefreshToken = refreshToken ? encrypt(refreshToken) : null;
         clientList[matchIdx].linkedinId = org.id;
         clientList[matchIdx].linkedinType = 'organization';
         clientList[matchIdx].linkedinName = org.name;

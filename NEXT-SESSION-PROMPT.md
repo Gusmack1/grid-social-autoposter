@@ -10,71 +10,69 @@ You have access to Claude in Chrome (browser automation), Desktop Commander (loc
 3. Navigate to https://app.netlify.com/ — find the grid-social-autoposter site, go to Site settings → Environment variables, add LINKEDIN_CLIENT_ID and LINKEDIN_CLIENT_SECRET from step 2
 4. Navigate to https://resend.com — sign up or log in, add domain gridsocial.co.uk, verify it, copy the API key
 5. Add RESEND_API_KEY to Netlify env vars
+6. Navigate to https://dashboard.stripe.com — create 3 products (Starter £15/mo, Agency £59/mo, Agency Pro £119/mo), grab price IDs, set up webhook endpoint https://grid-social-autoposter.netlify.app/api/stripe-webhook, add STRIPE_SECRET_KEY + STRIPE_WEBHOOK_SECRET + STRIPE_PRICE_STARTER + STRIPE_PRICE_AGENCY + STRIPE_PRICE_AGENCY_PRO to Netlify env vars
 
 **Code tasks to do IN PARALLEL:**
 Clone the repo: github.com/Gusmack1/grid-social-autoposter
-Read: TODO.md, PHASE-3-PROGRESS.md, ROADMAP.md
+Read: TODO.md
 
 ## REPO STATE
 
-Phases 1-3b deployed and live. Key files:
-- `netlify/functions/admin.mjs` — main admin API (clients, posts, approval workflows)
-- `netlify/functions/lib/publisher.mjs` — unified platform dispatch
-- `netlify/functions/lib/platforms/` — facebook, instagram, twitter, linkedin, google-business, tiktok
-- `netlify/functions/lib/email.mjs` — Resend email notifications (templates built)
-- `netlify/functions/lib/invites.mjs` — invite + approval token generation
-- `netlify/functions/approval-portal.mjs` — client approval page at /approve
-- `netlify/functions/connect-portal.mjs` — client OAuth connect page at /connect
-- `netlify/functions/linkedin-auth.mjs` + `linkedin-callback.mjs` — LinkedIn OAuth (needs env vars)
-- `netlify/functions/stripe-checkout.mjs` + `stripe-webhook.mjs` — Stripe billing (needs env vars)
-- `netlify/functions/token-health.mjs` — daily 6am UTC cron checking all tokens
-- `netlify/functions/scheduled-post.mjs` — daily 10am UTC publisher with approval gate
-- `frontend/src/App.jsx` — main dashboard (approval badges, mode dropdown, link modals)
+Phases 1-4a deployed and live. Key changes since last session:
+- `netlify/functions/token-health.mjs` — now auto-refreshes LinkedIn tokens within 7 days of 60-day expiry using refresh_token grant
+- `netlify/functions/linkedin-callback.mjs` — now stores refresh_token on all OAuth flows
+- `netlify/functions/admin.mjs` — emails client when post added with pending approval status; handles new token fields (threads, bluesky, linkedinRefreshToken)
+- `netlify/functions/lib/platforms/threads.mjs` — NEW: Meta Threads API posting (container→wait→publish flow)
+- `netlify/functions/lib/platforms/bluesky.mjs` — NEW: AT Protocol posting with app passwords, image upload, facets (URLs/mentions/hashtags), deletion
+- `netlify/functions/lib/publisher.mjs` — routes to Threads + Bluesky, Bluesky deletion support
+- `frontend/src/App.jsx` — Billing tab with plan comparison grid, Stripe checkout/portal integration, Threads/Bluesky in client modal + platform detection
+- `frontend/src/components/PlatformIcon.jsx` — Threads + Bluesky SVG icons
+- `frontend/src/constants.js` — Threads + Bluesky in PLATFORMS array + helper links
 
 What's working:
 - 4 clients active, all tokens healthy, ~29 posts queued for Grid Social
-- AES-256-GCM encrypted tokens, parallel publishing, 3x retry
-- Approval workflows: auto/manual/passive modes with client portal
-- Admin email notifications on approve/reject (needs RESEND_API_KEY)
-- Privacy policy, terms, data deletion callback all live
-- Stripe endpoints built (needs STRIPE_SECRET_KEY)
-- LinkedIn OAuth flow built (needs LINKEDIN_CLIENT_ID + SECRET)
+- AES-256-GCM encrypted tokens, parallel publishing across 8 platforms, 3x retry
+- Approval workflows: auto/manual/passive modes with client portal + email notifications
+- LinkedIn token auto-refresh (needs LINKEDIN_CLIENT_ID + SECRET to activate)
+- Billing tab built (needs STRIPE_SECRET_KEY + price IDs to activate)
+- Threads posting ready (needs threadsUserId set on client)
+- Bluesky posting ready (needs blueskyIdentifier + blueskyAppPassword set on client)
 
 ## BUILD PRIORITIES
 
-### 1. LinkedIn token auto-refresh
-Token health monitor (token-health.mjs) already checks LinkedIn tokens daily at 6am UTC and warns when within 7 days of 60-day expiry. Add actual refresh logic:
-- Use the refresh token grant: POST https://www.linkedin.com/oauth/v2/accessToken with grant_type=refresh_token
-- Store the new token encrypted, update linkedinTokenExpiresAt
-- Only refresh when within 7 days of expiry
+### 1. TikTok OAuth + posting
+- Register Content Posting API app at developers.tiktok.com
+- Create `tiktok-auth.mjs` + `tiktok-callback.mjs` (follow LinkedIn OAuth pattern)
+- Update connect-portal.mjs with TikTok connect button
+- Wire into publisher (already has placeholder import)
+- Add redirects to netlify.toml
 
-### 2. Dashboard Billing tab
-New "Billing" tab in sidebar. Show:
-- Current plan name and status
-- Usage: X/Y profiles, X/Y users
-- Upgrade buttons that call POST /api/stripe-checkout to create Stripe checkout sessions
-- "Manage subscription" link to Stripe customer portal
-- Plan comparison table
+### 2. Google Business Profile OAuth + local posts
+- Register OAuth app in Google Cloud Console
+- Create `gbp-auth.mjs` + `gbp-callback.mjs`
+- Implement lib/platforms/google-business.mjs (currently skeleton)
+- Update connect-portal.mjs with GBP connect button
 
-### 3. Email: notify client when posts need approval
-In admin.mjs add-post action, when approvalStatus is 'pending', email the client using their clientEmail field. The function notifyClientPostsReady already exists in lib/email.mjs — just need to generate an approval link and call it.
+### 3. Carousel/multi-image posts
+- Facebook: POST /{page-id}/photos for each image, then POST /{page-id}/feed with attached_media array
+- Instagram: create container for each image, then carousel container, then publish
+- Update compose UI to allow multiple image uploads
+- Update post schema to support imageUrls array
 
-### 4. Platform expansion
-- **TikTok:** Register Content Posting API app, add OAuth flow (tiktok-auth.mjs + tiktok-callback.mjs following same pattern as LinkedIn), wire connect button
-- **Google Business Profile:** Register OAuth app in Google Cloud Console, add OAuth flow, wire connect button
-- **Carousel posts:** Facebook: POST /{page-id}/photos for each image, then POST /{page-id}/feed with attached_media array. Instagram: create container for each image, then carousel container, then publish
-- **Threads:** Uses Meta's Threads API with threads_basic + threads_content_publish permissions. Add lib/platforms/threads.mjs
-- **Bluesky:** AT Protocol with app passwords (no OAuth). Add lib/platforms/bluesky.mjs. Simplest integration — just needs identifier + password
+### 4. Analytics dashboard
+- New "Analytics" tab in dashboard
+- Pull engagement metrics from Facebook Insights, Instagram Insights, LinkedIn analytics
+- Show: reach, impressions, engagement rate, follower growth
+- Chart.js or Recharts for visualization
 
 ### 5. Meta App Review submission
 If browser access is available:
 - Navigate to https://developers.facebook.com/apps/1576303166762174/review/
 - For each of the 6 permissions, click Request, fill in usage description, add screencast instructions
-- Note: screencasts may need to be recorded separately by the user
 
 ## CREDENTIALS
 
-- GitHub token: <YOUR_GITHUB_PAT_FROM_MEMORY>
+- GitHub token: [stored in Claude memory — do not commit to repo]
 - Admin key: gridsocial2026!
 - Meta App ID: 1576303166762174
 - Dashboard login: gus@gridsocial.co.uk / GridSocial2026!

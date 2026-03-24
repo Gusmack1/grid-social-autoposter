@@ -1,6 +1,6 @@
 # Grid Social — Current TODO
 
-**Last updated:** 24 March 2026 (Phase 3b complete)
+**Last updated:** 24 March 2026 (Phase 4a complete)
 
 ---
 
@@ -12,7 +12,25 @@
 | Phase 2 | ✅ DEPLOYED | Client connect portal, JWT invite links, token health monitor, Meta OAuth portal flow, CI |
 | Phase 3 | ✅ DEPLOYED | LinkedIn OAuth, approval workflows (3 modes), Meta review prep, privacy/terms/deletion all live |
 | Phase 3b | ✅ DEPLOYED | Dashboard approval UI, Stripe checkout+webhook, email notifications (Resend), app icon |
-| Phase 4 | 🔲 TODO | Meta App Review submit, LinkedIn app, Stripe setup, platform expansion |
+| Phase 4a | ✅ BUILT | LinkedIn auto-refresh, Billing tab, Threads + Bluesky platforms, post approval emails |
+| Phase 4b | 🔲 TODO | Meta App Review submit, LinkedIn app, Stripe setup, TikTok, GBP, carousel posts |
+
+---
+
+## COMPLETED THIS SESSION (Phase 4a)
+
+- [x] LinkedIn token auto-refresh in token-health.mjs (uses refresh_token grant, stores rotated tokens)
+- [x] LinkedIn callback stores refresh_token on all OAuth flows (personal, single-org, multi-org, admin)
+- [x] Email notification when posts need approval (admin.mjs → notifyClientPostsReady)
+- [x] Email notification when LinkedIn token expiring/expired (token-health.mjs → notifyClientTokenExpiring)
+- [x] Dashboard Billing tab (plan display, usage stats, plan comparison grid, Stripe checkout + portal buttons)
+- [x] Threads platform module (lib/platforms/threads.mjs — Meta Threads API, container+publish flow)
+- [x] Bluesky platform module (lib/platforms/bluesky.mjs — AT Protocol, app passwords, image upload, facets for URLs/mentions/hashtags, deletion)
+- [x] Publisher updated with Threads + Bluesky routing + Bluesky deletion
+- [x] PlatformIcon updated with Threads + Bluesky SVG icons
+- [x] Constants updated with new platform entries + helper links
+- [x] Client modal updated with Threads User ID + Bluesky handle/app password fields
+- [x] Admin API updated: new token fields encrypted on save, masked in get-clients response
 
 ---
 
@@ -44,6 +62,7 @@
 - [ ] Create Stripe account (or use existing)
 - [ ] Create products: Starter £15/mo, Agency £59/mo, Agency Pro £119/mo
 - [ ] Add `STRIPE_SECRET_KEY` + `STRIPE_WEBHOOK_SECRET` to Netlify
+- [ ] Add `STRIPE_PRICE_STARTER` + `STRIPE_PRICE_AGENCY` + `STRIPE_PRICE_AGENCY_PRO` to Netlify
 - [ ] Webhook URL: `https://grid-social-autoposter.netlify.app/api/stripe-webhook`
 
 ### 5. Resend Email
@@ -56,15 +75,12 @@
 ## NEXT BUILD SESSION
 
 ### Code work
-- [ ] LinkedIn token auto-refresh (7 days before 60-day expiry)
-- [ ] Dashboard Billing tab (plan display, upgrade via Stripe checkout)
-- [ ] TikTok OAuth + connect button + posting
+- [ ] TikTok OAuth + connect button + posting (tiktok-auth.mjs + tiktok-callback.mjs)
 - [ ] Google Business Profile OAuth + connect button + local posts
 - [ ] Carousel/multi-image posts (FB + IG)
-- [ ] Threads API integration
-- [ ] Bluesky AT Protocol integration
-- [ ] Email: notify client when new posts need approval
 - [ ] Analytics: pull engagement metrics from platform APIs
+- [ ] Dashboard analytics tab (reach, engagement, follower growth)
+- [ ] White-label: custom branding per client (logo, colors, domain)
 
 ### Browser tasks (for agent with Claude in Chrome)
 - [ ] Meta App Review: navigate console, upload icon, fill in descriptions, submit

@@ -8,6 +8,7 @@ const TABS = [
   { id: 'compose', name: 'Create Post', icon: '✏️' },
   { id: 'queue', name: 'Queue', icon: '📋' },
   { id: 'published', name: 'Published', icon: '✅' },
+  { id: 'billing', name: 'Billing', icon: '💳', admin: true },
   { id: 'team', name: 'Team', icon: '👥', admin: true },
   { id: 'clients', name: 'Clients & API', icon: '⚙️', admin: true },
 ];
@@ -62,7 +63,7 @@ export default function App({ user, onLogout }) {
 
   useEffect(() => { loadClients(); }, []);
   useEffect(() => { loadPosts(); }, [selectedClient]);
-  useEffect(() => { if (tab === 'team') loadUsers(); }, [tab]);
+  useEffect(() => { if (tab === 'team' || tab === 'billing') loadUsers(); }, [tab]);
 
   const currentClient = clients.find(c => c.id === selectedClient);
 
@@ -74,6 +75,8 @@ export default function App({ user, onLogout }) {
     if (p.id === 'linkedin') return currentClient.linkedinAccessToken;
     if (p.id === 'google_business') return currentClient.gbpAccessToken;
     if (p.id === 'tiktok') return currentClient.tiktokAccessToken;
+    if (p.id === 'threads') return currentClient.threadsUserId;
+    if (p.id === 'bluesky') return currentClient.blueskyIdentifier;
     return false;
   }).map(p => p.id) : [];
 
@@ -411,6 +414,96 @@ export default function App({ user, onLogout }) {
           </div>
         )}
 
+        {/* ── BILLING TAB ── */}
+        {tab === 'billing' && isAdmin && (() => {
+          const PLAN_DATA = [
+            { id: 'free', name: 'Free', price: '£0', profiles: 3, users: 1, features: ['3 social profiles', '1 user', 'Basic scheduling', 'Manual posting'] },
+            { id: 'starter', name: 'Starter', price: '£15/mo', profiles: 10, users: 2, features: ['10 social profiles', '2 users', 'AI Writer', 'Approval workflows', 'Email notifications'], priceEnv: 'STRIPE_PRICE_STARTER' },
+            { id: 'agency', name: 'Agency', price: '£59/mo', profiles: 25, users: 5, features: ['25 social profiles', '5 users', 'White-label ready', 'Client connect portal', 'Priority support'], priceEnv: 'STRIPE_PRICE_AGENCY', popular: true },
+            { id: 'agency_pro', name: 'Agency Pro', price: '£119/mo', profiles: 50, users: -1, features: ['50 social profiles', 'Unlimited users', 'Custom branding', 'API access', 'Dedicated support'], priceEnv: 'STRIPE_PRICE_AGENCY_PRO' },
+          ];
+          const currentPlan = user?.plan || 'free';
+          const profileCount = clients.length;
+          const userCount = users.length || 1;
+          const planInfo = PLAN_DATA.find(p => p.id === currentPlan) || PLAN_DATA[0];
+
+          const handleUpgrade = async (priceEnv) => {
+            try {
+              setLoading(true);
+              const data = await apiPost('/stripe-checkout', { priceId: priceEnv });
+              if (data.url) window.open(data.url, '_blank');
+              else alert(data.error || 'Could not create checkout session');
+            } catch (e) { alert(e.message); }
+            setLoading(false);
+          };
+
+          const handlePortal = async () => {
+            if (!user?.stripeCustomerId) { alert('No Stripe subscription found. Upgrade first.'); return; }
+            try {
+              setLoading(true);
+              const data = await apiGet(`/stripe-checkout?action=portal&customerId=${user.stripeCustomerId}`);
+              if (data.url) window.open(data.url, '_blank');
+            } catch (e) { alert(e.message); }
+            setLoading(false);
+          };
+
+          return (
+            <div>
+              <div className="header"><h1>Billing</h1></div>
+
+              {/* Current plan */}
+              <div className="card" style={{ marginBottom: 16 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+                  <div>
+                    <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 4 }}>Current Plan</div>
+                    <div style={{ fontSize: 22, fontWeight: 700 }}>{planInfo.name} <span style={{ fontSize: 14, color: 'var(--text-muted)', fontWeight: 400 }}>{planInfo.price}</span></div>
+                  </div>
+                  <div style={{ display: 'flex', gap: 16, fontSize: 13 }}>
+                    <div><span style={{ color: 'var(--text-muted)' }}>Profiles:</span> <strong>{profileCount}</strong>{planInfo.profiles > 0 ? `/${planInfo.profiles}` : ''}</div>
+                    <div><span style={{ color: 'var(--text-muted)' }}>Users:</span> <strong>{userCount}</strong>{planInfo.users > 0 ? `/${planInfo.users}` : planInfo.users === -1 ? ' (unlimited)' : ''}</div>
+                  </div>
+                </div>
+                {user?.stripeCustomerId && (
+                  <button className="btn-ghost btn-sm" style={{ marginTop: 12 }} onClick={handlePortal} disabled={loading}>
+                    Manage Subscription →
+                  </button>
+                )}
+              </div>
+
+              {/* Plan comparison */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
+                {PLAN_DATA.map(plan => (
+                  <div key={plan.id} className="card" style={{
+                    border: plan.popular ? '2px solid var(--accent)' : plan.id === currentPlan ? '2px solid var(--success)' : undefined,
+                    position: 'relative',
+                  }}>
+                    {plan.popular && (
+                      <div style={{ position: 'absolute', top: -10, right: 12, background: 'var(--accent)', color: '#fff', fontSize: 10, fontWeight: 700, padding: '2px 10px', borderRadius: 10, textTransform: 'uppercase' }}>
+                        Most Popular
+                      </div>
+                    )}
+                    <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 4 }}>{plan.name}</div>
+                    <div style={{ fontSize: 24, fontWeight: 700, color: 'var(--accent)', marginBottom: 12 }}>{plan.price}</div>
+                    <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12, lineHeight: 1.8 }}>
+                      {plan.features.map((f, i) => <div key={i}>✓ {f}</div>)}
+                    </div>
+                    {plan.id === currentPlan ? (
+                      <button className="btn-ghost btn-sm" disabled style={{ width: '100%', opacity: 0.5 }}>Current Plan</button>
+                    ) : plan.id === 'free' ? (
+                      <button className="btn-ghost btn-sm" disabled style={{ width: '100%', opacity: 0.5 }}>Free Tier</button>
+                    ) : (
+                      <button className="btn-primary btn-sm" style={{ width: '100%' }}
+                        onClick={() => handleUpgrade(plan.priceEnv)} disabled={loading}>
+                        {currentPlan === 'free' ? 'Start 14-day Trial' : 'Upgrade'}
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
+
         {/* ── TEAM TAB ── */}
         {tab === 'team' && isAdmin && (
           <div>
@@ -573,6 +666,20 @@ export default function App({ user, onLogout }) {
                 <a href={PLATFORM_LINKS.pageAccessToken} target="_blank" rel="noopener" style={{ color: 'var(--accent)', marginLeft: 6, fontSize: 11 }}>Graph Explorer →</a>
               </label>
               <input type="password" value={clientModal.pageAccessToken || ''} onChange={e => setClientModal({ ...clientModal, pageAccessToken: e.target.value })} placeholder="Paste token (will be encrypted)" />
+
+              <div style={{ borderTop: '1px solid var(--border)', marginTop: 8, paddingTop: 12 }}>
+                <label style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 600 }}>Threads</label>
+              </div>
+              <label style={{ fontSize: 12, color: 'var(--text-muted)' }}>Threads User ID</label>
+              <input value={clientModal.threadsUserId || ''} onChange={e => setClientModal({ ...clientModal, threadsUserId: e.target.value })} placeholder="Threads user ID (from Meta)" />
+
+              <div style={{ borderTop: '1px solid var(--border)', marginTop: 8, paddingTop: 12 }}>
+                <label style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 600 }}>Bluesky</label>
+              </div>
+              <label style={{ fontSize: 12, color: 'var(--text-muted)' }}>Bluesky Handle</label>
+              <input value={clientModal.blueskyIdentifier || ''} onChange={e => setClientModal({ ...clientModal, blueskyIdentifier: e.target.value })} placeholder="e.g. yourname.bsky.social" />
+              <label style={{ fontSize: 12, color: 'var(--text-muted)' }}>Bluesky App Password</label>
+              <input type="password" value={clientModal.blueskyAppPassword || ''} onChange={e => setClientModal({ ...clientModal, blueskyAppPassword: e.target.value })} placeholder="Generate at bsky.app/settings/app-passwords" />
             </div>
 
             <div className="modal-actions">

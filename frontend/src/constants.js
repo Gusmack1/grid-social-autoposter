@@ -3,6 +3,8 @@ export const API_BASE = '/api';
 export const PLATFORMS = [
   { id: 'facebook', name: 'Facebook', icon: 'fb', color: '#1877f2' },
   { id: 'instagram', name: 'Instagram', icon: 'ig', color: '#e4405f' },
+  { id: 'threads', name: 'Threads', icon: 'th', color: '#000000' },
+  { id: 'bluesky', name: 'Bluesky', icon: 'bsky', color: '#0085ff' },
   { id: 'twitter', name: 'X / Twitter', icon: 'x', color: '#000000' },
   { id: 'tiktok', name: 'TikTok', icon: 'tt', color: '#000000' },
   { id: 'linkedin', name: 'LinkedIn', icon: 'li', color: '#0a66c2' },
@@ -24,4 +26,6 @@ export const PLATFORM_LINKS = {
   linkedinId: 'https://www.linkedin.com/company/',
   gbpId: 'https://business.google.com/',
   tiktokAccessToken: 'https://developers.tiktok.com/',
+  threadsUserId: 'https://developers.facebook.com/docs/threads/',
+  blueskyIdentifier: 'https://bsky.app/settings/app-passwords',
 };
