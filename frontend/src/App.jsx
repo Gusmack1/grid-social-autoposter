@@ -8,6 +8,7 @@ const TABS = [
   { id: 'compose', name: 'Create Post', icon: '✏️' },
   { id: 'queue', name: 'Queue', icon: '📋' },
   { id: 'published', name: 'Published', icon: '✅' },
+  { id: 'analytics', name: 'Analytics', icon: '📊' },
   { id: 'billing', name: 'Billing', icon: '💳', admin: true },
   { id: 'team', name: 'Team', icon: '👥', admin: true },
   { id: 'clients', name: 'Clients & API', icon: '⚙️', admin: true },
@@ -24,6 +25,7 @@ export default function App({ user, onLogout }) {
   // Compose state
   const [caption, setCaption] = useState('');
   const [imageUrl, setImageUrl] = useState('');
+  const [imageUrls, setImageUrls] = useState([]); // carousel
   const [videoUrl, setVideoUrl] = useState('');
   const [platforms, setPlatforms] = useState(['facebook', 'instagram']);
   const [postType, setPostType] = useState('feed');
@@ -32,6 +34,11 @@ export default function App({ user, onLogout }) {
 
   // Team state
   const [users, setUsers] = useState([]);
+
+  // Analytics state
+  const [analytics, setAnalytics] = useState(null);
+  const [analyticsRange, setAnalyticsRange] = useState(30);
+  const [analyticsLoading, setAnalyticsLoading] = useState(false);
 
   // Modal state
   const [deleteModal, setDeleteModal] = useState(null);
@@ -65,6 +72,18 @@ export default function App({ user, onLogout }) {
   useEffect(() => { loadPosts(); }, [selectedClient]);
   useEffect(() => { if (tab === 'team' || tab === 'billing') loadUsers(); }, [tab]);
 
+  const loadAnalytics = useCallback(async () => {
+    if (!selectedClient) return;
+    setAnalyticsLoading(true);
+    try {
+      const data = await apiGet(`/analytics?clientId=${selectedClient}&range=${analyticsRange}`);
+      setAnalytics(data);
+    } catch (e) { console.error('Load analytics:', e); }
+    setAnalyticsLoading(false);
+  }, [selectedClient, analyticsRange]);
+
+  useEffect(() => { if (tab === 'analytics') loadAnalytics(); }, [tab, selectedClient, analyticsRange]);
+
   const currentClient = clients.find(c => c.id === selectedClient);
 
   // Check which platforms the client has configured
@@ -85,18 +104,19 @@ export default function App({ user, onLogout }) {
     if (!caption.trim() || !selectedClient) return;
     setLoading(true);
     try {
+      const postData = {
+        caption, imageUrl: imageUrl || null, videoUrl: videoUrl || null,
+        platforms, postType,
+        ...(postType === 'carousel' && imageUrls.length > 1 ? { imageUrls } : {}),
+      };
       if (postNow) {
-        await apiPost(`/admin?action=post-now&clientId=${selectedClient}`, {
-          caption, imageUrl: imageUrl || null, videoUrl: videoUrl || null,
-          platforms, postType,
-        });
+        await apiPost(`/admin?action=post-now&clientId=${selectedClient}`, postData);
       } else {
         await apiPost(`/admin?action=add-post&clientId=${selectedClient}`, {
-          caption, imageUrl: imageUrl || null, videoUrl: videoUrl || null,
-          platforms, postType, scheduledFor: scheduledFor || null,
+          ...postData, scheduledFor: scheduledFor || null,
         });
       }
-      setCaption(''); setImageUrl(''); setVideoUrl(''); setScheduledFor('');
+      setCaption(''); setImageUrl(''); setImageUrls([]); setVideoUrl(''); setScheduledFor('');
       await loadPosts();
       if (!postNow) setTab('queue');
     } catch (e) { alert(e.message); }
@@ -261,6 +281,32 @@ export default function App({ user, onLogout }) {
                 </label>
               </div>
 
+              {/* Carousel images */}
+              {postType === 'carousel' && (
+                <div style={{ marginBottom: 12 }}>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}>
+                    Carousel images ({imageUrls.length}/10) — first image above is slide 1
+                  </div>
+                  {imageUrls.map((url, i) => (
+                    <div key={i} style={{ display: 'flex', gap: 6, marginBottom: 4, alignItems: 'center' }}>
+                      <span style={{ fontSize: 11, color: 'var(--text-muted)', width: 20 }}>{i + 2}.</span>
+                      <input type="text" placeholder={`Image ${i + 2} URL`} value={url}
+                        onChange={e => {
+                          const next = [...imageUrls];
+                          next[i] = e.target.value;
+                          setImageUrls(next);
+                        }} style={{ flex: 1, fontSize: 13 }} />
+                      <button className="btn-ghost btn-sm" onClick={() => setImageUrls(imageUrls.filter((_, j) => j !== i))}
+                        style={{ padding: '2px 6px', fontSize: 11 }}>✕</button>
+                    </div>
+                  ))}
+                  {imageUrls.length < 9 && (
+                    <button className="btn-ghost btn-sm" onClick={() => setImageUrls([...imageUrls, ''])}
+                      style={{ fontSize: 12, marginTop: 4 }}>+ Add image</button>
+                  )}
+                </div>
+              )}
+
               {postType === 'reel' && (
                 <input type="text" placeholder="Video URL" value={videoUrl}
                   onChange={e => setVideoUrl(e.target.value)} style={{ marginBottom: 12 }} />
@@ -411,6 +457,136 @@ export default function App({ user, onLogout }) {
                 </div>
               ))}
             </div>
+          </div>
+        )}
+
+        {/* ── ANALYTICS TAB ── */}
+        {tab === 'analytics' && (
+          <div className="tab-content">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+              <h3 style={{ margin: 0, color: 'var(--text-primary)' }}>
+                📊 Analytics {currentClient ? `— ${currentClient.name}` : ''}
+              </h3>
+              <div style={{ display: 'flex', gap: 6 }}>
+                {[7, 14, 30, 90].map(d => (
+                  <button key={d} className={analyticsRange === d ? 'btn-primary btn-sm' : 'btn-ghost btn-sm'}
+                    onClick={() => setAnalyticsRange(d)}>{d}d</button>
+                ))}
+                <button className="btn-ghost btn-sm" onClick={loadAnalytics}>↻</button>
+              </div>
+            </div>
+
+            {analyticsLoading && <p style={{ color: 'var(--text-muted)' }}>Loading analytics...</p>}
+
+            {analytics && !analyticsLoading && (
+              <>
+                {/* Summary cards */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 10, marginBottom: 20 }}>
+                  {[
+                    { label: 'Published', value: analytics.summary?.recentPublished || 0, color: '#4ade80' },
+                    { label: 'Queued', value: analytics.summary?.queued || 0, color: '#3b82f6' },
+                    { label: 'Failed', value: analytics.summary?.failed || 0, color: '#ef4444' },
+                    { label: 'Success Rate', value: `${analytics.summary?.successRate || 0}%`, color: '#a78bfa' },
+                  ].map(card => (
+                    <div key={card.label} style={{
+                      background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10,
+                      padding: '14px 16px', textAlign: 'center',
+                    }}>
+                      <div style={{ fontSize: 24, fontWeight: 700, color: card.color }}>{card.value}</div>
+                      <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>{card.label}</div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Platform insights */}
+                {analytics.insights && (
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 10, marginBottom: 20 }}>
+                    {analytics.insights.fb_fans != null && (
+                      <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10, padding: 16 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                          <PlatformIcon platform="facebook" />
+                          <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>Facebook</span>
+                        </div>
+                        <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
+                          <div>Followers: <strong>{(analytics.insights.fb_followers || 0).toLocaleString()}</strong></div>
+                          <div>Page Fans: <strong>{(analytics.insights.fb_fans || 0).toLocaleString()}</strong></div>
+                          {analytics.insights.fb_page_impressions && (
+                            <div>Impressions ({analyticsRange}d): <strong>{analytics.insights.fb_page_impressions.total?.toLocaleString()}</strong></div>
+                          )}
+                          {analytics.insights.fb_page_engaged_users && (
+                            <div>Engaged Users ({analyticsRange}d): <strong>{analytics.insights.fb_page_engaged_users.total?.toLocaleString()}</strong></div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                    {analytics.insights.ig_followers != null && (
+                      <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10, padding: 16 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                          <PlatformIcon platform="instagram" />
+                          <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>Instagram</span>
+                        </div>
+                        <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
+                          <div>Followers: <strong>{(analytics.insights.ig_followers || 0).toLocaleString()}</strong></div>
+                          <div>Posts: <strong>{(analytics.insights.ig_media_count || 0).toLocaleString()}</strong></div>
+                          {analytics.insights.ig_impressions && (
+                            <div>Impressions ({analyticsRange}d): <strong>{analytics.insights.ig_impressions.total?.toLocaleString()}</strong></div>
+                          )}
+                          {analytics.insights.ig_reach && (
+                            <div>Reach ({analyticsRange}d): <strong>{analytics.insights.ig_reach.total?.toLocaleString()}</strong></div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Platform breakdown */}
+                {analytics.platformBreakdown && Object.keys(analytics.platformBreakdown).length > 0 && (
+                  <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10, padding: 16, marginBottom: 20 }}>
+                    <h4 style={{ margin: '0 0 12px', fontSize: 14, color: 'var(--text-primary)' }}>Posts by Platform</h4>
+                    {Object.entries(analytics.platformBreakdown).map(([platform, stats]) => (
+                      <div key={platform} style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                        <PlatformIcon platform={platform} />
+                        <span style={{ flex: 1, fontSize: 13, color: 'var(--text-secondary)' }}>
+                          {PLATFORMS.find(p => p.id === platform)?.name || platform}
+                        </span>
+                        <span style={{ fontSize: 13, color: '#4ade80' }}>{stats.success} ✓</span>
+                        {stats.failed > 0 && <span style={{ fontSize: 13, color: '#ef4444' }}>{stats.failed} ✗</span>}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Posts by day */}
+                {analytics.postsByDay && Object.keys(analytics.postsByDay).length > 0 && (
+                  <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10, padding: 16 }}>
+                    <h4 style={{ margin: '0 0 12px', fontSize: 14, color: 'var(--text-primary)' }}>Publishing Activity</h4>
+                    <div style={{ display: 'flex', alignItems: 'flex-end', gap: 2, height: 80 }}>
+                      {Object.entries(analytics.postsByDay).sort(([a], [b]) => a.localeCompare(b)).slice(-30).map(([day, count]) => {
+                        const max = Math.max(...Object.values(analytics.postsByDay));
+                        return (
+                          <div key={day} title={`${day}: ${count} posts`} style={{
+                            flex: 1, minWidth: 4, maxWidth: 20,
+                            height: `${(count / max) * 100}%`,
+                            background: '#3b82f6', borderRadius: '2px 2px 0 0',
+                          }} />
+                        );
+                      })}
+                    </div>
+                    <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 6, display: 'flex', justifyContent: 'space-between' }}>
+                      {(() => {
+                        const days = Object.keys(analytics.postsByDay).sort();
+                        return <><span>{days[0]}</span><span>{days[days.length - 1]}</span></>;
+                      })()}
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+
+            {!analytics && !analyticsLoading && (
+              <p style={{ color: 'var(--text-muted)' }}>Select a client to view analytics.</p>
+            )}
           </div>
         )}
 

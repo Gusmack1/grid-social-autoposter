@@ -132,6 +132,7 @@ export default async (req) => {
       const np = {
         id: 'post_' + Date.now(), clientId, caption: body.caption,
         imageUrl: body.imageUrl || null, videoUrl: body.videoUrl || null,
+        imageUrls: body.imageUrls || null,
         postType: body.postType || 'feed', platforms: body.platforms || ['facebook'],
         status: body.scheduledFor ? 'scheduled' : 'queued',
         scheduledFor: body.scheduledFor || null,
@@ -184,6 +185,7 @@ export default async (req) => {
       const np = {
         id: 'post_' + Date.now(), clientId, caption: body.caption,
         imageUrl: body.imageUrl || null, videoUrl: body.videoUrl || null,
+        imageUrls: body.imageUrls || null,
         postType: body.postType || 'feed', platforms: body.platforms || ['facebook'],
         status: 'publishing', createdAt: new Date().toISOString(), publishedAt: null, results: null,
       };

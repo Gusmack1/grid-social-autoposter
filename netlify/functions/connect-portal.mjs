@@ -58,6 +58,10 @@ export default async (req) => {
     else platforms.push({ name: 'TikTok', icon: 'tt', connected: false });
     if (client.gbpAccessToken) platforms.push({ name: 'Google Business', icon: 'gbp', connected: true });
     else platforms.push({ name: 'Google Business', icon: 'gbp', connected: false });
+    if (client.threadsUserId) platforms.push({ name: 'Threads', icon: 'th', connected: true });
+    else platforms.push({ name: 'Threads', icon: 'th', connected: false });
+    if (client.blueskyIdentifier) platforms.push({ name: 'Bluesky', icon: 'bsky', connected: true });
+    else platforms.push({ name: 'Bluesky', icon: 'bsky', connected: false });
 
     const connectedCount = platforms.filter(p => p.connected).length;
     const cards = platforms.map(p =>
@@ -138,19 +142,19 @@ export default async (req) => {
       name: 'TikTok',
       icon: 'tt',
       description: 'Connect your TikTok Business account',
-      url: null,
-      available: false,
+      url: process.env.TIKTOK_CLIENT_KEY ? `/api/tiktok-auth?invite=${inviteToken}` : null,
+      available: !!process.env.TIKTOK_CLIENT_KEY,
       connected: !!client?.tiktokAccessToken,
-      note: 'Coming soon',
+      note: process.env.TIKTOK_CLIENT_KEY ? null : 'Coming soon',
     },
     {
       name: 'Google Business Profile',
       icon: 'gbp',
       description: 'Connect your Google Business listing',
-      url: null,
-      available: false,
+      url: process.env.GOOGLE_CLIENT_ID ? `/api/gbp-auth?invite=${inviteToken}` : null,
+      available: !!process.env.GOOGLE_CLIENT_ID,
       connected: !!client?.gbpAccessToken,
-      note: 'Coming soon',
+      note: process.env.GOOGLE_CLIENT_ID ? null : 'Coming soon',
     },
   ];
 

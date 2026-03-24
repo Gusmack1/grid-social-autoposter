@@ -26,6 +26,28 @@ export async function publishToAll(client, post) {
     if (post.platforms.includes('facebook') && client.fbPageId && vid) {
       tasks.push({ platform: 'facebook', fn: () => facebook.postReel(client, post.caption, vid) });
     }
+  } else if (pt === 'carousel' && post.imageUrls?.length > 1) {
+    // Carousel: multiple images
+    if (post.platforms.includes('facebook') && client.fbPageId) {
+      tasks.push({ platform: 'facebook', fn: () => facebook.postCarousel(client, post.caption, post.imageUrls) });
+    }
+    if (post.platforms.includes('instagram') && client.igUserId) {
+      tasks.push({ platform: 'instagram', fn: () => instagram.postCarousel(client, post.caption, post.imageUrls) });
+    }
+    // Other platforms get single image fallback
+    const fallbackImg = post.imageUrls[0];
+    if (post.platforms.includes('twitter') && client.twitterAccessToken) {
+      tasks.push({ platform: 'twitter', fn: () => postTweet(client, post.caption, fallbackImg) });
+    }
+    if (post.platforms.includes('linkedin') && client.linkedinAccessToken) {
+      tasks.push({ platform: 'linkedin', fn: () => postLinkedIn(client, post.caption, fallbackImg) });
+    }
+    if (post.platforms.includes('threads') && client.threadsUserId) {
+      tasks.push({ platform: 'threads', fn: () => postThreads(client, post.caption, fallbackImg) });
+    }
+    if (post.platforms.includes('bluesky') && client.blueskyIdentifier) {
+      tasks.push({ platform: 'bluesky', fn: () => postBluesky(client, post.caption, fallbackImg) });
+    }
   } else {
     // Standard feed
     if (post.platforms.includes('facebook') && client.fbPageId) {

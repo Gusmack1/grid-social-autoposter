@@ -74,3 +74,63 @@ export async function deletePost(client, postId) {
     return d.success !== false ? { deleted: true } : { deleted: false, error: d.error?.message };
   } catch (e) { return { deleted: false, error: e.message }; }
 }
+
+// Carousel: create item containers, then carousel container, then publish
+export async function postCarousel(client, caption, imageUrls) {
+  if (!client.igUserId || !client.pageAccessToken || !imageUrls?.length) return null;
+  if (imageUrls.length === 1) return postFeed(client, caption, imageUrls[0]);
+
+  const token = decrypt(client.pageAccessToken);
+
+  return withRetry(async () => {
+    // Step 1: Create individual item containers
+    const itemIds = [];
+    for (const imgUrl of imageUrls.slice(0, 10)) { // IG max 10
+      const r = await fetch(`${GRAPH_API}/${client.igUserId}/media`, {
+        method: 'POST',
+        body: new URLSearchParams({
+          image_url: imgUrl,
+          is_carousel_item: 'true',
+          access_token: token,
+        }),
+      });
+      const d = await r.json();
+      if (d.error) throw new Error(`Item container failed: ${d.error.message}`);
+      itemIds.push(d.id);
+    }
+
+    // Step 2: Create carousel container
+    const carouselRes = await fetch(`${GRAPH_API}/${client.igUserId}/media`, {
+      method: 'POST',
+      body: new URLSearchParams({
+        media_type: 'CAROUSEL',
+        caption,
+        children: itemIds.join(','),
+        access_token: token,
+      }),
+    });
+    const carouselData = await carouselRes.json();
+    if (carouselData.error) throw new Error(carouselData.error.message);
+
+    // Step 3: Wait for processing
+    let ready = false, attempts = 0;
+    while (!ready && attempts < 15) {
+      await new Promise(r => setTimeout(r, 3000));
+      const sr = await fetch(`${GRAPH_API}/${carouselData.id}?fields=status_code&access_token=${token}`);
+      const sd = await sr.json();
+      if (sd.status_code === 'FINISHED') ready = true;
+      else if (sd.status_code === 'ERROR') throw new Error('Carousel processing failed');
+      attempts++;
+    }
+    if (!ready) throw new Error('Carousel processing timed out');
+
+    // Step 4: Publish
+    const pubRes = await fetch(`${GRAPH_API}/${client.igUserId}/media_publish`, {
+      method: 'POST',
+      body: new URLSearchParams({ creation_id: carouselData.id, access_token: token }),
+    });
+    const pubData = await pubRes.json();
+    if (pubData.error) throw new Error(pubData.error.message);
+    return { success: true, id: pubData.id };
+  }, { label: `ig-carousel-${client.igUserId}` }).catch(err => ({ success: false, error: err.message }));
+}

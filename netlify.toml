@@ -94,10 +94,38 @@
   to = "/.netlify/functions/stripe-webhook"
   status = 200
 
+# TikTok OAuth
+[[redirects]]
+  from = "/api/tiktok-auth"
+  to = "/.netlify/functions/tiktok-auth"
+  status = 200
+
+[[redirects]]
+  from = "/api/tiktok-callback"
+  to = "/.netlify/functions/tiktok-callback"
+  status = 200
+
+# Google Business Profile OAuth
+[[redirects]]
+  from = "/api/gbp-auth"
+  to = "/.netlify/functions/gbp-auth"
+  status = 200
+
+[[redirects]]
+  from = "/api/gbp-callback"
+  to = "/.netlify/functions/gbp-callback"
+  status = 200
+
 # Client approval portal
 [[redirects]]
   from = "/approve"
   to = "/.netlify/functions/approval-portal"
+  status = 200
+
+# Analytics API
+[[redirects]]
+  from = "/api/analytics"
+  to = "/.netlify/functions/analytics"
   status = 200
 
 [[redirects]]

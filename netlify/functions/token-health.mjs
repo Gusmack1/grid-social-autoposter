@@ -200,6 +200,100 @@ export default async (req) => {
     results.push(health);
   }
 
+  // ── TikTok auto-refresh (tokens expire quickly, ~24h, uses refresh_token) ──
+  for (const client of clientList) {
+    const health = results.find(r => r.clientId === client.id);
+    if (!health || !client.tiktokAccessToken) continue;
+
+    if (client.tiktokTokenExpiresAt) {
+      const expiresAt = new Date(client.tiktokTokenExpiresAt).getTime();
+      const hoursUntilExpiry = (expiresAt - Date.now()) / (3600 * 1000);
+
+      if (hoursUntilExpiry <= 2 && client.tiktokRefreshToken) {
+        // TikTok tokens are short-lived — refresh proactively
+        try {
+          const refreshToken = decrypt(client.tiktokRefreshToken);
+          const res = await fetch('https://open.tiktokapis.com/v2/oauth/token/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({
+              grant_type: 'refresh_token',
+              refresh_token: refreshToken,
+              client_key: process.env.TIKTOK_CLIENT_KEY,
+              client_secret: process.env.TIKTOK_CLIENT_SECRET,
+            }),
+          });
+          const data = await res.json();
+          if (data.data?.access_token) {
+            const updClients = await db.getClients();
+            const idx = updClients.findIndex(c => c.id === client.id);
+            if (idx !== -1) {
+              updClients[idx].tiktokAccessToken = encrypt(data.data.access_token);
+              if (data.data.refresh_token) updClients[idx].tiktokRefreshToken = encrypt(data.data.refresh_token);
+              updClients[idx].tiktokTokenExpiresAt = new Date(Date.now() + (data.data.expires_in * 1000)).toISOString();
+              updClients[idx].tiktokUpdatedAt = new Date().toISOString();
+              await db.saveClients(updClients);
+              health.platforms.tiktok = { valid: true, refreshed: true };
+              logger.info('TikTok token auto-refreshed', { client: client.name });
+            }
+          } else {
+            health.platforms.tiktok = { valid: false, error: 'Refresh failed — client must reconnect' };
+          }
+        } catch (e) {
+          health.platforms.tiktok = { valid: false, error: e.message };
+        }
+      } else {
+        health.platforms.tiktok = { valid: hoursUntilExpiry > 0, name: client.tiktokName };
+      }
+    }
+  }
+
+  // ── GBP auto-refresh (Google tokens expire in 1h, use refresh_token) ──
+  for (const client of clientList) {
+    const health = results.find(r => r.clientId === client.id);
+    if (!health || !client.gbpAccessToken || !client.gbpRefreshToken) continue;
+
+    if (client.gbpTokenExpiresAt) {
+      const expiresAt = new Date(client.gbpTokenExpiresAt).getTime();
+      const minsUntilExpiry = (expiresAt - Date.now()) / (60 * 1000);
+
+      if (minsUntilExpiry <= 10) {
+        try {
+          const refreshToken = decrypt(client.gbpRefreshToken);
+          const res = await fetch('https://oauth2.googleapis.com/token', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({
+              grant_type: 'refresh_token',
+              refresh_token: refreshToken,
+              client_id: process.env.GOOGLE_CLIENT_ID,
+              client_secret: process.env.GOOGLE_CLIENT_SECRET,
+            }),
+          });
+          const data = await res.json();
+          if (data.access_token) {
+            const updClients = await db.getClients();
+            const idx = updClients.findIndex(c => c.id === client.id);
+            if (idx !== -1) {
+              updClients[idx].gbpAccessToken = encrypt(data.access_token);
+              updClients[idx].gbpTokenExpiresAt = new Date(Date.now() + ((data.expires_in || 3600) * 1000)).toISOString();
+              updClients[idx].gbpUpdatedAt = new Date().toISOString();
+              await db.saveClients(updClients);
+              health.platforms.google_business = { valid: true, refreshed: true };
+              logger.info('GBP token auto-refreshed', { client: client.name });
+            }
+          } else {
+            health.platforms.google_business = { valid: false, error: 'Refresh failed' };
+          }
+        } catch (e) {
+          health.platforms.google_business = { valid: false, error: e.message };
+        }
+      } else {
+        health.platforms.google_business = { valid: true, name: client.gbpName };
+      }
+    }
+  }
+
   // Update client records with health status
   const updatedClients = await db.getClients();
   for (const health of results) {

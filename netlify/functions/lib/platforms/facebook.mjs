@@ -66,3 +66,34 @@ export async function deletePost(client, postId) {
     return d.success !== false ? { deleted: true } : { deleted: false, error: d.error?.message };
   } catch (e) { return { deleted: false, error: e.message }; }
 }
+
+// Carousel: upload each image as unpublished photo, then create feed post with attached_media
+export async function postCarousel(client, caption, imageUrls) {
+  if (!client.fbPageId || !client.pageAccessToken || !imageUrls?.length) return null;
+  if (imageUrls.length === 1) return postFeed(client, caption, imageUrls[0]);
+
+  const token = decrypt(client.pageAccessToken);
+
+  return withRetry(async () => {
+    // Upload each image as unpublished
+    const photoIds = [];
+    for (const imgUrl of imageUrls.slice(0, 10)) { // FB max 10 images
+      const r = await fetch(`${GRAPH_API}/${client.fbPageId}/photos`, {
+        method: 'POST',
+        body: new URLSearchParams({ url: imgUrl, published: 'false', access_token: token }),
+      });
+      const d = await r.json();
+      if (d.error) throw new Error(`Photo upload failed: ${d.error.message}`);
+      photoIds.push(d.id);
+    }
+
+    // Create feed post with attached_media
+    const params = new URLSearchParams({ message: caption, access_token: token });
+    photoIds.forEach((id, i) => params.append(`attached_media[${i}]`, JSON.stringify({ media_fbid: id })));
+
+    const postRes = await fetch(`${GRAPH_API}/${client.fbPageId}/feed`, { method: 'POST', body: params });
+    const postData = await postRes.json();
+    if (postData.error) throw new Error(postData.error.message);
+    return { success: true, id: postData.id };
+  }, { label: `fb-carousel-${client.fbPageId}` }).catch(err => ({ success: false, error: err.message }));
+}

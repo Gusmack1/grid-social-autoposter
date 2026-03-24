@@ -13,6 +13,7 @@ export const PLATFORMS = [
 
 export const POST_TYPES = [
   { id: 'feed', name: 'Feed Post' },
+  { id: 'carousel', name: 'Carousel' },
   { id: 'story', name: 'Story' },
   { id: 'reel', name: 'Reel' },
 ];
