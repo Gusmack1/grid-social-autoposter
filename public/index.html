@@ -37,6 +37,7 @@ const PIcon=({p,size=16})=>{const s={width:size,height:size,display:"inline-flex
   return null;
 };
 const PI={facebook:{l:"Facebook",c:"#1877F2",f:"fbPageId"},instagram:{l:"Instagram",c:"#E4405F",f:"igUserId"},twitter:{l:"X",c:"#000",f:"twitterAccessToken"},tiktok:{l:"TikTok",c:"#ff0050",f:"tiktokAccessToken"},linkedin:{l:"LinkedIn",c:"#0A66C2",f:"linkedinAccessToken"},google_business:{l:"Google Business",c:"#4285F4",f:"gbpAccessToken"}};
+const CLIENT_CTX={"Sorn Handyman Services":"Local handyman and property maintenance in Kilmarnock & Ayrshire, Scotland. Services include dry verge repairs, bathroom resealing, composite planters, decking, general repairs. Run by Aidan and Fraser. Target audience: homeowners in Ayrshire.","Food Foodie World":"Food blog and restaurant content. Covers recipes, restaurant reviews, foodie culture.","Gus":"Personal brand / social media content.","Grid Social":"Social media management agency based in Ayrshire, Scotland. Helps tradespeople and small businesses get found online through Google Business Profile, Facebook, Instagram. From £99/month. Target: Ayrshire tradespeople — plumbers, electricians, builders, joiners."};
 const DAYS=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"],MFULL=["January","February","March","April","May","June","July","August","September","October","November","December"];
 const S={
   card:{background:"var(--s1)",border:"1px solid var(--b1)",borderRadius:14,padding:20,animation:"fadeIn .3s ease both"},
@@ -183,8 +184,8 @@ function App(){
   const approveUser=async(email)=>{await authApi("approve-user",{email});loadTeam();st("Approved!")};
   const declineUser=async(email)=>{if(!confirm("Decline this user?"))return;await authApi("decline-user",{email});loadTeam();st("Declined")};
   const updateUserClients=async(email,assignedClients)=>{
-    const r=await fetch("/api/auth?action=update-user",{method:"PUT",headers:{Authorization:"Bearer "+token,"Content-Type":"application/json"},body:JSON.stringify({email,assignedClients})});
-    await r.json();loadTeam();st("Updated!")};
+    await fetch("/api/auth?action=update-user",{method:"PUT",headers:{Authorization:"Bearer "+token,"Content-Type":"application/json"},body:JSON.stringify({email,assignedClients})});
+    st("Updated!")};
   const updateUserRole=async(email,role)=>{
     const r=await fetch("/api/auth?action=update-user",{method:"PUT",headers:{Authorization:"Bearer "+token,"Content-Type":"application/json"},body:JSON.stringify({email,role})});
     await r.json();loadTeam();st("Role updated!")};
@@ -466,11 +467,28 @@ function App(){
           {/* Pending approvals */}
           {teamUsers.filter(u=>u.status==="pending").length>0&&<div style={{marginBottom:20}}>
             <div style={S.lbl}>Pending Approval</div>
-            {teamUsers.filter(u=>u.status==="pending").map(u=><div key={u.email} style={{...S.card,marginBottom:6,display:"flex",alignItems:"center",gap:12,padding:14,border:"1px solid rgba(245,158,11,.2)",background:"rgba(245,158,11,.03)"}}>
-              <div style={{width:36,height:36,borderRadius:"50%",background:"var(--ambg)",display:"flex",alignItems:"center",justifyContent:"center",color:"var(--am)",fontSize:14,fontWeight:700}}>{u.name?.charAt(0)}</div>
-              <div style={{flex:1}}><div style={{fontSize:14,fontWeight:600,color:"#fff"}}>{u.name}</div><div style={{fontSize:12,color:"var(--mu)"}}>{u.email}</div></div>
-              <button onClick={()=>approveUser(u.email)} style={{...S.btn(true,"sm"),background:"var(--gn)"}}>Approve</button>
-              <button onClick={()=>declineUser(u.email)} style={{...S.btn(false,"sm"),color:"var(--rd)"}}>Decline</button>
+            {teamUsers.filter(u=>u.status==="pending").map(u=><div key={u.email} style={{...S.card,marginBottom:6,padding:14,border:"1px solid rgba(245,158,11,.2)",background:"rgba(245,158,11,.03)"}}>
+              <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:10}}>
+                <div style={{width:36,height:36,borderRadius:"50%",background:"var(--ambg)",display:"flex",alignItems:"center",justifyContent:"center",color:"var(--am)",fontSize:14,fontWeight:700}}>{u.name?.charAt(0)}</div>
+                <div style={{flex:1}}><div style={{fontSize:14,fontWeight:600,color:"#fff"}}>{u.name}</div><div style={{fontSize:12,color:"var(--mu)"}}>{u.email}</div></div>
+                <button onClick={()=>approveUser(u.email)} style={{...S.btn(true,"sm"),background:"var(--gn)"}}>Approve</button>
+                <button onClick={()=>declineUser(u.email)} style={{...S.btn(false,"sm"),color:"var(--rd)"}}>Decline</button>
+              </div>
+              <div style={{fontSize:10,fontWeight:600,color:"var(--mu)",marginBottom:4}}>ASSIGN CLIENTS ON APPROVAL</div>
+              <div style={{display:"flex",flexDirection:"column",gap:4}}>
+                {clients.map(c=>{const assigned=(u.assignedClients||[]).includes(c.id);
+                  return <div key={c.id} onClick={()=>{
+                    const next=assigned?(u.assignedClients||[]).filter(x=>x!==c.id):[...(u.assignedClients||[]),c.id];
+                    setTeamUsers(prev=>prev.map(tu=>tu.email===u.email?{...tu,assignedClients:next}:tu));
+                    updateUserClients(u.email,next)
+                  }} style={{display:"flex",alignItems:"center",gap:10,padding:"6px 10px",borderRadius:8,cursor:"pointer",background:assigned?"rgba(99,102,241,.06)":"var(--s2)",border:assigned?"1px solid var(--ac)":"1px solid var(--b1)",transition:"all .15s"}}>
+                    <div style={{width:32,height:16,borderRadius:8,background:assigned?"var(--ac)":"var(--b2)",position:"relative",transition:"background .2s",flexShrink:0}}>
+                      <div style={{width:12,height:12,borderRadius:6,background:"#fff",position:"absolute",top:2,left:assigned?18:2,transition:"left .2s",boxShadow:"0 1px 3px rgba(0,0,0,.3)"}}/>
+                    </div>
+                    <span style={{fontSize:12,color:assigned?"var(--ac2)":"var(--mu)"}}>{c.name}</span>
+                  </div>
+                })}
+              </div>
             </div>)}
           </div>}
 
@@ -488,16 +506,19 @@ function App(){
 
                 {/* Assigned clients */}
                 <div style={{marginBottom:8}}>
-                  <div style={{fontSize:10,fontWeight:600,color:"var(--mu)",marginBottom:4}}>ASSIGNED CLIENTS</div>
-                  <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
+                  <div style={{fontSize:10,fontWeight:600,color:"var(--mu)",marginBottom:6}}>ASSIGNED CLIENTS</div>
+                  <div style={{display:"flex",flexDirection:"column",gap:4}}>
                     {clients.map(c=>{const assigned=(u.assignedClients||[]).includes(c.id);
-                      return <button key={c.id} onClick={()=>{
+                      return <div key={c.id} onClick={()=>{
                         const next=assigned?(u.assignedClients||[]).filter(x=>x!==c.id):[...(u.assignedClients||[]),c.id];
                         setTeamUsers(prev=>prev.map(tu=>tu.email===u.email?{...tu,assignedClients:next}:tu));
                         updateUserClients(u.email,next)
-                      }} style={{padding:"4px 10px",borderRadius:8,fontSize:11,cursor:"pointer",fontFamily:"inherit",border:assigned?"1px solid var(--ac)":"1px solid var(--b1)",background:assigned?"var(--acbg)":"var(--s2)",color:assigned?"var(--ac2)":"var(--mu)",fontWeight:assigned?600:400}}>
-                        {assigned?"\u2713 ":""}{c.name}
-                      </button>
+                      }} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 12px",borderRadius:8,cursor:"pointer",background:assigned?"rgba(99,102,241,.06)":"var(--s2)",border:assigned?"1px solid var(--ac)":"1px solid var(--b1)",transition:"all .15s"}}>
+                        <div style={{width:36,height:18,borderRadius:9,background:assigned?"var(--ac)":"var(--b2)",position:"relative",transition:"background .2s",flexShrink:0}}>
+                          <div style={{width:14,height:14,borderRadius:7,background:"#fff",position:"absolute",top:2,left:assigned?20:2,transition:"left .2s",boxShadow:"0 1px 3px rgba(0,0,0,.3)"}}/>
+                        </div>
+                        <span style={{fontSize:13,color:assigned?"var(--ac2)":"var(--mu)",fontWeight:assigned?600:400}}>{c.name}</span>
+                      </div>
                     })}
                   </div>
                 </div>
@@ -589,7 +610,7 @@ function AICaptionGen({client,onInsert,onClose}){
   const [pr,setPr]=useState("");const [ld,setLd]=useState(false);const [res,setRes]=useState("");const [tone,setTone]=useState("friendly");
   const gen=async()=>{if(!pr.trim())return;setLd(true);setRes("");
     try{const r=await fetch("/api/ai-writer",{method:"POST",headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({prompt:pr,tone:tone,clientName:client?.name||"a business"})});
+      body:JSON.stringify({prompt:pr,tone:tone,clientName:client?.name||"a business",clientType:CLIENT_CTX[client?.name]||""})});
       const d=await r.json();if(d.error)throw new Error(d.error);setRes(d.text||"No response")}catch(e){setRes("Error: "+e.message)}setLd(false)};
   return <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.7)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:100,padding:16}} onClick={onClose}>
     <div style={{background:"var(--s1)",border:"1px solid var(--b1)",borderRadius:16,padding:24,width:520,maxWidth:"100%",animation:"pop .2s ease"}} onClick={e=>e.stopPropagation()}>

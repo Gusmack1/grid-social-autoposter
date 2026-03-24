@@ -4,8 +4,21 @@ export default async function handler(req) {
   if (req.method !== "POST") return new Response(JSON.stringify({ error: "POST only" }), { status: 405 });
 
   try {
-    const { prompt, tone, clientName } = await req.json();
+    const { prompt, tone, clientName, clientType } = await req.json();
     if (!prompt) return new Response(JSON.stringify({ error: "Prompt required" }), { status: 400, headers: { "Content-Type": "application/json" } });
+
+    const ctx = clientType || "";
+    const systemPrompt = `You are a social media writer for "${clientName || "a business"}".
+${ctx ? `About this business: ${ctx}` : ""}
+Rules:
+- Tone: ${tone || "friendly"}
+- Use British English spelling throughout
+- Include relevant emojis (sparingly)
+- Include 3-5 relevant hashtags at the end
+- Max 200 words
+- Output ONLY the finished post, no explanations or preamble
+- Make it specific and relevant to what this business actually does
+- Never be generic — reference the business type, services, or location where appropriate`;
 
     const r = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
@@ -17,7 +30,7 @@ export default async function handler(req) {
       body: JSON.stringify({
         model: "claude-sonnet-4-20250514",
         max_tokens: 1000,
-        system: `Write social media posts for "${clientName || "a business"}". Tone: ${tone || "friendly"}. Include emojis and hashtags. Max 200 words. Output ONLY the post. Use British English spelling.`,
+        system: systemPrompt,
         messages: [{ role: "user", content: `Write a post about: ${prompt}` }]
       })
     });
