@@ -1,6 +1,6 @@
 # Grid Social — Current TODO
 
-**Last updated:** 24 March 2026 (Phase 3 complete + dashboard UI + Stripe + email)
+**Last updated:** 24 March 2026 (Phase 3b complete)
 
 ---
 
@@ -10,71 +10,44 @@
 |-------|--------|-----------------|
 | Phase 1 | ✅ DEPLOYED | Backend split, AES-256 encryption, Vite frontend, parallel publishing, retry, rate limiting |
 | Phase 2 | ✅ DEPLOYED | Client connect portal, JWT invite links, token health monitor, Meta OAuth portal flow, CI |
-| Phase 3 | ✅ DEPLOYED | LinkedIn OAuth, approval workflows (3 modes), Meta review prep, privacy/terms pages, data deletion callback |
-| Phase 3b | ✅ DEPLOYED | Dashboard approval UI (badges, mode dropdown, compose warning), Stripe checkout+webhook, email notifications, app icon |
-| Phase 4 | 🔲 TODO | Platform expansion, carousel posts, Stripe product setup, LinkedIn token refresh |
+| Phase 3 | ✅ DEPLOYED | LinkedIn OAuth, approval workflows (3 modes), Meta review prep, privacy/terms/deletion all live |
+| Phase 3b | ✅ DEPLOYED | Dashboard approval UI, Stripe checkout+webhook, email notifications (Resend), app icon |
+| Phase 4 | 🔲 TODO | Meta App Review submit, LinkedIn app, Stripe setup, platform expansion |
 
 ---
 
-## COMPLETED ✅ (This Session)
+## YOUR MANUAL ACTIONS (priority order)
 
-- [x] Meta App Settings configured:
-  - [x] Privacy Policy URL set
-  - [x] Terms of Service URL set
-  - [x] Data Deletion Callback URL set
-- [x] App icon created (1024×1024 PNG) — `frontend/public/app-icon-1024.png`
-- [x] Invite link modal UX fix (copy button, selectable input)
-- [x] Approval link button added to Clients tab
-- [x] LinkedIn OAuth full flow (linkedin-auth.mjs, linkedin-callback.mjs)
-- [x] Approval workflows backend (auto/manual/passive modes)
-- [x] Client approval portal (/approve?token=...) with approve/reject/comment
-- [x] Dashboard: approval status badges in Queue tab
-- [x] Dashboard: client feedback shown on rejected posts
-- [x] Dashboard: Publish button disabled for unapproved posts
-- [x] Dashboard: approval mode dropdown per client
-- [x] Dashboard: approval warning in Compose tab
-- [x] Dashboard: client email field in client modal
-- [x] Stripe checkout endpoint (stripe-checkout.mjs)
-- [x] Stripe webhook handler (stripe-webhook.mjs)
-- [x] Email notification module (lib/email.mjs) with Resend API
-- [x] Email: admin notified when client approves/rejects posts
-- [x] Scheduler: approval gate + passive auto-approve
-
----
-
-## IMMEDIATE — YOUR MANUAL ACTIONS
-
-### 1. Upload App Icon to Meta
-- [ ] Go to https://developers.facebook.com/apps/1576303166762174/settings/basic/
-- [ ] Upload `grid-social-icon-1024.png` as the App Icon
+### 1. Meta App Review — Submit
+- [x] Privacy Policy URL set on Meta console
+- [x] Terms of Service URL set on Meta console
+- [x] Data Deletion Callback URL set on Meta console
+- [x] App icon created (1024×1024)
+- [ ] **Upload app icon** to Meta developer console → Settings → Basic
 - [ ] Set Category to "Business and Pages"
-
-### 2. Meta App Review — Record & Submit
-- [x] ~~Privacy/Terms/Deletion URLs~~ DONE
-- [x] ~~App icon~~ DONE
-- [ ] Upload app icon to Meta console
-- [ ] Record screencasts showing each permission in use
-- [ ] Submit review for all 6 permissions
+- [ ] Record screencasts (see META-APP-REVIEW-GUIDE.md)
+- [ ] Submit review for 6 permissions
 - [ ] Wait 1-5 business days
 
-### 3. DNS — connect.gridsocial.co.uk
+### 2. connect.gridsocial.co.uk Subdomain
 - [ ] CNAME: `connect` → `grid-social-autoposter.netlify.app`
-- [ ] Add custom domain in Netlify
-- [ ] Test: `https://connect.gridsocial.co.uk/connect`
+- [ ] Add custom domain in Netlify dashboard
+- [ ] Verify SSL auto-provisions
 
-### 4. LinkedIn OAuth App
+### 3. LinkedIn OAuth App
 - [ ] Register at developer.linkedin.com
 - [ ] Request Community Management API
 - [ ] Redirect URL: `https://grid-social-autoposter.netlify.app/api/linkedin-callback`
-- [ ] Add `LINKEDIN_CLIENT_ID` + `LINKEDIN_CLIENT_SECRET` to Netlify
+- [ ] Add `LINKEDIN_CLIENT_ID` + `LINKEDIN_CLIENT_SECRET` to Netlify env vars
 
-### 5. Stripe Setup
-- [ ] Create products: Starter £15, Agency £59, Agency Pro £119
-- [ ] Add `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` to Netlify
+### 4. Stripe Products
+- [ ] Create Stripe account (or use existing)
+- [ ] Create products: Starter £15/mo, Agency £59/mo, Agency Pro £119/mo
+- [ ] Add `STRIPE_SECRET_KEY` + `STRIPE_WEBHOOK_SECRET` to Netlify
 - [ ] Webhook URL: `https://grid-social-autoposter.netlify.app/api/stripe-webhook`
 
-### 6. Resend Email Setup
-- [ ] Sign up resend.com (free 100/day)
+### 5. Resend Email
+- [ ] Sign up resend.com (free: 100 emails/day)
 - [ ] Verify gridsocial.co.uk domain
 - [ ] Add `RESEND_API_KEY` to Netlify
 
@@ -82,29 +55,37 @@
 
 ## NEXT BUILD SESSION
 
+### Code work
 - [ ] LinkedIn token auto-refresh (7 days before 60-day expiry)
-- [ ] Dashboard Billing tab (show plan, upgrade/downgrade via Stripe checkout)
-- [ ] TikTok OAuth + connect button
-- [ ] Google Business Profile OAuth + connect button
+- [ ] Dashboard Billing tab (plan display, upgrade via Stripe checkout)
+- [ ] TikTok OAuth + connect button + posting
+- [ ] Google Business Profile OAuth + connect button + local posts
 - [ ] Carousel/multi-image posts (FB + IG)
 - [ ] Threads API integration
-- [ ] Bluesky (AT Protocol, app password)
-- [ ] Email: notify client when posts need approval
+- [ ] Bluesky AT Protocol integration
+- [ ] Email: notify client when new posts need approval
 - [ ] Analytics: pull engagement metrics from platform APIs
+
+### Browser tasks (for agent with Claude in Chrome)
+- [ ] Meta App Review: navigate console, upload icon, fill in descriptions, submit
+- [ ] LinkedIn: register app, request API access, grab credentials
+- [ ] Stripe: create products/prices, configure webhook, grab keys
+- [ ] Resend: sign up, verify domain, grab API key
+- [ ] DNS: add CNAME record for connect.gridsocial.co.uk
 
 ---
 
 ## HOUSEKEEPING
 
-- [ ] Google Search Console verify
+- [ ] Google Search Console verify gridsocial.co.uk
 - [ ] IG switch to Business account
-- [ ] ImprovMX hello@gridsocial.co.uk
+- [ ] ImprovMX hello@gridsocial.co.uk alias
 - [ ] Case study — Sorn Handyman results
 - [ ] Twitter/X — regenerate Read+Write token when ready
 
 ---
 
-## ENV VARS ON NETLIFY
+## ENV VARS
 
 **Set:** ADMIN_KEY, META_APP_ID, META_APP_SECRET, GITHUB_TOKEN, JWT_SECRET, ENCRYPTION_KEY
 
