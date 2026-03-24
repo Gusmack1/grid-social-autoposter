@@ -62,13 +62,13 @@ const cors = () => new Response(null, {
 });
 
 // === MAIN HANDLER ===
-export default async function handler(req, context) {
+export default async function handler(req) {
   if (req.method === "OPTIONS") return cors();
 
   const url = new URL(req.url);
   const action = url.searchParams.get("action");
-  const users = getStore({ name: "users", siteID: context.site.id, token: context.env.NETLIFY_AUTH_TOKEN || undefined });
-  const JWT_SECRET = context.env?.JWT_SECRET || process.env.JWT_SECRET || "gridsocial-jwt-secret-2026";
+  const users = getStore("users");
+  const JWT_SECRET = process.env.JWT_SECRET || "gridsocial-jwt-secret-2026";
 
   try {
     // ========== REGISTER ==========
@@ -181,7 +181,7 @@ export default async function handler(req, context) {
     if (!auth) return json({ error: "Unauthorised" }, 401);
 
     // Also accept legacy admin key
-    const ADMIN_KEY = context.env?.ADMIN_KEY || process.env.ADMIN_KEY;
+    const ADMIN_KEY = process.env.ADMIN_KEY;
     let currentUser = null;
     if (auth === ADMIN_KEY) {
       currentUser = { role: "admin", email: "admin" };
