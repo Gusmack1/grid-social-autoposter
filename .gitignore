@@ -5,3 +5,4 @@ frontend/dist/
 .netlify/
 backups/
 *.log
+.github/workflows/ci.yml

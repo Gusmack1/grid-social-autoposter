@@ -1,441 +1,242 @@
-// Admin API v3 — Multi-client, multi-platform social media management
-import { getStore } from "@netlify/blobs";
-import crypto from "crypto";
+// Admin API v4 — Modular, uses shared lib
+import { db } from './lib/db/index.mjs';
+import { verifyJWT } from './lib/crypto/jwt.mjs';
+import { encrypt, decrypt } from './lib/crypto/encryption.mjs';
+import { publishToAll, deleteFromPlatforms } from './lib/publisher.mjs';
+import { uploadMedia } from './lib/r2.mjs';
+import { migrateTokens } from './lib/migrate-tokens.mjs';
+import { json, cors, unauthorized, forbidden, badRequest, notFound, serverError } from './lib/http.mjs';
+import { logger } from './lib/logger.mjs';
 
-const GRAPH_API = "https://graph.facebook.com/v21.0";
-
-function json(data, status = 200) {
-  return new Response(JSON.stringify(data, null, 2), {
-    status,
-    headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS", "Access-Control-Allow-Headers": "Content-Type, Authorization" },
-  });
-}
-function unauthorized() { return json({ error: "Unauthorized" }, 401); }
-
-// JWT verification for user auth
-async function verifyJWT(token, secret) {
-  try {
-    const parts = token.split(".");
-    if (parts.length !== 3) return null;
-    const [headerB64, payloadB64, sigB64] = parts;
-    const enc = new TextEncoder();
-    const key = await globalThis.crypto.subtle.importKey("raw", enc.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["verify"]);
-    const data = `${headerB64}.${payloadB64}`;
-    const sig = Buffer.from(sigB64, "base64url");
-    const valid = await globalThis.crypto.subtle.verify("HMAC", key, sig, enc.encode(data));
-    if (!valid) return null;
-    const payload = JSON.parse(Buffer.from(payloadB64, "base64url").toString());
-    if (payload.exp && Date.now() / 1000 > payload.exp) return null;
-    return payload;
-  } catch { return null; }
-}
-
-
-async function postToFacebook(client, caption, imageUrl) {
-  if (!client.fbPageId || !client.pageAccessToken) return null;
-  try {
-    let ep, bd;
-    if (imageUrl) {
-      ep = `${GRAPH_API}/${client.fbPageId}/photos`;
-      bd = new URLSearchParams({ url: imageUrl, message: caption, access_token: client.pageAccessToken });
-    } else {
-      ep = `${GRAPH_API}/${client.fbPageId}/feed`;
-      bd = new URLSearchParams({ message: caption, access_token: client.pageAccessToken });
-    }
-    const r = await fetch(ep, { method: "POST", body: bd });
-    const d = await r.json();
-    if (d.error) return { success: false, error: d.error.message };
-    return { success: true, id: d.id || d.post_id };
-  } catch (e) { return { success: false, error: e.message }; }
-}
-
-async function postToInstagram(client, caption, imageUrl) {
-  if (!client.igUserId || !client.pageAccessToken || !imageUrl) return null;
-  try {
-    const cr = await fetch(`${GRAPH_API}/${client.igUserId}/media`, {
-      method: "POST",
-      body: new URLSearchParams({ image_url: imageUrl, caption, access_token: client.pageAccessToken }),
-    });
-    const cd = await cr.json();
-    if (cd.error) return { success: false, error: cd.error.message };
-    let ready = false, attempts = 0;
-    while (!ready && attempts < 10) {
-      await new Promise((r) => setTimeout(r, 3000));
-      const sr = await fetch(`${GRAPH_API}/${cd.id}?fields=status_code&access_token=${client.pageAccessToken}`);
-      const sd = await sr.json();
-      if (sd.status_code === "FINISHED") ready = true;
-      else if (sd.status_code === "ERROR") return { success: false, error: "Processing failed" };
-      attempts++;
-    }
-    if (!ready) return { success: false, error: "Timed out" };
-    const pr = await fetch(`${GRAPH_API}/${client.igUserId}/media_publish`, {
-      method: "POST",
-      body: new URLSearchParams({ creation_id: cd.id, access_token: client.pageAccessToken }),
-    });
-    const pd = await pr.json();
-    if (pd.error) return { success: false, error: pd.error.message };
-    return { success: true, id: pd.id };
-  } catch (e) { return { success: false, error: e.message }; }
-}
-
-// ═══ INSTAGRAM STORY ═══
-async function postToInstagramStory(client, caption, imageUrl) {
-  if (!client.igUserId || !client.pageAccessToken || !imageUrl) return null;
-  try {
-    const cr = await fetch(`${GRAPH_API}/${client.igUserId}/media`, {
-      method: "POST",
-      body: new URLSearchParams({ image_url: imageUrl, media_type: "STORIES", access_token: client.pageAccessToken }),
-    });
-    const cd = await cr.json();
-    if (cd.error) return { success: false, error: cd.error.message };
-    let ready = false, attempts = 0;
-    while (!ready && attempts < 10) {
-      await new Promise((r) => setTimeout(r, 3000));
-      const sr = await fetch(`${GRAPH_API}/${cd.id}?fields=status_code&access_token=${client.pageAccessToken}`);
-      const sd = await sr.json();
-      if (sd.status_code === "FINISHED") ready = true;
-      else if (sd.status_code === "ERROR") return { success: false, error: "Processing failed" };
-      attempts++;
-    }
-    if (!ready) return { success: false, error: "Timed out" };
-    const pr = await fetch(`${GRAPH_API}/${client.igUserId}/media_publish`, {
-      method: "POST",
-      body: new URLSearchParams({ creation_id: cd.id, access_token: client.pageAccessToken }),
-    });
-    const pd = await pr.json();
-    if (pd.error) return { success: false, error: pd.error.message };
-    return { success: true, id: pd.id };
-  } catch (e) { return { success: false, error: e.message }; }
-}
-
-// ═══ INSTAGRAM REEL ═══
-async function postToInstagramReel(client, caption, videoUrl) {
-  if (!client.igUserId || !client.pageAccessToken || !videoUrl) return null;
-  try {
-    const cr = await fetch(`${GRAPH_API}/${client.igUserId}/media`, {
-      method: "POST",
-      body: new URLSearchParams({ video_url: videoUrl, caption, media_type: "REELS", share_to_feed: "true", access_token: client.pageAccessToken }),
-    });
-    const cd = await cr.json();
-    if (cd.error) return { success: false, error: cd.error.message };
-    let ready = false, attempts = 0;
-    while (!ready && attempts < 30) {
-      await new Promise((r) => setTimeout(r, 5000));
-      const sr = await fetch(`${GRAPH_API}/${cd.id}?fields=status_code&access_token=${client.pageAccessToken}`);
-      const sd = await sr.json();
-      if (sd.status_code === "FINISHED") ready = true;
-      else if (sd.status_code === "ERROR") return { success: false, error: "Video processing failed" };
-      attempts++;
-    }
-    if (!ready) return { success: false, error: "Video processing timed out" };
-    const pr = await fetch(`${GRAPH_API}/${client.igUserId}/media_publish`, {
-      method: "POST",
-      body: new URLSearchParams({ creation_id: cd.id, access_token: client.pageAccessToken }),
-    });
-    const pd = await pr.json();
-    if (pd.error) return { success: false, error: pd.error.message };
-    return { success: true, id: pd.id };
-  } catch (e) { return { success: false, error: e.message }; }
-}
-
-// ═══ FACEBOOK REEL ═══
-async function postToFacebookReel(client, caption, videoUrl) {
-  if (!client.fbPageId || !client.pageAccessToken || !videoUrl) return null;
-  try {
-    // Step 1: Initialize upload
-    const initRes = await fetch(`${GRAPH_API}/${client.fbPageId}/video_reels`, {
-      method: "POST",
-      body: new URLSearchParams({ upload_phase: "start", access_token: client.pageAccessToken }),
-    });
-    const initData = await initRes.json();
-    if (initData.error) return { success: false, error: initData.error.message };
-    const videoId = initData.video_id;
-    // Step 2: Upload video from URL
-    const uploadRes = await fetch(`${GRAPH_API}/${videoId}`, {
-      method: "POST",
-      body: new URLSearchParams({ upload_phase: "transfer", file_url: videoUrl, access_token: client.pageAccessToken }),
-    });
-    const uploadData = await uploadRes.json();
-    if (uploadData.error) return { success: false, error: uploadData.error.message };
-    // Step 3: Publish
-    const pubRes = await fetch(`${GRAPH_API}/${client.fbPageId}/video_reels`, {
-      method: "POST",
-      body: new URLSearchParams({ upload_phase: "finish", video_id: videoId, description: caption, access_token: client.pageAccessToken }),
-    });
-    const pubData = await pubRes.json();
-    if (pubData.error) return { success: false, error: pubData.error.message };
-    return { success: true, id: pubData.id || videoId };
-  } catch (e) { return { success: false, error: e.message }; }
-}
-
-function percentEncode(str) {
-  return encodeURIComponent(str).replace(/!/g, "%21").replace(/\*/g, "%2A").replace(/'/g, "%27").replace(/\(/g, "%28").replace(/\)/g, "%29");
-}
-function oauthSig(method, url, params, cs, ts) {
-  const sorted = Object.keys(params).sort().map(k => `${percentEncode(k)}=${percentEncode(params[k])}`).join("&");
-  const base = `${method}&${percentEncode(url)}&${percentEncode(sorted)}`;
-  return crypto.createHmac("sha1", `${percentEncode(cs)}&${percentEncode(ts)}`).update(base).digest("base64");
-}
-function oauthHeader(method, url, ak, as, at, ats) {
-  const oa = { oauth_consumer_key: ak, oauth_nonce: crypto.randomBytes(16).toString("hex"), oauth_signature_method: "HMAC-SHA1", oauth_timestamp: Math.floor(Date.now()/1000).toString(), oauth_token: at, oauth_version: "1.0" };
-  oa.oauth_signature = oauthSig(method, url, oa, as, ats);
-  return `OAuth ${Object.keys(oa).sort().map(k=>`${percentEncode(k)}="${percentEncode(oa[k])}"`).join(", ")}`;
-}
-
-async function postToTwitter(client, caption, imageUrl) {
-  if (!client.twitterApiKey || !client.twitterApiSecret || !client.twitterAccessToken || !client.twitterAccessSecret) return null;
-  try {
-    let mediaId = null;
-    if (imageUrl) {
-      try {
-        const imgRes = await fetch(imageUrl);
-        if (imgRes.ok) {
-          const b64 = Buffer.from(await imgRes.arrayBuffer()).toString("base64");
-          const uUrl = "https://upload.twitter.com/1.1/media/upload.json";
-          const body = { media_data: b64, media_category: "tweet_image" };
-          const oa = { oauth_consumer_key: client.twitterApiKey, oauth_nonce: crypto.randomBytes(16).toString("hex"), oauth_signature_method: "HMAC-SHA1", oauth_timestamp: Math.floor(Date.now()/1000).toString(), oauth_token: client.twitterAccessToken, oauth_version: "1.0" };
-          oa.oauth_signature = oauthSig("POST", uUrl, {...oa,...body}, client.twitterApiSecret, client.twitterAccessSecret);
-          const auth = `OAuth ${Object.keys(oa).sort().map(k=>`${percentEncode(k)}="${percentEncode(oa[k])}"`).join(", ")}`;
-          const ud = await (await fetch(uUrl, { method: "POST", headers: {"Authorization": auth, "Content-Type": "application/x-www-form-urlencoded"}, body: new URLSearchParams(body) })).json();
-          if (ud.media_id_string) mediaId = ud.media_id_string;
-        }
-      } catch(me) { console.log("[twitter] media err:", me.message); }
-    }
-    const tUrl = "https://api.x.com/2/tweets";
-    const tb = { text: caption.substring(0, 280) };
-    if (mediaId) tb.media = { media_ids: [mediaId] };
-    const auth = oauthHeader("POST", tUrl, client.twitterApiKey, client.twitterApiSecret, client.twitterAccessToken, client.twitterAccessSecret);
-    const td = await (await fetch(tUrl, { method: "POST", headers: {"Authorization": auth, "Content-Type": "application/json"}, body: JSON.stringify(tb) })).json();
-    if (td.data?.id) return { success: true, id: td.data.id };
-    return { success: false, error: td.detail || td.title || JSON.stringify(td.errors||td) };
-  } catch (e) { return { success: false, error: e.message }; }
-}
-
-async function postToLinkedIn(client, caption, imageUrl) {
-  if (!client.linkedinId || !client.linkedinAccessToken) return null;
-  try {
-    const orgUrn = client.linkedinId.startsWith("urn:") ? client.linkedinId : `urn:li:organization:${client.linkedinId}`;
-    let mediaAsset = null;
-    if (imageUrl) {
-      try {
-        const rd = await (await fetch("https://api.linkedin.com/v2/assets?action=registerUpload", { method: "POST", headers: {"Authorization":`Bearer ${client.linkedinAccessToken}`,"Content-Type":"application/json","X-Restli-Protocol-Version":"2.0.0"}, body: JSON.stringify({registerUploadRequest:{recipes:["urn:li:digitalmediaRecipe:feedshare-image"],owner:orgUrn,serviceRelationships:[{relationshipType:"OWNER",identifier:"urn:li:userGeneratedContent"}]}}) })).json();
-        const uploadUrl = rd.value?.uploadMechanism?.["com.linkedin.digitalmedia.uploading.MediaUploadHttpRequest"]?.uploadUrl;
-        const asset = rd.value?.asset;
-        if (uploadUrl && asset) {
-          const ir = await fetch(imageUrl);
-          if (ir.ok) { await fetch(uploadUrl, { method:"PUT", headers:{"Authorization":`Bearer ${client.linkedinAccessToken}`,"Content-Type":ir.headers.get("content-type")||"image/jpeg"}, body:Buffer.from(await ir.arrayBuffer()) }); mediaAsset = asset; }
-        }
-      } catch(me) { console.log("[linkedin] media err:", me.message); }
-    }
-    const pb = { author:orgUrn, lifecycleState:"PUBLISHED", specificContent:{"com.linkedin.ugc.ShareContent":{shareCommentary:{text:caption},shareMediaCategory:mediaAsset?"IMAGE":"NONE"}}, visibility:{"com.linkedin.ugc.MemberNetworkVisibility":"PUBLIC"} };
-    if (mediaAsset) pb.specificContent["com.linkedin.ugc.ShareContent"].media = [{status:"READY",media:mediaAsset}];
-    const pr = await fetch("https://api.linkedin.com/v2/ugcPosts", { method:"POST", headers:{"Authorization":`Bearer ${client.linkedinAccessToken}`,"Content-Type":"application/json","X-Restli-Protocol-Version":"2.0.0"}, body:JSON.stringify(pb) });
-    if (pr.status === 201) return { success: true, id: pr.headers.get("x-restli-id")||"created" };
-    const ed = await pr.json().catch(()=>({}));
-    return { success: false, error: ed.message||`HTTP ${pr.status}` };
-  } catch (e) { return { success: false, error: e.message }; }
-}
-
-async function postToGoogleBusiness(client, caption, imageUrl) {
-  if (!client.gbpId || !client.gbpAccessToken) return null;
-  try {
-    const loc = client.gbpId.startsWith("accounts/") ? client.gbpId : `accounts/${client.gbpId}`;
-    const body = { languageCode:"en-GB", summary:caption.substring(0,1500), topicType:"STANDARD" };
-    if (imageUrl) body.media = [{mediaFormat:"PHOTO",sourceUrl:imageUrl}];
-    if (client.gbpCta && client.gbpCtaUrl) body.callToAction = {actionType:client.gbpCta,url:client.gbpCtaUrl};
-    const d = await (await fetch(`https://mybusiness.googleapis.com/v4/${loc}/localPosts`, { method:"POST", headers:{"Authorization":`Bearer ${client.gbpAccessToken}`,"Content-Type":"application/json"}, body:JSON.stringify(body) })).json();
-    if (d.name) return { success: true, id: d.name };
-    return { success: false, error: d.error?.message||`HTTP ${d.error?.code}` };
-  } catch (e) { return { success: false, error: e.message }; }
-}
-
-async function postToTikTok(client, caption, imageUrl) {
-  if (!client.tiktokAccessToken || !imageUrl) return null;
-  try {
-    const pd = await (await fetch("https://open.tiktokapis.com/v2/post/publish/inbox/video/init/", { method:"POST", headers:{"Authorization":`Bearer ${client.tiktokAccessToken}`,"Content-Type":"application/json"}, body:JSON.stringify({post_info:{title:caption.substring(0,2200),privacy_level:"PUBLIC_TO_EVERYONE",disable_duet:false,disable_comment:false,disable_stitch:false},source_info:{source:"PULL_FROM_URL",photo_cover_index:0,photo_images:[imageUrl]},post_mode:"DIRECT_POST",media_type:"PHOTO"}) })).json();
-    if (pd.data?.publish_id) return { success: true, id: pd.data.publish_id };
-    return { success: false, error: pd.error?.message||`HTTP ${pd.error?.code}` };
-  } catch (e) { return { success: false, error: e.message }; }
-}
-
-async function publishToAll(client, post) {
-  const r = {};
-  const pt = post.postType || "feed";
-  if (pt === "story") {
-    // Stories: Instagram only (FB Page Stories API is very limited)
-    if (post.platforms.includes("instagram") && client.igUserId && post.imageUrl) {
-      r.instagram = await postToInstagramStory(client, post.caption, post.imageUrl);
-    }
-  } else if (pt === "reel") {
-    // Reels: need videoUrl
-    const vid = post.videoUrl || post.imageUrl;
-    if (post.platforms.includes("instagram") && client.igUserId && vid) {
-      r.instagram = await postToInstagramReel(client, post.caption, vid);
-    }
-    if (post.platforms.includes("facebook") && client.fbPageId && vid) {
-      r.facebook = await postToFacebookReel(client, post.caption, vid);
-    }
-  } else {
-    // Standard feed post
-    if (post.platforms.includes("facebook") && client.fbPageId) r.facebook = await postToFacebook(client, post.caption, post.imageUrl);
-    if (post.platforms.includes("instagram") && client.igUserId && post.imageUrl) r.instagram = await postToInstagram(client, post.caption, post.imageUrl);
-    if (post.platforms.includes("twitter") && client.twitterAccessToken) r.twitter = await postToTwitter(client, post.caption, post.imageUrl);
-    if (post.platforms.includes("linkedin") && client.linkedinAccessToken) r.linkedin = await postToLinkedIn(client, post.caption, post.imageUrl);
-    if (post.platforms.includes("google_business") && client.gbpAccessToken) r.google_business = await postToGoogleBusiness(client, post.caption, post.imageUrl);
-    if (post.platforms.includes("tiktok") && client.tiktokAccessToken) r.tiktok = await postToTikTok(client, post.caption, post.imageUrl);
-  }
-  return r;
-}
-
-async function deleteFromPlatforms(client, post) {
-  const r = {};
-  const t = client.pageAccessToken;
-  if (post.results?.facebook?.success && post.results.facebook.id && t) {
-    try { const d = await (await fetch(`${GRAPH_API}/${post.results.facebook.id}?access_token=${t}`, {method:"DELETE"})).json(); r.facebook = d.success!==false?{deleted:true}:{deleted:false,error:d.error?.message}; } catch(e) { r.facebook={deleted:false,error:e.message}; }
-  }
-  if (post.results?.instagram?.success && post.results.instagram.id && t) {
-    try { const d = await (await fetch(`${GRAPH_API}/${post.results.instagram.id}?access_token=${t}`, {method:"DELETE"})).json(); r.instagram = d.success!==false?{deleted:true}:{deleted:false,error:d.error?.message}; } catch(e) { r.instagram={deleted:false,error:e.message}; }
-  }
-  if (post.results?.twitter?.success && post.results.twitter.id && client.twitterAccessToken) {
-    try { const dUrl = `https://api.x.com/2/tweets/${post.results.twitter.id}`; const auth = oauthHeader("DELETE",dUrl,client.twitterApiKey,client.twitterApiSecret,client.twitterAccessToken,client.twitterAccessSecret); const d = await (await fetch(dUrl,{method:"DELETE",headers:{"Authorization":auth}})).json(); r.twitter = d.data?.deleted?{deleted:true}:{deleted:false,error:JSON.stringify(d)}; } catch(e) { r.twitter={deleted:false,error:e.message}; }
-  }
-  return r;
+// Authenticate request — returns user object or null
+async function authenticate(req) {
+  const adminKey = process.env.ADMIN_KEY;
+  const jwtSecret = process.env.JWT_SECRET || 'gridsocial-jwt-secret-2026';
+  const token = req.headers.get('Authorization')?.replace('Bearer ', '');
+  if (!token) return null;
+  if (token === adminKey) return { role: 'admin', email: 'admin', assignedClients: [] };
+  const payload = await verifyJWT(token, jwtSecret);
+  if (!payload) return null;
+  return { id: payload.sub, email: payload.email, name: payload.name, role: payload.role, assignedClients: payload.assignedClients || [] };
 }
 
 export default async (req) => {
-  if (req.method === "OPTIONS") return new Response("", { status: 200, headers: { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS", "Access-Control-Allow-Headers": "Content-Type, Authorization" } });
-  const adminKey = process.env.ADMIN_KEY;
-  const jwtSecret = process.env.JWT_SECRET || "gridsocial-jwt-secret-2026";
-  const authHeader = req.headers.get("Authorization");
-  const token = authHeader?.replace("Bearer ", "");
-  
-  let currentUser = null;
-  if (token && token === adminKey) {
-    currentUser = { role: "admin", email: "admin", assignedClients: [] };
-  } else if (token) {
-    const payload = await verifyJWT(token, jwtSecret);
-    if (payload) currentUser = { id: payload.sub, email: payload.email, name: payload.name, role: payload.role, assignedClients: payload.assignedClients || [] };
-  }
-  if (!currentUser) return unauthorized();
-  
+  if (req.method === 'OPTIONS') return cors();
+
+  const user = await authenticate(req);
+  if (!user) return unauthorized();
+
   const url = new URL(req.url);
-  const action = url.searchParams.get("action");
-  const clientId = url.searchParams.get("clientId");
-  
-  // Non-admin users: can read all clients but only write to assigned ones
-  const writeActions = ["add-post","update-post","delete-post","publish-now","post-now","upload-image","delete-from-platform"];
-  if (currentUser.role !== "admin" && clientId && writeActions.includes(action)) {
-    if (!currentUser.assignedClients.includes(clientId)) {
-      return json({ error: "You don't have permission for this client" }, 403);
-    }
+  const action = url.searchParams.get('action');
+  const clientId = url.searchParams.get('clientId');
+
+  // Permission checks
+  const writeActions = ['add-post', 'update-post', 'delete-post', 'publish-now', 'post-now', 'upload-image', 'delete-from-platform'];
+  if (user.role !== 'admin' && clientId && writeActions.includes(action)) {
+    if (!user.assignedClients.includes(clientId)) return forbidden("You don't have permission for this client");
   }
-  // Non-admin users cannot manage clients
-  const adminActions = ["add-client","update-client","delete-client"];
-  if (currentUser.role !== "admin" && adminActions.includes(action)) {
-    return json({ error: "Admin access required" }, 403);
-  }
+  const adminActions = ['add-client', 'update-client', 'delete-client', 'migrate-tokens'];
+  if (user.role !== 'admin' && adminActions.includes(action)) return forbidden('Admin access required');
 
   try {
-    const clients = getStore("clients");
-    const posts = getStore("posts");
+    // ── CLIENT MANAGEMENT ──
+    if (action === 'get-clients') {
+      const clients = await db.getClients();
+      // Strip decrypted tokens from response (show only whether they exist)
+      return json(clients.map(c => ({
+        ...c,
+        pageAccessToken: c.pageAccessToken ? '••••' + (decrypt(c.pageAccessToken) || '').slice(-6) : null,
+        twitterApiKey: c.twitterApiKey ? '••••' : null,
+        twitterApiSecret: c.twitterApiSecret ? '••••' : null,
+        twitterAccessToken: c.twitterAccessToken ? '••••' : null,
+        twitterAccessSecret: c.twitterAccessSecret ? '••••' : null,
+        linkedinAccessToken: c.linkedinAccessToken ? '••••' : null,
+        gbpAccessToken: c.gbpAccessToken ? '••••' : null,
+        tiktokAccessToken: c.tiktokAccessToken ? '••••' : null,
+        _hasTokens: !!(c.pageAccessToken || c.twitterAccessToken || c.linkedinAccessToken || c.gbpAccessToken || c.tiktokAccessToken),
+      })));
+    }
 
-    if (action === "get-clients") { return json(await clients.get("list",{type:"json"}).catch(()=>null)||[]); }
-    if (action === "add-client" && req.method === "POST") {
-      const body = await req.json(); if(!body.name) return json({error:"Client name required"},400);
-      const list = await clients.get("list",{type:"json"}).catch(()=>null)||[];
-      const nc = {id:"client_"+Date.now(),...body,createdAt:new Date().toISOString()};
-      list.push(nc); await clients.setJSON("list",list); return json({success:true,client:nc});
-    }
-    if (action === "update-client" && req.method === "PUT") {
+    if (action === 'add-client' && req.method === 'POST') {
       const body = await req.json();
-      const list = await clients.get("list",{type:"json"}).catch(()=>null)||[];
-      const idx = list.findIndex(c=>c.id===body.id); if(idx===-1) return json({error:"Not found"},404);
-      list[idx] = {...list[idx],...body,updatedAt:new Date().toISOString()};
-      await clients.setJSON("list",list); return json({success:true,client:list[idx]});
+      if (!body.name) return badRequest('Client name required');
+      const list = await db.getClients();
+      // Encrypt tokens on save
+      const nc = { id: 'client_' + Date.now(), ...body, createdAt: new Date().toISOString() };
+      if (nc.pageAccessToken) nc.pageAccessToken = encrypt(nc.pageAccessToken);
+      if (nc.twitterApiKey) nc.twitterApiKey = encrypt(nc.twitterApiKey);
+      if (nc.twitterApiSecret) nc.twitterApiSecret = encrypt(nc.twitterApiSecret);
+      if (nc.twitterAccessToken) nc.twitterAccessToken = encrypt(nc.twitterAccessToken);
+      if (nc.twitterAccessSecret) nc.twitterAccessSecret = encrypt(nc.twitterAccessSecret);
+      if (nc.linkedinAccessToken) nc.linkedinAccessToken = encrypt(nc.linkedinAccessToken);
+      if (nc.gbpAccessToken) nc.gbpAccessToken = encrypt(nc.gbpAccessToken);
+      if (nc.tiktokAccessToken) nc.tiktokAccessToken = encrypt(nc.tiktokAccessToken);
+      list.push(nc);
+      await db.saveClients(list);
+      return json({ success: true, client: nc });
     }
-    if (action === "delete-client" && req.method === "DELETE") {
+
+    if (action === 'update-client' && req.method === 'PUT') {
       const body = await req.json();
-      let list = await clients.get("list",{type:"json"}).catch(()=>null)||[];
-      list = list.filter(c=>c.id!==body.id); await clients.setJSON("list",list); return json({success:true});
-    }
-    if (!clientId && ["get-posts","add-post","update-post","delete-post","publish-now","post-now","delete-from-platform"].includes(action)) return json({error:"clientId required"},400);
-    if (action === "get-posts") { return json(await posts.get(clientId,{type:"json"}).catch(()=>null)||[]); }
-    if (action === "add-post" && req.method === "POST") {
-      const body = await req.json(); if(!body.caption) return json({error:"Caption required"},400);
-      const list = await posts.get(clientId,{type:"json"}).catch(()=>null)||[];
-      const np = {id:"post_"+Date.now(),clientId,caption:body.caption,imageUrl:body.imageUrl||null,videoUrl:body.videoUrl||null,postType:body.postType||"feed",platforms:body.platforms||["facebook"],status:body.scheduledFor?"scheduled":"queued",scheduledFor:body.scheduledFor||null,createdAt:new Date().toISOString(),publishedAt:null,results:null};
-      list.push(np); await posts.setJSON(clientId,list); return json({success:true,post:np});
-    }
-    if (action === "update-post" && req.method === "PUT") {
-      const body = await req.json();
-      const list = await posts.get(clientId,{type:"json"}).catch(()=>null)||[];
-      const idx = list.findIndex(p=>p.id===body.postId); if(idx===-1) return json({error:"Not found"},404);
-      Object.assign(list[idx],body); await posts.setJSON(clientId,list); return json({success:true,post:list[idx]});
-    }
-    if (action === "delete-post" && req.method === "DELETE") {
-      const body = await req.json();
-      let list = await posts.get(clientId,{type:"json"}).catch(()=>null)||[];
-      list = list.filter(p=>p.id!==body.postId); await posts.setJSON(clientId,list); return json({success:true});
-    }
-    if (action === "post-now" && req.method === "POST") {
-      const body = await req.json(); if(!body.caption) return json({error:"Caption required"},400);
-      const cl = await clients.get("list",{type:"json"}).catch(()=>null)||[];
-      const client = cl.find(c=>c.id===clientId); if(!client) return json({error:"Client not found"},404);
-      const np = {id:"post_"+Date.now(),clientId,caption:body.caption,imageUrl:body.imageUrl||null,videoUrl:body.videoUrl||null,postType:body.postType||"feed",platforms:body.platforms||["facebook"],status:"publishing",createdAt:new Date().toISOString(),publishedAt:null,results:null};
-      const results = await publishToAll(client, np);
-      np.status = "published"; np.publishedAt = new Date().toISOString(); np.results = results;
-      const list = await posts.get(clientId,{type:"json"}).catch(()=>null)||[];
-      list.push(np); await posts.setJSON(clientId,list);
-      return json({success:true,post:np,results});
-    }
-    if (action === "publish-now" && req.method === "POST") {
-      const body = await req.json();
-      const cl = await clients.get("list",{type:"json"}).catch(()=>null)||[];
-      const client = cl.find(c=>c.id===clientId); if(!client) return json({error:"Client not configured"},400);
-      const pl = await posts.get(clientId,{type:"json"}).catch(()=>null)||[];
-      const post = pl.find(p=>p.id===body.postId); if(!post) return json({error:"Post not found"},404);
-      const results = await publishToAll(client, post);
-      const pi = pl.findIndex(p=>p.id===body.postId);
-      pl[pi].status="published"; pl[pi].publishedAt=new Date().toISOString(); pl[pi].results=results;
-      await posts.setJSON(clientId,pl); return json({success:true,results});
-    }
-    if (action === "delete-from-platform" && req.method === "POST") {
-      const body = await req.json();
-      const cl = await clients.get("list",{type:"json"}).catch(()=>null)||[];
-      const client = cl.find(c=>c.id===clientId); if(!client) return json({error:"Client not found"},404);
-      const pl = await posts.get(clientId,{type:"json"}).catch(()=>null)||[];
-      const post = pl.find(p=>p.id===body.postId); if(!post) return json({error:"Post not found"},404);
-      if(!post.results) return json({error:"No publish results"},400);
-      const dr = await deleteFromPlatforms(client, post);
-      const pi = pl.findIndex(p=>p.id===body.postId);
-      pl[pi].status="deleted"; pl[pi].deletedAt=new Date().toISOString(); pl[pi].deleteResults=dr;
-      await posts.setJSON(clientId,pl); return json({success:true,deleteResults:dr});
-    }
-    if (action === "upload-image" && req.method === "POST") {
-      let body;
-      try { body = await req.json(); } catch(e) { return json({error:"Request body too large or invalid JSON. Try a smaller image."},413); }
-      if(!body.filename||!body.content) return json({error:"filename and content required"},400);
-      // Check base64 size (~1.37x the actual file size)
-      const estSize = Math.round(body.content.length * 0.75 / 1024);
-      if(body.content.length > 6 * 1024 * 1024) return json({error:`Image too large (${estSize}KB). Max ~4MB after compression.`},413);
-      const ghToken = process.env.GITHUB_TOKEN; if(!ghToken) return json({error:"GITHUB_TOKEN not set on server"},500);
-      const path = `public/photos/${Date.now()}-${body.filename.replace(/[^a-zA-Z0-9._-]/g,'')}`;
-      try {
-        const ghRes = await fetch(`https://api.github.com/repos/Gusmack1/grid-social-autoposter/contents/${path}`, { 
-          method:"PUT", 
-          headers:{Authorization:`token ${ghToken}`,"Content-Type":"application/json"}, 
-          body:JSON.stringify({message:`Upload ${body.filename}`,content:body.content}) 
-        });
-        const gd = await ghRes.json();
-        if(gd.content?.download_url) return json({success:true,url:gd.content.download_url,path,size:`${estSize}KB`});
-        console.error("[upload] GitHub error:", JSON.stringify(gd));
-        return json({error:gd.message||"GitHub upload failed. Check GITHUB_TOKEN permissions.",details:gd.documentation_url||null},500);
-      } catch(e) {
-        console.error("[upload] Fetch error:", e.message);
-        return json({error:"Upload request failed: "+e.message},500);
+      const list = await db.getClients();
+      const idx = list.findIndex(c => c.id === body.id);
+      if (idx === -1) return notFound('Client not found');
+      // Encrypt any new token values (skip masked values)
+      const tokenFields = ['pageAccessToken', 'twitterApiKey', 'twitterApiSecret', 'twitterAccessToken', 'twitterAccessSecret', 'linkedinAccessToken', 'gbpAccessToken', 'tiktokAccessToken'];
+      for (const f of tokenFields) {
+        if (body[f] && !body[f].startsWith('••••') && !body[f].startsWith('enc:')) {
+          body[f] = encrypt(body[f]);
+        } else if (body[f]?.startsWith('••••')) {
+          delete body[f]; // Don't overwrite with masked value
+        }
       }
+      list[idx] = { ...list[idx], ...body, updatedAt: new Date().toISOString() };
+      await db.saveClients(list);
+      return json({ success: true, client: list[idx] });
     }
-    if (action === "config") { return json({metaAppId:process.env.META_APP_ID||"",hasSecret:!!process.env.META_APP_SECRET,hasGithubToken:!!process.env.GITHUB_TOKEN,user:{email:currentUser.email,name:currentUser.name,role:currentUser.role,assignedClients:currentUser.assignedClients}}); }
-    return json({error:"Unknown action: "+action},400);
-  } catch(err) { console.error("[admin] Error:",err); return json({error:err.message},500); }
+
+    if (action === 'delete-client' && req.method === 'DELETE') {
+      const body = await req.json();
+      let list = await db.getClients();
+      list = list.filter(c => c.id !== body.id);
+      await db.saveClients(list);
+      return json({ success: true });
+    }
+
+    // ── POST MANAGEMENT ──
+    if (!clientId && ['get-posts', 'add-post', 'update-post', 'delete-post', 'publish-now', 'post-now', 'delete-from-platform'].includes(action)) {
+      return badRequest('clientId required');
+    }
+
+    if (action === 'get-posts') return json(await db.getPosts(clientId));
+
+    if (action === 'add-post' && req.method === 'POST') {
+      const body = await req.json();
+      if (!body.caption) return badRequest('Caption required');
+      const list = await db.getPosts(clientId);
+      const np = {
+        id: 'post_' + Date.now(), clientId, caption: body.caption,
+        imageUrl: body.imageUrl || null, videoUrl: body.videoUrl || null,
+        postType: body.postType || 'feed', platforms: body.platforms || ['facebook'],
+        status: body.scheduledFor ? 'scheduled' : 'queued',
+        scheduledFor: body.scheduledFor || null,
+        createdAt: new Date().toISOString(), publishedAt: null, results: null,
+      };
+      list.push(np);
+      await db.savePosts(clientId, list);
+      return json({ success: true, post: np });
+    }
+
+    if (action === 'update-post' && req.method === 'PUT') {
+      const body = await req.json();
+      const list = await db.getPosts(clientId);
+      const idx = list.findIndex(p => p.id === body.postId);
+      if (idx === -1) return notFound('Post not found');
+      Object.assign(list[idx], body);
+      await db.savePosts(clientId, list);
+      return json({ success: true, post: list[idx] });
+    }
+
+    if (action === 'delete-post' && req.method === 'DELETE') {
+      const body = await req.json();
+      let list = await db.getPosts(clientId);
+      list = list.filter(p => p.id !== body.postId);
+      await db.savePosts(clientId, list);
+      return json({ success: true });
+    }
+
+    if (action === 'post-now' && req.method === 'POST') {
+      const body = await req.json();
+      if (!body.caption) return badRequest('Caption required');
+      const clients = await db.getClients();
+      const client = clients.find(c => c.id === clientId);
+      if (!client) return notFound('Client not found');
+      const np = {
+        id: 'post_' + Date.now(), clientId, caption: body.caption,
+        imageUrl: body.imageUrl || null, videoUrl: body.videoUrl || null,
+        postType: body.postType || 'feed', platforms: body.platforms || ['facebook'],
+        status: 'publishing', createdAt: new Date().toISOString(), publishedAt: null, results: null,
+      };
+      const results = await publishToAll(client, np);
+      np.status = 'published';
+      np.publishedAt = new Date().toISOString();
+      np.results = results;
+      const list = await db.getPosts(clientId);
+      list.push(np);
+      await db.savePosts(clientId, list);
+      return json({ success: true, post: np, results });
+    }
+
+    if (action === 'publish-now' && req.method === 'POST') {
+      const body = await req.json();
+      const clients = await db.getClients();
+      const client = clients.find(c => c.id === clientId);
+      if (!client) return badRequest('Client not configured');
+      const pl = await db.getPosts(clientId);
+      const post = pl.find(p => p.id === body.postId);
+      if (!post) return notFound('Post not found');
+      const results = await publishToAll(client, post);
+      const pi = pl.findIndex(p => p.id === body.postId);
+      pl[pi].status = 'published';
+      pl[pi].publishedAt = new Date().toISOString();
+      pl[pi].results = results;
+      await db.savePosts(clientId, pl);
+      return json({ success: true, results });
+    }
+
+    if (action === 'delete-from-platform' && req.method === 'POST') {
+      const body = await req.json();
+      const clients = await db.getClients();
+      const client = clients.find(c => c.id === clientId);
+      if (!client) return notFound('Client not found');
+      const pl = await db.getPosts(clientId);
+      const post = pl.find(p => p.id === body.postId);
+      if (!post) return notFound('Post not found');
+      if (!post.results) return badRequest('No publish results');
+      const dr = await deleteFromPlatforms(client, post);
+      const pi = pl.findIndex(p => p.id === body.postId);
+      pl[pi].status = 'deleted';
+      pl[pi].deletedAt = new Date().toISOString();
+      pl[pi].deleteResults = dr;
+      await db.savePosts(clientId, pl);
+      return json({ success: true, deleteResults: dr });
+    }
+
+    // ── IMAGE UPLOAD ──
+    if (action === 'upload-image' && req.method === 'POST') {
+      let body;
+      try { body = await req.json(); } catch { return json({ error: 'Request body too large or invalid JSON. Try a smaller image.' }, 413); }
+      if (!body.filename || !body.content) return badRequest('filename and content required');
+      const estSize = Math.round(body.content.length * 0.75 / 1024);
+      if (body.content.length > 6 * 1024 * 1024) return json({ error: `Image too large (${estSize}KB). Max ~4MB after compression.` }, 413);
+      try {
+        const result = await uploadMedia(body.filename, body.content);
+        return json({ success: true, url: result.url, path: result.path, size: `${estSize}KB`, provider: result.provider });
+      } catch (e) { return serverError(e.message); }
+    }
+
+    // ── CONFIG ──
+    if (action === 'config') {
+      return json({
+        metaAppId: process.env.META_APP_ID || '',
+        hasSecret: !!process.env.META_APP_SECRET,
+        hasGithubToken: !!process.env.GITHUB_TOKEN,
+        hasEncryptionKey: !!process.env.ENCRYPTION_KEY,
+        hasQStash: !!process.env.QSTASH_TOKEN,
+        hasR2: !!process.env.R2_BUCKET,
+        user: { email: user.email, name: user.name, role: user.role, assignedClients: user.assignedClients },
+      });
+    }
+
+    // ── TOKEN MIGRATION (one-time admin action) ──
+    if (action === 'migrate-tokens' && req.method === 'POST') {
+      const result = await migrateTokens();
+      return json({ success: true, ...result });
+    }
+
+    return badRequest('Unknown action: ' + action);
+  } catch (err) {
+    logger.error('Admin API error', { action, error: err.message, stack: err.stack });
+    return serverError(err.message);
+  }
 };
