@@ -35,6 +35,7 @@ export default function App({ user, onLogout }) {
   // Modal state
   const [deleteModal, setDeleteModal] = useState(null);
   const [clientModal, setClientModal] = useState(null);
+  const [linkModal, setLinkModal] = useState(null); // { type, clientName, url, loading }
 
   const isAdmin = user?.role === 'admin';
 
@@ -416,11 +417,12 @@ export default function App({ user, onLogout }) {
             </div>
             {clients.map(c => (
               <div key={c.id} className="card" style={{ marginBottom: 12 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
                     <strong>{c.name}</strong>
                     <div className="post-meta" style={{ marginTop: 4 }}>
                       FB: {c.fbPageId || '—'} · IG: {c.igUserId || '—'} · Token: {c.pageAccessToken ? '✓' : '✗'}
+                      {c.linkedinId && <> · LI: ✓</>}
                       {c.tokenHealth && (
                         <span style={{ marginLeft: 8 }}>
                           · Health: {Object.values(c.tokenHealth.platforms || {}).every(p => p.valid) ?
@@ -429,17 +431,27 @@ export default function App({ user, onLogout }) {
                         </span>
                       )}
                     </div>
+                    {c.approvalMode && c.approvalMode !== 'auto' && (
+                      <div className="post-meta" style={{ marginTop: 2 }}>
+                        Approval: <span style={{ color: c.approvalMode === 'manual' ? '#f59e0b' : '#a78bfa' }}>{c.approvalMode}</span>
+                      </div>
+                    )}
                   </div>
-                  <div style={{ display: 'flex', gap: 6 }}>
+                  <div style={{ display: 'flex', gap: 6, flexShrink: 0, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                     <button className="btn-ghost btn-sm" onClick={async () => {
+                      setLinkModal({ type: 'invite', clientName: c.name, url: null, loading: true });
                       try {
                         const data = await apiPost('/admin?action=generate-invite', { clientId: c.id });
-                        if (data.url) {
-                          await navigator.clipboard.writeText(data.url);
-                          alert('Invite link copied to clipboard!\n\nSend this to ' + c.name + ':\n' + data.url);
-                        }
-                      } catch (e) { alert('Error: ' + e.message); }
+                        setLinkModal({ type: 'invite', clientName: c.name, url: data.url, loading: false });
+                      } catch (e) { setLinkModal({ type: 'invite', clientName: c.name, url: null, loading: false, error: e.message }); }
                     }}>🔗 Invite</button>
+                    <button className="btn-ghost btn-sm" onClick={async () => {
+                      setLinkModal({ type: 'approval', clientName: c.name, url: null, loading: true });
+                      try {
+                        const data = await apiPost('/admin?action=generate-approval-link', { clientId: c.id });
+                        setLinkModal({ type: 'approval', clientName: c.name, url: data.url, loading: false });
+                      } catch (e) { setLinkModal({ type: 'approval', clientName: c.name, url: null, loading: false, error: e.message }); }
+                    }}>✓ Approve Link</button>
                     <button className="btn-ghost btn-sm" onClick={() => setClientModal({ ...c })}>Edit</button>
                   </div>
                 </div>
@@ -520,6 +532,63 @@ export default function App({ user, onLogout }) {
               <button className="btn-primary" onClick={() => handleSaveClient(clientModal)} disabled={!clientModal.name}>
                 {clientModal.id ? 'Save' : 'Add Client'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── LINK MODAL (Invite / Approval) ── */}
+      {linkModal && (
+        <div className="modal-overlay" onClick={() => setLinkModal(null)}>
+          <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 520 }}>
+            <h2>{linkModal.type === 'invite' ? '🔗 Connect Invite' : '✓ Approval Link'}</h2>
+            <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 16 }}>
+              {linkModal.type === 'invite'
+                ? `Send this link to ${linkModal.clientName} so they can connect their social accounts.`
+                : `Send this link to ${linkModal.clientName} so they can approve pending posts.`}
+            </p>
+            {linkModal.loading ? (
+              <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>Generating link...</p>
+            ) : linkModal.error ? (
+              <p style={{ fontSize: 13, color: 'var(--danger)' }}>Error: {linkModal.error}</p>
+            ) : linkModal.url ? (
+              <>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <input
+                    readOnly
+                    value={linkModal.url}
+                    onClick={e => e.target.select()}
+                    style={{
+                      flex: 1, background: 'var(--bg-main)', border: '1px solid var(--border)',
+                      borderRadius: 8, padding: '10px 12px', color: 'var(--text-main)',
+                      fontSize: 12, fontFamily: 'monospace', cursor: 'text',
+                    }}
+                  />
+                  <button
+                    className="btn-primary btn-sm"
+                    style={{ whiteSpace: 'nowrap', padding: '10px 16px' }}
+                    onClick={async () => {
+                      try {
+                        await navigator.clipboard.writeText(linkModal.url);
+                        setLinkModal(prev => ({ ...prev, copied: true }));
+                        setTimeout(() => setLinkModal(prev => prev ? ({ ...prev, copied: false }) : null), 2000);
+                      } catch {
+                        // Fallback: select the input
+                        const input = document.querySelector('.modal input[readonly]');
+                        if (input) { input.select(); document.execCommand('copy'); }
+                      }
+                    }}
+                  >
+                    {linkModal.copied ? '✓ Copied!' : 'Copy'}
+                  </button>
+                </div>
+                <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 10 }}>
+                  {linkModal.type === 'invite' ? 'Expires in 7 days.' : 'Expires in 14 days.'}
+                </p>
+              </>
+            ) : null}
+            <div className="modal-actions">
+              <button className="btn-ghost" onClick={() => setLinkModal(null)}>Close</button>
             </div>
           </div>
         </div>
