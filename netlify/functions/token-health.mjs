@@ -294,6 +294,55 @@ export default async (req) => {
     }
   }
 
+  // ── Pinterest — check token validity, auto-refresh if needed ──
+  for (const { health, client } of results) {
+    if (client.pinterestAccessToken) {
+      const token = decrypt(client.pinterestAccessToken);
+      if (!token) { health.platforms.pinterest = { valid: false, error: 'Decrypt failed' }; continue; }
+
+      // Check if token expires within 7 days
+      const expiresAt = client.pinterestTokenExpiresAt ? new Date(client.pinterestTokenExpiresAt).getTime() : 0;
+      const sevenDays = 7 * 24 * 3600 * 1000;
+
+      if (expiresAt && (expiresAt - Date.now()) < sevenDays && client.pinterestRefreshToken) {
+        // Try auto-refresh
+        try {
+          const { refreshPinterestToken } = await import('./lib/platforms/pinterest.mjs');
+          const refreshed = await refreshPinterestToken(client);
+          if (refreshed) {
+            const updClients = await db.getClients();
+            const idx = updClients.findIndex(c => c.id === client.id);
+            if (idx !== -1) {
+              updClients[idx].pinterestAccessToken = encrypt(refreshed.accessToken);
+              if (refreshed.refreshToken) updClients[idx].pinterestRefreshToken = encrypt(refreshed.refreshToken);
+              updClients[idx].pinterestTokenExpiresAt = refreshed.expiresAt;
+              updClients[idx].pinterestUpdatedAt = new Date().toISOString();
+              await db.saveClients(updClients);
+              health.platforms.pinterest = { valid: true, refreshed: true };
+              logger.info('Pinterest token auto-refreshed', { client: client.name });
+            }
+          } else {
+            health.platforms.pinterest = { valid: false, error: 'Refresh failed' };
+          }
+        } catch (e) {
+          health.platforms.pinterest = { valid: false, error: e.message };
+        }
+      } else {
+        // Validate with a simple API call
+        try {
+          const res = await fetch('https://api.pinterest.com/v5/user_account', {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          health.platforms.pinterest = res.ok
+            ? { valid: true, username: client.pinterestUsername }
+            : { valid: false, error: `HTTP ${res.status}` };
+        } catch (e) {
+          health.platforms.pinterest = { valid: false, error: e.message };
+        }
+      }
+    }
+  }
+
   // Update client records with health status
   const updatedClients = await db.getClients();
   for (const health of results) {

@@ -16,7 +16,7 @@ export default async (req) => {
   const results = [];
 
   for (const client of clientList) {
-    const hasAnyToken = client.pageAccessToken || client.twitterAccessToken || client.linkedinAccessToken || client.gbpAccessToken || client.tiktokAccessToken || client.threadsUserId || client.blueskyIdentifier;
+    const hasAnyToken = client.pageAccessToken || client.twitterAccessToken || client.linkedinAccessToken || client.gbpAccessToken || client.tiktokAccessToken || client.threadsUserId || client.blueskyIdentifier || client.pinterestAccessToken;
     if (!hasAnyToken) {
       logger.info('No API tokens, skipping', { client: client.name });
       results.push({ client: client.name, status: 'skipped', reason: 'No API tokens' });

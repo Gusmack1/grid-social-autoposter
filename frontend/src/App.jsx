@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import { PLATFORMS, POST_TYPES, PLATFORM_LINKS, API_BASE } from './constants.js';
 import { formatDateGMT, timeAgo, truncate } from './utils.js';
 import { api, apiGet, apiPost, apiPut, apiDelete, clearToken } from './hooks/useApi.js';
@@ -7,6 +8,7 @@ import PlatformIcon from './components/PlatformIcon.jsx';
 const TABS = [
   { id: 'compose', name: 'Create Post', icon: '✏️' },
   { id: 'queue', name: 'Queue', icon: '📋' },
+  { id: 'calendar', name: 'Calendar', icon: '📅' },
   { id: 'published', name: 'Published', icon: '✅' },
   { id: 'analytics', name: 'Analytics', icon: '📊' },
   { id: 'billing', name: 'Billing', icon: '💳', admin: true },
@@ -39,6 +41,15 @@ export default function App({ user, onLogout }) {
   const [analytics, setAnalytics] = useState(null);
   const [analyticsRange, setAnalyticsRange] = useState(30);
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
+
+  // Calendar state
+  const [calMonth, setCalMonth] = useState(new Date().getMonth());
+  const [calYear, setCalYear] = useState(new Date().getFullYear());
+  const [calSelectedDay, setCalSelectedDay] = useState(null);
+  const [editingPost, setEditingPost] = useState(null);
+
+  // CSV import state
+  const [csvImporting, setCsvImporting] = useState(false);
 
   // Modal state
   const [deleteModal, setDeleteModal] = useState(null);
@@ -96,6 +107,7 @@ export default function App({ user, onLogout }) {
     if (p.id === 'tiktok') return currentClient.tiktokAccessToken;
     if (p.id === 'threads') return currentClient.threadsUserId;
     if (p.id === 'bluesky') return currentClient.blueskyIdentifier;
+    if (p.id === 'pinterest') return currentClient.pinterestAccessToken;
     return false;
   }).map(p => p.id) : [];
 
@@ -127,6 +139,66 @@ export default function App({ user, onLogout }) {
     const file = e.target.files?.[0];
     if (!file) return;
     setUploading(true);
+
+  const handleCsvImport = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file || !selectedClient) return;
+    setCsvImporting(true);
+    try {
+      const text = await file.text();
+      const lines = text.split('\n').filter(l => l.trim());
+      if (lines.length < 2) { alert('CSV must have a header row and at least one data row'); setCsvImporting(false); return; }
+
+      // Parse header
+      const headers = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/['"]/g, ''));
+      const captionIdx = headers.findIndex(h => h === 'caption' || h === 'text' || h === 'message');
+      if (captionIdx === -1) { alert('CSV must have a "caption" column'); setCsvImporting(false); return; }
+
+      const dateIdx = headers.findIndex(h => h === 'date' || h === 'scheduled' || h === 'scheduledfor');
+      const imageIdx = headers.findIndex(h => h === 'imageurl' || h === 'image' || h === 'media');
+      const platformsIdx = headers.findIndex(h => h === 'platforms' || h === 'platform');
+      const typeIdx = headers.findIndex(h => h === 'posttype' || h === 'type');
+
+      // Parse rows (handle quoted fields)
+      const parseRow = (line) => {
+        const result = [];
+        let current = '';
+        let inQuotes = false;
+        for (const ch of line) {
+          if (ch === '"') { inQuotes = !inQuotes; continue; }
+          if (ch === ',' && !inQuotes) { result.push(current.trim()); current = ''; continue; }
+          current += ch;
+        }
+        result.push(current.trim());
+        return result;
+      };
+
+      const postsToImport = [];
+      for (let i = 1; i < lines.length; i++) {
+        const cols = parseRow(lines[i]);
+        const caption = cols[captionIdx];
+        if (!caption) continue;
+        postsToImport.push({
+          caption,
+          scheduledFor: dateIdx >= 0 && cols[dateIdx] ? cols[dateIdx] : null,
+          imageUrl: imageIdx >= 0 ? cols[imageIdx] || null : null,
+          platforms: platformsIdx >= 0 && cols[platformsIdx]
+            ? cols[platformsIdx].split(/[;|+]/).map(p => p.trim().toLowerCase()).filter(Boolean)
+            : ['facebook', 'instagram'],
+          postType: typeIdx >= 0 ? (cols[typeIdx] || 'feed') : 'feed',
+        });
+      }
+
+      if (postsToImport.length === 0) { alert('No valid rows found in CSV'); setCsvImporting(false); return; }
+
+      // Bulk import via API
+      const result = await apiPost(`/admin?action=bulk-import&clientId=${selectedClient}`, { posts: postsToImport });
+      alert(`Imported ${result.imported || postsToImport.length} posts!`);
+      await loadPosts();
+      e.target.value = '';
+    } catch (err) { alert('Import failed: ' + err.message); }
+    setCsvImporting(false);
+  };
     try {
       // Compress client-side
       const canvas = document.createElement('canvas');
@@ -358,6 +430,10 @@ export default function App({ user, onLogout }) {
                 <button className="btn-success" onClick={() => handleSubmit(true)} disabled={!caption.trim() || loading}>
                   Post Now
                 </button>
+                <label className="btn-ghost" style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, fontSize: 13 }}>
+                  {csvImporting ? '...' : '📥 Import CSV'}
+                  <input type="file" accept=".csv" onChange={handleCsvImport} hidden />
+                </label>
               </div>
             </div>
           </div>
@@ -420,6 +496,158 @@ export default function App({ user, onLogout }) {
             </div>
           </div>
         )}
+
+        {/* ── CALENDAR TAB ── */}
+        {tab === 'calendar' && (() => {
+          const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
+          const firstDayOfWeek = new Date(calYear, calMonth, 1).getDay(); // 0=Sun
+          const startDay = firstDayOfWeek === 0 ? 6 : firstDayOfWeek - 1; // Mon=0
+          const monthName = new Date(calYear, calMonth).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+
+          // All posts (queued + published) for this client, grouped by day
+          const allPosts = posts;
+          const postsByDay = {};
+          for (const p of allPosts) {
+            const d = p.scheduledFor || p.publishedAt || p.createdAt;
+            if (!d) continue;
+            const day = new Date(d).toISOString().split('T')[0];
+            if (!postsByDay[day]) postsByDay[day] = [];
+            postsByDay[day].push(p);
+          }
+
+          const cells = [];
+          for (let i = 0; i < startDay; i++) cells.push(null);
+          for (let d = 1; d <= daysInMonth; d++) cells.push(d);
+          while (cells.length % 7 !== 0) cells.push(null);
+
+          const today = new Date().toISOString().split('T')[0];
+
+          const handleReschedule = async (postId, newDate) => {
+            try {
+              await apiPut(`/admin?action=update-post&clientId=${selectedClient}`, {
+                postId, scheduledFor: newDate, status: 'scheduled',
+              });
+              await loadPosts();
+              setEditingPost(null);
+            } catch (e) { alert(e.message); }
+          };
+
+          const selectedDayStr = calSelectedDay
+            ? `${calYear}-${String(calMonth + 1).padStart(2, '0')}-${String(calSelectedDay).padStart(2, '0')}`
+            : null;
+          const dayPosts = selectedDayStr ? (postsByDay[selectedDayStr] || []) : [];
+
+          return (
+            <div>
+              <div className="header">
+                <h1>Calendar</h1>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <button className="btn-ghost btn-sm" onClick={() => {
+                    if (calMonth === 0) { setCalMonth(11); setCalYear(calYear - 1); }
+                    else setCalMonth(calMonth - 1);
+                    setCalSelectedDay(null);
+                  }}>◀</button>
+                  <span style={{ fontSize: 15, fontWeight: 600, minWidth: 140, textAlign: 'center' }}>{monthName}</span>
+                  <button className="btn-ghost btn-sm" onClick={() => {
+                    if (calMonth === 11) { setCalMonth(0); setCalYear(calYear + 1); }
+                    else setCalMonth(calMonth + 1);
+                    setCalSelectedDay(null);
+                  }}>▶</button>
+                </div>
+              </div>
+
+              <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', borderBottom: '1px solid var(--border)' }}>
+                  {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(d => (
+                    <div key={d} style={{ padding: '8px 4px', fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textAlign: 'center' }}>{d}</div>
+                  ))}
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)' }}>
+                  {cells.map((day, i) => {
+                    if (!day) return <div key={i} style={{ minHeight: 70, background: 'var(--bg)', borderRight: '1px solid var(--border)', borderBottom: '1px solid var(--border)' }} />;
+                    const dateStr = `${calYear}-${String(calMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                    const dp = postsByDay[dateStr] || [];
+                    const isToday = dateStr === today;
+                    const isSelected = day === calSelectedDay;
+                    return (
+                      <div key={i} onClick={() => setCalSelectedDay(day === calSelectedDay ? null : day)}
+                        style={{
+                          minHeight: 70, padding: '4px 6px', cursor: 'pointer',
+                          borderRight: '1px solid var(--border)', borderBottom: '1px solid var(--border)',
+                          background: isSelected ? 'var(--accent)15' : isToday ? '#3b82f610' : 'transparent',
+                          transition: 'background 0.1s',
+                        }}>
+                        <div style={{ fontSize: 12, fontWeight: isToday ? 700 : 400, color: isToday ? 'var(--accent)' : 'var(--text-muted)', marginBottom: 4 }}>{day}</div>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
+                          {dp.slice(0, 4).map(p => (
+                            <div key={p.id} title={truncate(p.caption, 60)} style={{
+                              width: 8, height: 8, borderRadius: '50%',
+                              background: p.status === 'published' ? 'var(--success)' : p.status === 'failed' ? 'var(--danger)' : 'var(--accent)',
+                            }} />
+                          ))}
+                          {dp.length > 4 && <span style={{ fontSize: 9, color: 'var(--text-muted)' }}>+{dp.length - 4}</span>}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Day detail panel */}
+              {calSelectedDay && (
+                <div className="card" style={{ marginTop: 12 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                    <h3 style={{ fontSize: 15, margin: 0 }}>
+                      {new Date(calYear, calMonth, calSelectedDay).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}
+                    </h3>
+                    <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{dayPosts.length} post{dayPosts.length !== 1 ? 's' : ''}</span>
+                  </div>
+                  {dayPosts.length === 0 && (
+                    <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>No posts on this day.</p>
+                  )}
+                  {dayPosts.map(p => (
+                    <div key={p.id} className="post-item" style={{ borderBottom: '1px solid var(--border)', paddingBottom: 10, marginBottom: 10 }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div className="post-caption">{truncate(p.caption, 100)}</div>
+                        <div className="post-meta" style={{ marginTop: 4 }}>
+                          <span className={`badge badge-${p.status}`}>{p.status}</span>
+                          {' '}{p.platforms?.map(pl => <PlatformIcon key={pl} platform={pl} />)}
+                          {' '}{p.postType && p.postType !== 'feed' && <span className="badge" style={{ background: '#4338ca', color: '#c7d2fe' }}>{p.postType}</span>}
+                          {p.scheduledFor && <span style={{ color: 'var(--warning)', fontSize: 11, marginLeft: 6 }}>{formatDateGMT(p.scheduledFor)}</span>}
+                        </div>
+                      </div>
+                      {(p.status === 'queued' || p.status === 'scheduled') && (
+                        <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexShrink: 0 }}>
+                          {editingPost === p.id ? (
+                            <>
+                              <input type="datetime-local" id={`reschedule-${p.id}`}
+                                defaultValue={p.scheduledFor ? p.scheduledFor.slice(0, 16) : ''}
+                                style={{ fontSize: 12, padding: '4px 8px' }} />
+                              <button className="btn-primary btn-sm" onClick={() => {
+                                const v = document.getElementById(`reschedule-${p.id}`).value;
+                                if (v) handleReschedule(p.id, v);
+                              }}>Save</button>
+                              <button className="btn-ghost btn-sm" onClick={() => setEditingPost(null)}>✕</button>
+                            </>
+                          ) : (
+                            <button className="btn-ghost btn-sm" onClick={() => setEditingPost(p.id)}>Reschedule</button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Legend */}
+              <div style={{ marginTop: 12, display: 'flex', gap: 16, fontSize: 11, color: 'var(--text-muted)' }}>
+                <span><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: 'var(--accent)', marginRight: 4 }} />Queued</span>
+                <span><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: 'var(--success)', marginRight: 4 }} />Published</span>
+                <span><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: 'var(--danger)', marginRight: 4 }} />Failed</span>
+              </div>
+            </div>
+          );
+        })()}
 
         {/* ── PUBLISHED TAB ── */}
         {tab === 'published' && (
@@ -540,6 +768,49 @@ export default function App({ user, onLogout }) {
                   </div>
                 )}
 
+                {/* Engagement Over Time — Recharts */}
+                {analytics.engagementByDay && Object.keys(analytics.engagementByDay).length > 0 && (
+                  <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10, padding: 16, marginBottom: 20 }}>
+                    <h4 style={{ margin: '0 0 12px', fontSize: 14, color: 'var(--text-primary)' }}>Engagement Over Time</h4>
+                    <ResponsiveContainer width="100%" height={200}>
+                      <LineChart data={Object.entries(analytics.engagementByDay).sort(([a],[b]) => a.localeCompare(b)).map(([day, m]) => ({
+                        day: day.slice(5), likes: m.likes, comments: m.comments, shares: m.shares,
+                      }))}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                        <XAxis dataKey="day" tick={{ fontSize: 10, fill: '#94a3b8' }} />
+                        <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} />
+                        <Tooltip contentStyle={{ background: '#1e293b', border: '1px solid #334155', borderRadius: 8, fontSize: 12 }} />
+                        <Line type="monotone" dataKey="likes" stroke="#f472b6" strokeWidth={2} dot={false} />
+                        <Line type="monotone" dataKey="comments" stroke="#60a5fa" strokeWidth={2} dot={false} />
+                        <Line type="monotone" dataKey="shares" stroke="#4ade80" strokeWidth={2} dot={false} />
+                      </LineChart>
+                    </ResponsiveContainer>
+                    <div style={{ display: 'flex', gap: 16, justifyContent: 'center', marginTop: 8, fontSize: 11 }}>
+                      <span><span style={{ color: '#f472b6' }}>●</span> Likes</span>
+                      <span><span style={{ color: '#60a5fa' }}>●</span> Comments</span>
+                      <span><span style={{ color: '#4ade80' }}>●</span> Shares</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Publishing Activity — Recharts Bar Chart */}
+                {analytics.postsByDay && Object.keys(analytics.postsByDay).length > 0 && (
+                  <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10, padding: 16, marginBottom: 20 }}>
+                    <h4 style={{ margin: '0 0 12px', fontSize: 14, color: 'var(--text-primary)' }}>Publishing Activity</h4>
+                    <ResponsiveContainer width="100%" height={160}>
+                      <BarChart data={Object.entries(analytics.postsByDay).sort(([a],[b]) => a.localeCompare(b)).slice(-30).map(([day, count]) => ({
+                        day: day.slice(5), posts: count,
+                      }))}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                        <XAxis dataKey="day" tick={{ fontSize: 9, fill: '#94a3b8' }} interval="preserveStartEnd" />
+                        <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} allowDecimals={false} />
+                        <Tooltip contentStyle={{ background: '#1e293b', border: '1px solid #334155', borderRadius: 8, fontSize: 12 }} />
+                        <Bar dataKey="posts" fill="#3b82f6" radius={[3, 3, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
+
                 {/* Platform breakdown */}
                 {analytics.platformBreakdown && Object.keys(analytics.platformBreakdown).length > 0 && (
                   <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10, padding: 16, marginBottom: 20 }}>
@@ -557,27 +828,45 @@ export default function App({ user, onLogout }) {
                   </div>
                 )}
 
-                {/* Posts by day */}
-                {analytics.postsByDay && Object.keys(analytics.postsByDay).length > 0 && (
+                {/* Per-post engagement table */}
+                {analytics.postEngagement && analytics.postEngagement.length > 0 && (
                   <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10, padding: 16 }}>
-                    <h4 style={{ margin: '0 0 12px', fontSize: 14, color: 'var(--text-primary)' }}>Publishing Activity</h4>
-                    <div style={{ display: 'flex', alignItems: 'flex-end', gap: 2, height: 80 }}>
-                      {Object.entries(analytics.postsByDay).sort(([a], [b]) => a.localeCompare(b)).slice(-30).map(([day, count]) => {
-                        const max = Math.max(...Object.values(analytics.postsByDay));
-                        return (
-                          <div key={day} title={`${day}: ${count} posts`} style={{
-                            flex: 1, minWidth: 4, maxWidth: 20,
-                            height: `${(count / max) * 100}%`,
-                            background: '#3b82f6', borderRadius: '2px 2px 0 0',
-                          }} />
-                        );
-                      })}
-                    </div>
-                    <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 6, display: 'flex', justifyContent: 'space-between' }}>
-                      {(() => {
-                        const days = Object.keys(analytics.postsByDay).sort();
-                        return <><span>{days[0]}</span><span>{days[days.length - 1]}</span></>;
-                      })()}
+                    <h4 style={{ margin: '0 0 12px', fontSize: 14, color: 'var(--text-primary)' }}>Post Engagement</h4>
+                    <div style={{ overflowX: 'auto' }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                        <thead>
+                          <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                            <th style={{ textAlign: 'left', padding: '8px 6px', color: 'var(--text-muted)', fontWeight: 500 }}>Post</th>
+                            <th style={{ textAlign: 'left', padding: '8px 6px', color: 'var(--text-muted)', fontWeight: 500 }}>Date</th>
+                            <th style={{ textAlign: 'center', padding: '8px 6px', color: 'var(--text-muted)', fontWeight: 500 }}>❤️ Likes</th>
+                            <th style={{ textAlign: 'center', padding: '8px 6px', color: 'var(--text-muted)', fontWeight: 500 }}>💬 Comments</th>
+                            <th style={{ textAlign: 'center', padding: '8px 6px', color: 'var(--text-muted)', fontWeight: 500 }}>🔄 Shares</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {analytics.postEngagement.map(pe => {
+                            const totalLikes = Object.values(pe.metrics).reduce((s, m) => s + (m.likes || 0), 0);
+                            const totalComments = Object.values(pe.metrics).reduce((s, m) => s + (m.comments || 0), 0);
+                            const totalShares = Object.values(pe.metrics).reduce((s, m) => s + (m.shares || 0), 0);
+                            return (
+                              <tr key={pe.postId} style={{ borderBottom: '1px solid var(--border)' }}>
+                                <td style={{ padding: '8px 6px', maxWidth: 200 }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                    {pe.platforms?.map(pl => <PlatformIcon key={pl} platform={pl} />)}
+                                    <span style={{ color: 'var(--text)' }}>{pe.caption || '—'}</span>
+                                  </div>
+                                </td>
+                                <td style={{ padding: '8px 6px', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+                                  {pe.publishedAt ? new Date(pe.publishedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '—'}
+                                </td>
+                                <td style={{ padding: '8px 6px', textAlign: 'center', color: '#f472b6', fontWeight: 600 }}>{totalLikes}</td>
+                                <td style={{ padding: '8px 6px', textAlign: 'center', color: '#60a5fa', fontWeight: 600 }}>{totalComments}</td>
+                                <td style={{ padding: '8px 6px', textAlign: 'center', color: '#4ade80', fontWeight: 600 }}>{totalShares}</td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
                     </div>
                   </div>
                 )}
@@ -842,6 +1131,19 @@ export default function App({ user, onLogout }) {
                 <a href={PLATFORM_LINKS.pageAccessToken} target="_blank" rel="noopener" style={{ color: 'var(--accent)', marginLeft: 6, fontSize: 11 }}>Graph Explorer →</a>
               </label>
               <input type="password" value={clientModal.pageAccessToken || ''} onChange={e => setClientModal({ ...clientModal, pageAccessToken: e.target.value })} placeholder="Paste token (will be encrypted)" />
+
+              <div style={{ borderTop: '1px solid var(--border)', marginTop: 8, paddingTop: 12 }}>
+                <label style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 600 }}>White-Label Branding</label>
+              </div>
+              <label style={{ fontSize: 12, color: 'var(--text-muted)' }}>Brand Name <span style={{ fontSize: 10, color: '#6b7280' }}>(shown on connect &amp; approval portals)</span></label>
+              <input value={clientModal.brandName || ''} onChange={e => setClientModal({ ...clientModal, brandName: e.target.value })} placeholder="e.g. Acme Marketing" />
+              <label style={{ fontSize: 12, color: 'var(--text-muted)' }}>Brand Color <span style={{ fontSize: 10, color: '#6b7280' }}>(hex)</span></label>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <input type="color" value={clientModal.brandColor || '#3b82f6'} onChange={e => setClientModal({ ...clientModal, brandColor: e.target.value })} style={{ width: 40, height: 34, padding: 2, cursor: 'pointer' }} />
+                <input value={clientModal.brandColor || ''} onChange={e => setClientModal({ ...clientModal, brandColor: e.target.value })} placeholder="#3b82f6" style={{ flex: 1 }} />
+              </div>
+              <label style={{ fontSize: 12, color: 'var(--text-muted)' }}>Logo URL</label>
+              <input value={clientModal.logoUrl || ''} onChange={e => setClientModal({ ...clientModal, logoUrl: e.target.value })} placeholder="https://example.com/logo.png" />
 
               <div style={{ borderTop: '1px solid var(--border)', marginTop: 8, paddingTop: 12 }}>
                 <label style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 600 }}>Threads</label>

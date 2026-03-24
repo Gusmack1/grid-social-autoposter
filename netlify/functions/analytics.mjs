@@ -146,6 +146,76 @@ export default async (req) => {
     }
   }
 
+  // ── Per-post engagement (best-effort for recent posts) ──
+  const postEngagement = [];
+  const engagementPosts = recentPublished.slice(0, 30); // limit to 30 most recent
+
+  for (const post of engagementPosts) {
+    const eng = {
+      postId: post.id,
+      caption: (post.caption || '').substring(0, 80),
+      publishedAt: post.publishedAt,
+      postType: post.postType || 'feed',
+      platforms: post.platforms || [],
+      metrics: {},
+    };
+
+    // Facebook post engagement
+    if (post.results?.facebook?.success && post.results.facebook.id && client.pageAccessToken) {
+      try {
+        const pageToken = decrypt(client.pageAccessToken);
+        const fbPostId = post.results.facebook.id;
+        const engRes = await fetch(
+          `${GRAPH_API}/${fbPostId}?fields=likes.summary(true),comments.summary(true),shares&access_token=${pageToken}`
+        );
+        const engData = await engRes.json();
+        if (!engData.error) {
+          eng.metrics.facebook = {
+            likes: engData.likes?.summary?.total_count || 0,
+            comments: engData.comments?.summary?.total_count || 0,
+            shares: engData.shares?.count || 0,
+          };
+        }
+      } catch (e) { /* skip */ }
+    }
+
+    // Instagram post engagement
+    if (post.results?.instagram?.success && post.results.instagram.id && client.pageAccessToken) {
+      try {
+        const pageToken = decrypt(client.pageAccessToken);
+        const igMediaId = post.results.instagram.id;
+        const igEngRes = await fetch(
+          `${GRAPH_API}/${igMediaId}?fields=like_count,comments_count,timestamp&access_token=${pageToken}`
+        );
+        const igEngData = await igEngRes.json();
+        if (!igEngData.error) {
+          eng.metrics.instagram = {
+            likes: igEngData.like_count || 0,
+            comments: igEngData.comments_count || 0,
+          };
+        }
+      } catch (e) { /* skip */ }
+    }
+
+    // Only include if we got any engagement data
+    if (Object.keys(eng.metrics).length > 0) {
+      postEngagement.push(eng);
+    }
+  }
+
+  // Build engagement-over-time series (aggregate daily)
+  const engagementByDay = {};
+  for (const pe of postEngagement) {
+    const day = pe.publishedAt ? new Date(pe.publishedAt).toISOString().split('T')[0] : null;
+    if (!day) continue;
+    if (!engagementByDay[day]) engagementByDay[day] = { likes: 0, comments: 0, shares: 0 };
+    for (const m of Object.values(pe.metrics)) {
+      engagementByDay[day].likes += m.likes || 0;
+      engagementByDay[day].comments += m.comments || 0;
+      engagementByDay[day].shares += m.shares || 0;
+    }
+  }
+
   return json({
     clientId,
     clientName: client.name,
@@ -163,6 +233,8 @@ export default async (req) => {
     platformBreakdown,
     typeBreakdown,
     insights,
+    postEngagement,
+    engagementByDay,
   });
 };
 

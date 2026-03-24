@@ -128,6 +128,17 @@
   to = "/.netlify/functions/analytics"
   status = 200
 
+# Pinterest OAuth
+[[redirects]]
+  from = "/api/pinterest-auth"
+  to = "/.netlify/functions/pinterest-auth"
+  status = 200
+
+[[redirects]]
+  from = "/api/pinterest-callback"
+  to = "/.netlify/functions/pinterest-callback"
+  status = 200
+
 [[redirects]]
   from = "/approve/*"
   to = "/.netlify/functions/approval-portal/:splat"

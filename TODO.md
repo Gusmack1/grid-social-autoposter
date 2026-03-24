@@ -1,6 +1,6 @@
 # Grid Social — Current TODO
 
-**Last updated:** 24 March 2026 (Phase 4b complete)
+**Last updated:** 24 March 2026 (Phase 5 complete)
 
 ---
 
@@ -13,96 +13,82 @@
 | Phase 3 | ✅ DEPLOYED | LinkedIn OAuth, approval workflows (3 modes), Meta review prep, privacy/terms/deletion all live |
 | Phase 3b | ✅ DEPLOYED | Dashboard approval UI, Stripe checkout+webhook, email notifications (Resend), app icon |
 | Phase 4a | ✅ DEPLOYED | LinkedIn auto-refresh, Billing tab, Threads + Bluesky platforms, post approval emails |
-| Phase 4b | ✅ BUILT | TikTok OAuth, GBP OAuth, carousel posts, analytics dashboard+API, connect portal updates |
-| Phase 5 | 🔲 TODO | White-label, advanced analytics, Pinterest, multi-user permissions |
+| Phase 4b | ✅ DEPLOYED | TikTok OAuth, GBP OAuth, carousel posts, analytics dashboard+API, connect portal updates |
+| Phase 5 | ✅ BUILT | White-label, calendar, CSV import, advanced analytics (Recharts), Pinterest OAuth+posting |
+| Phase 6 | 🔲 TODO | Supabase migration, custom domains, real-time notifications, post templates |
 
 ---
 
-## COMPLETED THIS SESSION (Phase 4b)
+## COMPLETED THIS SESSION (Phase 5)
 
-- [x] TikTok OAuth flow (tiktok-auth.mjs + tiktok-callback.mjs)
-- [x] Google Business Profile OAuth flow (gbp-auth.mjs + gbp-callback.mjs)
-- [x] GBP inline token refresh (Google tokens expire in 1h — auto-refresh before posting)
-- [x] Connect portal updated: TikTok + GBP buttons enabled when env vars set
-- [x] Connect portal status page: shows Threads + Bluesky connection status
-- [x] Carousel/multi-image posts: Facebook (unpublished photos + attached_media) + Instagram (item containers + carousel container)
-- [x] Publisher updated with carousel routing + fallback to single image for non-carousel platforms
-- [x] Carousel post type added to frontend constants
-- [x] Dashboard compose UI: carousel image URL inputs (add/remove, up to 10)
-- [x] Analytics API endpoint (analytics.mjs) — post history stats + Facebook/Instagram insights
-- [x] Dashboard Analytics tab — summary cards, platform insights, platform breakdown, publishing activity chart
-- [x] Token health monitor: TikTok auto-refresh + GBP auto-refresh added
-- [x] Admin API: imageUrls field stored on add-post and post-now actions
-- [x] Scheduled post: hasAnyToken check updated for Threads + Bluesky
-- [x] netlify.toml: TikTok, GBP, analytics redirects added
+- [x] White-label: per-client branding (logoUrl, brandColor, brandName) on connect + approval portals
+- [x] White-label: branding fields in dashboard client modal (color picker + logo URL)
+- [x] Content calendar: monthly grid with color-coded dots, click day to see/reschedule posts
+- [x] Bulk post import: CSV upload (date, caption, imageUrl, platforms, postType) with quoted-field parser
+- [x] Advanced analytics: per-post engagement from FB+IG Graph API (likes, comments, shares)
+- [x] Advanced analytics: Recharts LineChart (engagement trends) + BarChart (publishing activity)
+- [x] Advanced analytics: per-post engagement table with platform icons
+- [x] Pinterest OAuth (pinterest-auth.mjs + pinterest-callback.mjs)
+- [x] Pinterest platform module (lib/platforms/pinterest.mjs — Create Pin API v5, refresh, delete)
+- [x] Pinterest: publisher, connect portal, token health, constants, PlatformIcon, netlify.toml all updated
+- [x] 9 platforms: FB, IG, Threads, Bluesky, X, TikTok, LinkedIn, GBP, Pinterest
 
 ---
 
 ## YOUR MANUAL ACTIONS (priority order)
 
-### 1. Meta App Review — Submit
-- [x] Privacy Policy URL set on Meta console
-- [x] Terms of Service URL set on Meta console
-- [x] Data Deletion Callback URL set on Meta console
-- [x] App icon created (1024×1024)
-- [ ] **Upload app icon** to Meta developer console → Settings → Basic
-- [ ] Set Category to "Business and Pages" ✅ already done
-- [ ] Become a Tech Provider (required for App Review)
-- [ ] Record screencasts (see META-APP-REVIEW-GUIDE.md)
-- [ ] Submit review for 6 permissions
-- [ ] Wait 1-5 business days
+### 1. Resend Domain Verification
+- [ ] resend.com/domains → add gridsocial.co.uk → get DNS records → add at DNS provider → verify
 
-### 2. connect.gridsocial.co.uk Subdomain
-- [ ] CNAME: `connect` → `grid-social-autoposter.netlify.app`
-- [ ] Add custom domain in Netlify dashboard
-- [ ] Verify SSL auto-provisions
+### 2. Meta Business Verification
+- [ ] Check status at business.facebook.com → Security Centre (submitted 24/3/26)
+- [ ] If approved → start Access Verification → App Review
 
-### 3. TikTok Developer App
-- [ ] Register at developers.tiktok.com
-- [ ] Create app, request Content Posting API
-- [ ] Redirect URL: `https://grid-social-autoposter.netlify.app/api/tiktok-callback`
-- [ ] Add `TIKTOK_CLIENT_KEY` + `TIKTOK_CLIENT_SECRET` to Netlify env vars
+### 3. Upload Meta App Icon
+- [ ] developers.facebook.com/apps/1576303166762174/settings/basic/ → upload app-icon-1024.png
 
-### 4. Google Cloud Console (for GBP)
-- [ ] Create OAuth app in Google Cloud Console
-- [ ] Enable Google Business Profile API
-- [ ] Redirect URL: `https://grid-social-autoposter.netlify.app/api/gbp-callback`
-- [ ] Add `GOOGLE_CLIENT_ID` + `GOOGLE_CLIENT_SECRET` to Netlify env vars
+### 4. LinkedIn OAuth App
+- [ ] developer.linkedin.com → Create app "Grid Social" → Community Management API
+- [ ] Redirect: https://grid-social-autoposter.netlify.app/api/linkedin-callback
+- [ ] Add LINKEDIN_CLIENT_ID + SECRET to Netlify
 
-### 5. LinkedIn OAuth App
-- [ ] Register at developer.linkedin.com
-- [ ] Request Community Management API
-- [ ] Redirect URL: `https://grid-social-autoposter.netlify.app/api/linkedin-callback`
-- [ ] Add `LINKEDIN_CLIENT_ID` + `LINKEDIN_CLIENT_SECRET` to Netlify env vars
+### 5. Stripe Products
+- [ ] Create: Starter £15/mo, Agency £59/mo, Agency Pro £119/mo
+- [ ] Webhook: https://grid-social-autoposter.netlify.app/api/stripe-webhook
+- [ ] Add all keys to Netlify
 
-### 6. Stripe Products
-- [ ] Create products: Starter £15/mo, Agency £59/mo, Agency Pro £119/mo
-- [ ] Add `STRIPE_SECRET_KEY` + `STRIPE_WEBHOOK_SECRET` to Netlify
-- [ ] Add `STRIPE_PRICE_STARTER` + `STRIPE_PRICE_AGENCY` + `STRIPE_PRICE_AGENCY_PRO` to Netlify
-- [ ] Webhook URL: `https://grid-social-autoposter.netlify.app/api/stripe-webhook`
+### 6. connect.gridsocial.co.uk
+- [ ] CNAME: connect → grid-social-autoposter.netlify.app
+- [ ] Add in Netlify domain settings
 
-### 7. Resend Email
-- [ ] Sign up resend.com (free: 100 emails/day)
-- [ ] Verify gridsocial.co.uk domain
-- [ ] Add `RESEND_API_KEY` to Netlify
+### 7. Pinterest Developer App
+- [ ] developers.pinterest.com → Create app → Pins API access
+- [ ] Redirect: https://grid-social-autoposter.netlify.app/api/pinterest-callback
+- [ ] Add PINTEREST_APP_ID + SECRET to Netlify
+
+### 8. TikTok + Google Cloud (GBP)
+- [ ] TikTok: developers.tiktok.com → Content Posting API
+- [ ] Google: Cloud Console → OAuth app → GBP API enabled
+- [ ] Add env vars to Netlify
 
 ---
 
-## NEXT BUILD SESSION
+## NEXT BUILD SESSION (Phase 6)
 
-### Code work
-- [ ] White-label: custom branding per client (logo, colors, domain)
-- [ ] Pinterest OAuth + posting
-- [ ] Advanced analytics: per-post engagement metrics (likes, comments, shares)
-- [ ] Analytics charts with Recharts or Chart.js
-- [ ] Multi-user client permissions refinement
-- [ ] Bulk post import (CSV upload)
-- [ ] Content calendar view (monthly grid)
+- [ ] Supabase migration (replace Netlify Blobs)
+- [ ] Custom domain support per client (CNAME white-label)
+- [ ] Post preview (per-platform rendering)
+- [ ] Post templates (save and reuse)
+- [ ] Drag-and-drop queue reordering
+- [ ] Export analytics as PDF report
+- [ ] Rate limiting per plan tier
+- [ ] Team chat / notes per client
+- [ ] AI auto-caption improvements (tone, hashtag gen)
 
 ---
 
 ## ENV VARS
 
-**Set:** ADMIN_KEY, META_APP_ID, META_APP_SECRET, GITHUB_TOKEN, JWT_SECRET, ENCRYPTION_KEY
+**Set:** ADMIN_KEY, META_APP_ID, META_APP_SECRET, GITHUB_TOKEN, JWT_SECRET, ENCRYPTION_KEY, ANTHROPIC_API_KEY, RESEND_API_KEY
 
-**Need:** TIKTOK_CLIENT_KEY, TIKTOK_CLIENT_SECRET, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, LINKEDIN_CLIENT_ID, LINKEDIN_CLIENT_SECRET, STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, STRIPE_PRICE_STARTER, STRIPE_PRICE_AGENCY, STRIPE_PRICE_AGENCY_PRO, RESEND_API_KEY
+**Need:** TIKTOK_CLIENT_KEY, TIKTOK_CLIENT_SECRET, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, LINKEDIN_CLIENT_ID, LINKEDIN_CLIENT_SECRET, STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, STRIPE_PRICE_STARTER, STRIPE_PRICE_AGENCY, STRIPE_PRICE_AGENCY_PRO, PINTEREST_APP_ID, PINTEREST_APP_SECRET

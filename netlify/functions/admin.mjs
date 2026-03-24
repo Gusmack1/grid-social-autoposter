@@ -33,7 +33,7 @@ export default async (req) => {
   const clientId = url.searchParams.get('clientId');
 
   // Permission checks
-  const writeActions = ['add-post', 'update-post', 'delete-post', 'publish-now', 'post-now', 'upload-image', 'delete-from-platform'];
+  const writeActions = ['add-post', 'update-post', 'delete-post', 'publish-now', 'post-now', 'upload-image', 'delete-from-platform', 'bulk-import'];
   if (user.role !== 'admin' && clientId && writeActions.includes(action)) {
     if (!user.assignedClients.includes(clientId)) return forbidden("You don't have permission for this client");
   }
@@ -58,7 +58,9 @@ export default async (req) => {
         threadsAccessToken: c.threadsAccessToken ? '••••' : null,
         blueskyAppPassword: c.blueskyAppPassword ? '••••' : null,
         linkedinRefreshToken: c.linkedinRefreshToken ? '••••' : null,
-        _hasTokens: !!(c.pageAccessToken || c.twitterAccessToken || c.linkedinAccessToken || c.gbpAccessToken || c.tiktokAccessToken || c.threadsAccessToken || c.blueskyAppPassword),
+        pinterestAccessToken: c.pinterestAccessToken ? '••••' : null,
+        pinterestRefreshToken: c.pinterestRefreshToken ? '••••' : null,
+        _hasTokens: !!(c.pageAccessToken || c.twitterAccessToken || c.linkedinAccessToken || c.gbpAccessToken || c.tiktokAccessToken || c.threadsAccessToken || c.blueskyAppPassword || c.pinterestAccessToken),
       })));
     }
 
@@ -79,6 +81,8 @@ export default async (req) => {
       if (nc.threadsAccessToken) nc.threadsAccessToken = encrypt(nc.threadsAccessToken);
       if (nc.blueskyAppPassword) nc.blueskyAppPassword = encrypt(nc.blueskyAppPassword);
       if (nc.linkedinRefreshToken) nc.linkedinRefreshToken = encrypt(nc.linkedinRefreshToken);
+      if (nc.pinterestAccessToken) nc.pinterestAccessToken = encrypt(nc.pinterestAccessToken);
+      if (nc.pinterestRefreshToken) nc.pinterestRefreshToken = encrypt(nc.pinterestRefreshToken);
       list.push(nc);
       await db.saveClients(list);
       return json({ success: true, client: nc });
@@ -90,7 +94,7 @@ export default async (req) => {
       const idx = list.findIndex(c => c.id === body.id);
       if (idx === -1) return notFound('Client not found');
       // Encrypt any new token values (skip masked values)
-      const tokenFields = ['pageAccessToken', 'twitterApiKey', 'twitterApiSecret', 'twitterAccessToken', 'twitterAccessSecret', 'linkedinAccessToken', 'linkedinRefreshToken', 'gbpAccessToken', 'tiktokAccessToken', 'threadsAccessToken', 'blueskyAppPassword'];
+      const tokenFields = ['pageAccessToken', 'twitterApiKey', 'twitterApiSecret', 'twitterAccessToken', 'twitterAccessSecret', 'linkedinAccessToken', 'linkedinRefreshToken', 'gbpAccessToken', 'tiktokAccessToken', 'threadsAccessToken', 'blueskyAppPassword', 'pinterestAccessToken', 'pinterestRefreshToken'];
       for (const f of tokenFields) {
         if (body[f] && !body[f].startsWith('••••') && !body[f].startsWith('enc:')) {
           body[f] = encrypt(body[f]);
@@ -232,6 +236,43 @@ export default async (req) => {
       pl[pi].deleteResults = dr;
       await db.savePosts(clientId, pl);
       return json({ success: true, deleteResults: dr });
+    }
+
+    // ── BULK IMPORT (CSV) ──
+    if (action === 'bulk-import' && req.method === 'POST') {
+      const body = await req.json();
+      if (!body.posts || !Array.isArray(body.posts)) return badRequest('posts array required');
+      const list = await db.getPosts(clientId);
+      const clients = await db.getClients();
+      const client = clients.find(c => c.id === clientId);
+      const approvalMode = client?.approvalMode || 'auto';
+      let imported = 0;
+      for (const p of body.posts) {
+        if (!p.caption) continue;
+        let approvalStatus = 'approved';
+        if (approvalMode === 'manual' || approvalMode === 'passive') approvalStatus = 'pending';
+        list.push({
+          id: 'post_' + Date.now() + '_' + imported,
+          clientId,
+          caption: p.caption,
+          imageUrl: p.imageUrl || null,
+          videoUrl: null,
+          imageUrls: null,
+          postType: p.postType || 'feed',
+          platforms: p.platforms || ['facebook'],
+          status: p.scheduledFor ? 'scheduled' : 'queued',
+          scheduledFor: p.scheduledFor || null,
+          approvalStatus,
+          approvalMode,
+          createdAt: new Date().toISOString(),
+          publishedAt: null,
+          results: null,
+        });
+        imported++;
+      }
+      await db.savePosts(clientId, list);
+      logger.info('Bulk import', { clientId, imported });
+      return json({ success: true, imported });
     }
 
     // ── IMAGE UPLOAD ──

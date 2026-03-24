@@ -7,6 +7,7 @@ import { postGBP } from './platforms/google-business.mjs';
 import { postTikTok } from './platforms/tiktok.mjs';
 import { postThreads } from './platforms/threads.mjs';
 import { postBluesky, deleteBlueskyPost } from './platforms/bluesky.mjs';
+import { postPinterest, deletePinterestPin } from './platforms/pinterest.mjs';
 import { logger } from './logger.mjs';
 
 export async function publishToAll(client, post) {
@@ -48,6 +49,9 @@ export async function publishToAll(client, post) {
     if (post.platforms.includes('bluesky') && client.blueskyIdentifier) {
       tasks.push({ platform: 'bluesky', fn: () => postBluesky(client, post.caption, fallbackImg) });
     }
+    if (post.platforms.includes('pinterest') && client.pinterestAccessToken && fallbackImg) {
+      tasks.push({ platform: 'pinterest', fn: () => postPinterest(client, post.caption, fallbackImg) });
+    }
   } else {
     // Standard feed
     if (post.platforms.includes('facebook') && client.fbPageId) {
@@ -73,6 +77,9 @@ export async function publishToAll(client, post) {
     }
     if (post.platforms.includes('bluesky') && client.blueskyIdentifier) {
       tasks.push({ platform: 'bluesky', fn: () => postBluesky(client, post.caption, post.imageUrl) });
+    }
+    if (post.platforms.includes('pinterest') && client.pinterestAccessToken && post.imageUrl) {
+      tasks.push({ platform: 'pinterest', fn: () => postPinterest(client, post.caption, post.imageUrl) });
     }
   }
 
@@ -113,6 +120,9 @@ export async function deleteFromPlatforms(client, post) {
   }
   if (post.results?.bluesky?.success && post.results.bluesky.id) {
     r.bluesky = await deleteBlueskyPost(client, post.results.bluesky.id);
+  }
+  if (post.results?.pinterest?.success && post.results.pinterest.id) {
+    r.pinterest = await deletePinterestPin(client, post.results.pinterest.id);
   }
   return r;
 }

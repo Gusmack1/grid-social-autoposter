@@ -204,7 +204,8 @@ export default async (req) => {
        document.body.appendChild(form);
        form.submit();
      }
-     </script>`
+     </script>`,
+    { logoUrl: client?.logoUrl, brandColor: client?.brandColor, brandName: client?.brandName }
   );
 };
 
@@ -212,10 +213,15 @@ function escapeHtml(str) {
   return (str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
-function renderPage(title, body) {
+function renderPage(title, body, branding = {}) {
+  const brandColor = branding.brandColor || '#3b82f6';
+  const brandName = branding.brandName || 'Grid Social';
+  const logoHtml = branding.logoUrl
+    ? `<img src="${branding.logoUrl}" alt="${brandName}" style="height:32px;margin-bottom:24px;" />`
+    : `<div class="logo" style="color:${brandColor}">${brandName}</div>`;
   return new Response(`<!DOCTYPE html><html lang="en"><head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>${title} — Grid Social</title>
+<title>${title} — ${brandName}</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
@@ -282,7 +288,7 @@ p{font-size:14px;line-height:1.6;margin-bottom:6px}
 </style>
 </head><body>
 <div class="wrap">
-  <div class="logo">Grid Social</div>
+  ${logoHtml}
   ${body}
 </div>
 </body></html>`, { status: 200, headers: { 'Content-Type': 'text/html' } });

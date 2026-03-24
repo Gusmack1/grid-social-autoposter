@@ -9,6 +9,7 @@ export const PLATFORMS = [
   { id: 'tiktok', name: 'TikTok', icon: 'tt', color: '#000000' },
   { id: 'linkedin', name: 'LinkedIn', icon: 'li', color: '#0a66c2' },
   { id: 'google_business', name: 'Google Business', icon: 'gbp', color: '#4285f4' },
+  { id: 'pinterest', name: 'Pinterest', icon: 'pin', color: '#e60023' },
 ];
 
 export const POST_TYPES = [
@@ -29,4 +30,5 @@ export const PLATFORM_LINKS = {
   tiktokAccessToken: 'https://developers.tiktok.com/',
   threadsUserId: 'https://developers.facebook.com/docs/threads/',
   blueskyIdentifier: 'https://bsky.app/settings/app-passwords',
+  pinterestBoardId: 'https://www.pinterest.com/',
 };
