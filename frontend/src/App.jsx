@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { PLATFORMS, POST_TYPES, PLATFORM_LINKS, API_BASE } from '../constants.js';
-import { formatDateGMT, timeAgo, truncate } from '../utils.js';
-import { api, apiGet, apiPost, apiPut, apiDelete, clearToken } from '../hooks/useApi.js';
-import PlatformIcon from './PlatformIcon.jsx';
+import { PLATFORMS, POST_TYPES, PLATFORM_LINKS, API_BASE } from './constants.js';
+import { formatDateGMT, timeAgo, truncate } from './utils.js';
+import { api, apiGet, apiPost, apiPut, apiDelete, clearToken } from './hooks/useApi.js';
+import PlatformIcon from './components/PlatformIcon.jsx';
 
 const TABS = [
   { id: 'compose', name: 'Create Post', icon: '✏️' },
