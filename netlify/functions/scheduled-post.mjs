@@ -477,51 +477,89 @@ export default async (req) => {
     console.log(`[scheduler] Platforms: ${nextPost.platforms.join(", ")}`);
 
     const postResults = {};
+    const pt = nextPost.postType || "feed";
+    console.log(`[scheduler] Post type: ${pt}`);
 
-    // ── Facebook ──
-    if (nextPost.platforms.includes("facebook") && client.fbPageId && client.pageAccessToken) {
-      postResults.facebook = await postToFacebook(
-        client.fbPageId,
-        client.pageAccessToken,
-        nextPost.caption,
-        nextPost.imageUrl
-      );
-      console.log(`[scheduler] ${client.name} FB:`, JSON.stringify(postResults.facebook));
-    }
-
-    // ── Instagram ──
-    if (nextPost.platforms.includes("instagram") && client.igUserId && client.pageAccessToken && nextPost.imageUrl) {
-      postResults.instagram = await postToInstagram(
-        client.igUserId,
-        client.pageAccessToken,
-        nextPost.caption,
-        nextPost.imageUrl
-      );
-      console.log(`[scheduler] ${client.name} IG:`, JSON.stringify(postResults.instagram));
-    }
-
-    // ── Twitter / X ──
-    if (nextPost.platforms.includes("twitter") && client.twitterAccessToken) {
-      postResults.twitter = await postToTwitter(client, nextPost.caption, nextPost.imageUrl);
-      console.log(`[scheduler] ${client.name} X:`, JSON.stringify(postResults.twitter));
-    }
-
-    // ── LinkedIn ──
-    if (nextPost.platforms.includes("linkedin") && client.linkedinAccessToken) {
-      postResults.linkedin = await postToLinkedIn(client, nextPost.caption, nextPost.imageUrl);
-      console.log(`[scheduler] ${client.name} LI:`, JSON.stringify(postResults.linkedin));
-    }
-
-    // ── Google Business Profile ──
-    if (nextPost.platforms.includes("google_business") && client.gbpAccessToken) {
-      postResults.google_business = await postToGoogleBusiness(client, nextPost.caption, nextPost.imageUrl);
-      console.log(`[scheduler] ${client.name} GBP:`, JSON.stringify(postResults.google_business));
-    }
-
-    // ── TikTok ──
-    if (nextPost.platforms.includes("tiktok") && client.tiktokAccessToken) {
-      postResults.tiktok = await postToTikTok(client, nextPost.caption, nextPost.imageUrl);
-      console.log(`[scheduler] ${client.name} TT:`, JSON.stringify(postResults.tiktok));
+    if (pt === "story") {
+      // Stories: Instagram only
+      if (nextPost.platforms.includes("instagram") && client.igUserId && client.pageAccessToken && nextPost.imageUrl) {
+        try {
+          const cr = await fetch(`${GRAPH_API}/${client.igUserId}/media`, { method: "POST", body: new URLSearchParams({ image_url: nextPost.imageUrl, media_type: "STORIES", access_token: client.pageAccessToken }) });
+          const cd = await cr.json();
+          if (cd.error) { postResults.instagram = { success: false, error: cd.error.message }; }
+          else {
+            let ready = false, att = 0;
+            while (!ready && att < 10) { await new Promise(r=>setTimeout(r,3000)); const sr = await fetch(`${GRAPH_API}/${cd.id}?fields=status_code&access_token=${client.pageAccessToken}`); const sd = await sr.json(); if(sd.status_code==="FINISHED") ready=true; else if(sd.status_code==="ERROR"){postResults.instagram={success:false,error:"Processing failed"};break;} att++; }
+            if (ready) { const pr = await fetch(`${GRAPH_API}/${client.igUserId}/media_publish`, { method:"POST", body: new URLSearchParams({creation_id:cd.id,access_token:client.pageAccessToken}) }); const pd = await pr.json(); postResults.instagram = pd.error?{success:false,error:pd.error.message}:{success:true,id:pd.id}; }
+            else if(!postResults.instagram) postResults.instagram = {success:false,error:"Timed out"};
+          }
+        } catch(e) { postResults.instagram = {success:false,error:e.message}; }
+        console.log(`[scheduler] ${client.name} IG Story:`, JSON.stringify(postResults.instagram));
+      }
+    } else if (pt === "reel") {
+      const vid = nextPost.videoUrl || nextPost.imageUrl;
+      // IG Reel
+      if (nextPost.platforms.includes("instagram") && client.igUserId && client.pageAccessToken && vid) {
+        try {
+          const cr = await fetch(`${GRAPH_API}/${client.igUserId}/media`, { method:"POST", body: new URLSearchParams({video_url:vid,caption:nextPost.caption,media_type:"REELS",share_to_feed:"true",access_token:client.pageAccessToken}) });
+          const cd = await cr.json();
+          if (cd.error) { postResults.instagram = {success:false,error:cd.error.message}; }
+          else {
+            let ready=false,att=0;
+            while(!ready && att<30){await new Promise(r=>setTimeout(r,5000)); const sr=await fetch(`${GRAPH_API}/${cd.id}?fields=status_code&access_token=${client.pageAccessToken}`); const sd=await sr.json(); if(sd.status_code==="FINISHED")ready=true; else if(sd.status_code==="ERROR"){postResults.instagram={success:false,error:"Video processing failed"};break;} att++;}
+            if(ready){const pr=await fetch(`${GRAPH_API}/${client.igUserId}/media_publish`,{method:"POST",body:new URLSearchParams({creation_id:cd.id,access_token:client.pageAccessToken})}); const pd=await pr.json(); postResults.instagram=pd.error?{success:false,error:pd.error.message}:{success:true,id:pd.id};}
+            else if(!postResults.instagram) postResults.instagram={success:false,error:"Timed out"};
+          }
+        } catch(e) { postResults.instagram={success:false,error:e.message}; }
+        console.log(`[scheduler] ${client.name} IG Reel:`, JSON.stringify(postResults.instagram));
+      }
+      // FB Reel
+      if (nextPost.platforms.includes("facebook") && client.fbPageId && client.pageAccessToken && vid) {
+        try {
+          const ir = await fetch(`${GRAPH_API}/${client.fbPageId}/video_reels`,{method:"POST",body:new URLSearchParams({upload_phase:"start",access_token:client.pageAccessToken})});
+          const id = await ir.json();
+          if(id.error){postResults.facebook={success:false,error:id.error.message};}
+          else{
+            const ur=await fetch(`${GRAPH_API}/${id.video_id}`,{method:"POST",body:new URLSearchParams({upload_phase:"transfer",file_url:vid,access_token:client.pageAccessToken})});
+            const ud=await ur.json();
+            if(ud.error){postResults.facebook={success:false,error:ud.error.message};}
+            else{const pr=await fetch(`${GRAPH_API}/${client.fbPageId}/video_reels`,{method:"POST",body:new URLSearchParams({upload_phase:"finish",video_id:id.video_id,description:nextPost.caption,access_token:client.pageAccessToken})}); const pd=await pr.json(); postResults.facebook=pd.error?{success:false,error:pd.error.message}:{success:true,id:pd.id||id.video_id};}
+          }
+        } catch(e){postResults.facebook={success:false,error:e.message};}
+        console.log(`[scheduler] ${client.name} FB Reel:`, JSON.stringify(postResults.facebook));
+      }
+    } else {
+      // Standard feed post
+      // ── Facebook ──
+      if (nextPost.platforms.includes("facebook") && client.fbPageId && client.pageAccessToken) {
+        postResults.facebook = await postToFacebook(client.fbPageId, client.pageAccessToken, nextPost.caption, nextPost.imageUrl);
+        console.log(`[scheduler] ${client.name} FB:`, JSON.stringify(postResults.facebook));
+      }
+      // ── Instagram ──
+      if (nextPost.platforms.includes("instagram") && client.igUserId && client.pageAccessToken && nextPost.imageUrl) {
+        postResults.instagram = await postToInstagram(client.igUserId, client.pageAccessToken, nextPost.caption, nextPost.imageUrl);
+        console.log(`[scheduler] ${client.name} IG:`, JSON.stringify(postResults.instagram));
+      }
+      // ── Twitter / X ──
+      if (nextPost.platforms.includes("twitter") && client.twitterAccessToken) {
+        postResults.twitter = await postToTwitter(client, nextPost.caption, nextPost.imageUrl);
+        console.log(`[scheduler] ${client.name} X:`, JSON.stringify(postResults.twitter));
+      }
+      // ── LinkedIn ──
+      if (nextPost.platforms.includes("linkedin") && client.linkedinAccessToken) {
+        postResults.linkedin = await postToLinkedIn(client, nextPost.caption, nextPost.imageUrl);
+        console.log(`[scheduler] ${client.name} LI:`, JSON.stringify(postResults.linkedin));
+      }
+      // ── Google Business Profile ──
+      if (nextPost.platforms.includes("google_business") && client.gbpAccessToken) {
+        postResults.google_business = await postToGoogleBusiness(client, nextPost.caption, nextPost.imageUrl);
+        console.log(`[scheduler] ${client.name} GBP:`, JSON.stringify(postResults.google_business));
+      }
+      // ── TikTok ──
+      if (nextPost.platforms.includes("tiktok") && client.tiktokAccessToken) {
+        postResults.tiktok = await postToTikTok(client, nextPost.caption, nextPost.imageUrl);
+        console.log(`[scheduler] ${client.name} TT:`, JSON.stringify(postResults.tiktok));
+      }
     }
 
     // Update post status
@@ -560,5 +598,5 @@ export default async (req) => {
 
 // Schedule: Mon, Wed, Fri at 10:00 UTC (11:00 BST)
 export const config = {
-  schedule: "0 10 * * 1,3,5",
+  schedule: "0 10 * * *",
 };

@@ -59,6 +59,96 @@ async function postToInstagram(client, caption, imageUrl) {
   } catch (e) { return { success: false, error: e.message }; }
 }
 
+// ═══ INSTAGRAM STORY ═══
+async function postToInstagramStory(client, caption, imageUrl) {
+  if (!client.igUserId || !client.pageAccessToken || !imageUrl) return null;
+  try {
+    const cr = await fetch(`${GRAPH_API}/${client.igUserId}/media`, {
+      method: "POST",
+      body: new URLSearchParams({ image_url: imageUrl, media_type: "STORIES", access_token: client.pageAccessToken }),
+    });
+    const cd = await cr.json();
+    if (cd.error) return { success: false, error: cd.error.message };
+    let ready = false, attempts = 0;
+    while (!ready && attempts < 10) {
+      await new Promise((r) => setTimeout(r, 3000));
+      const sr = await fetch(`${GRAPH_API}/${cd.id}?fields=status_code&access_token=${client.pageAccessToken}`);
+      const sd = await sr.json();
+      if (sd.status_code === "FINISHED") ready = true;
+      else if (sd.status_code === "ERROR") return { success: false, error: "Processing failed" };
+      attempts++;
+    }
+    if (!ready) return { success: false, error: "Timed out" };
+    const pr = await fetch(`${GRAPH_API}/${client.igUserId}/media_publish`, {
+      method: "POST",
+      body: new URLSearchParams({ creation_id: cd.id, access_token: client.pageAccessToken }),
+    });
+    const pd = await pr.json();
+    if (pd.error) return { success: false, error: pd.error.message };
+    return { success: true, id: pd.id };
+  } catch (e) { return { success: false, error: e.message }; }
+}
+
+// ═══ INSTAGRAM REEL ═══
+async function postToInstagramReel(client, caption, videoUrl) {
+  if (!client.igUserId || !client.pageAccessToken || !videoUrl) return null;
+  try {
+    const cr = await fetch(`${GRAPH_API}/${client.igUserId}/media`, {
+      method: "POST",
+      body: new URLSearchParams({ video_url: videoUrl, caption, media_type: "REELS", share_to_feed: "true", access_token: client.pageAccessToken }),
+    });
+    const cd = await cr.json();
+    if (cd.error) return { success: false, error: cd.error.message };
+    let ready = false, attempts = 0;
+    while (!ready && attempts < 30) {
+      await new Promise((r) => setTimeout(r, 5000));
+      const sr = await fetch(`${GRAPH_API}/${cd.id}?fields=status_code&access_token=${client.pageAccessToken}`);
+      const sd = await sr.json();
+      if (sd.status_code === "FINISHED") ready = true;
+      else if (sd.status_code === "ERROR") return { success: false, error: "Video processing failed" };
+      attempts++;
+    }
+    if (!ready) return { success: false, error: "Video processing timed out" };
+    const pr = await fetch(`${GRAPH_API}/${client.igUserId}/media_publish`, {
+      method: "POST",
+      body: new URLSearchParams({ creation_id: cd.id, access_token: client.pageAccessToken }),
+    });
+    const pd = await pr.json();
+    if (pd.error) return { success: false, error: pd.error.message };
+    return { success: true, id: pd.id };
+  } catch (e) { return { success: false, error: e.message }; }
+}
+
+// ═══ FACEBOOK REEL ═══
+async function postToFacebookReel(client, caption, videoUrl) {
+  if (!client.fbPageId || !client.pageAccessToken || !videoUrl) return null;
+  try {
+    // Step 1: Initialize upload
+    const initRes = await fetch(`${GRAPH_API}/${client.fbPageId}/video_reels`, {
+      method: "POST",
+      body: new URLSearchParams({ upload_phase: "start", access_token: client.pageAccessToken }),
+    });
+    const initData = await initRes.json();
+    if (initData.error) return { success: false, error: initData.error.message };
+    const videoId = initData.video_id;
+    // Step 2: Upload video from URL
+    const uploadRes = await fetch(`${GRAPH_API}/${videoId}`, {
+      method: "POST",
+      body: new URLSearchParams({ upload_phase: "transfer", file_url: videoUrl, access_token: client.pageAccessToken }),
+    });
+    const uploadData = await uploadRes.json();
+    if (uploadData.error) return { success: false, error: uploadData.error.message };
+    // Step 3: Publish
+    const pubRes = await fetch(`${GRAPH_API}/${client.fbPageId}/video_reels`, {
+      method: "POST",
+      body: new URLSearchParams({ upload_phase: "finish", video_id: videoId, description: caption, access_token: client.pageAccessToken }),
+    });
+    const pubData = await pubRes.json();
+    if (pubData.error) return { success: false, error: pubData.error.message };
+    return { success: true, id: pubData.id || videoId };
+  } catch (e) { return { success: false, error: e.message }; }
+}
+
 function percentEncode(str) {
   return encodeURIComponent(str).replace(/!/g, "%21").replace(/\*/g, "%2A").replace(/'/g, "%27").replace(/\(/g, "%28").replace(/\)/g, "%29");
 }
@@ -151,12 +241,30 @@ async function postToTikTok(client, caption, imageUrl) {
 
 async function publishToAll(client, post) {
   const r = {};
-  if (post.platforms.includes("facebook") && client.fbPageId) r.facebook = await postToFacebook(client, post.caption, post.imageUrl);
-  if (post.platforms.includes("instagram") && client.igUserId && post.imageUrl) r.instagram = await postToInstagram(client, post.caption, post.imageUrl);
-  if (post.platforms.includes("twitter") && client.twitterAccessToken) r.twitter = await postToTwitter(client, post.caption, post.imageUrl);
-  if (post.platforms.includes("linkedin") && client.linkedinAccessToken) r.linkedin = await postToLinkedIn(client, post.caption, post.imageUrl);
-  if (post.platforms.includes("google_business") && client.gbpAccessToken) r.google_business = await postToGoogleBusiness(client, post.caption, post.imageUrl);
-  if (post.platforms.includes("tiktok") && client.tiktokAccessToken) r.tiktok = await postToTikTok(client, post.caption, post.imageUrl);
+  const pt = post.postType || "feed";
+  if (pt === "story") {
+    // Stories: Instagram only (FB Page Stories API is very limited)
+    if (post.platforms.includes("instagram") && client.igUserId && post.imageUrl) {
+      r.instagram = await postToInstagramStory(client, post.caption, post.imageUrl);
+    }
+  } else if (pt === "reel") {
+    // Reels: need videoUrl
+    const vid = post.videoUrl || post.imageUrl;
+    if (post.platforms.includes("instagram") && client.igUserId && vid) {
+      r.instagram = await postToInstagramReel(client, post.caption, vid);
+    }
+    if (post.platforms.includes("facebook") && client.fbPageId && vid) {
+      r.facebook = await postToFacebookReel(client, post.caption, vid);
+    }
+  } else {
+    // Standard feed post
+    if (post.platforms.includes("facebook") && client.fbPageId) r.facebook = await postToFacebook(client, post.caption, post.imageUrl);
+    if (post.platforms.includes("instagram") && client.igUserId && post.imageUrl) r.instagram = await postToInstagram(client, post.caption, post.imageUrl);
+    if (post.platforms.includes("twitter") && client.twitterAccessToken) r.twitter = await postToTwitter(client, post.caption, post.imageUrl);
+    if (post.platforms.includes("linkedin") && client.linkedinAccessToken) r.linkedin = await postToLinkedIn(client, post.caption, post.imageUrl);
+    if (post.platforms.includes("google_business") && client.gbpAccessToken) r.google_business = await postToGoogleBusiness(client, post.caption, post.imageUrl);
+    if (post.platforms.includes("tiktok") && client.tiktokAccessToken) r.tiktok = await postToTikTok(client, post.caption, post.imageUrl);
+  }
   return r;
 }
 
@@ -212,7 +320,7 @@ export default async (req) => {
     if (action === "add-post" && req.method === "POST") {
       const body = await req.json(); if(!body.caption) return json({error:"Caption required"},400);
       const list = await posts.get(clientId,{type:"json"}).catch(()=>null)||[];
-      const np = {id:"post_"+Date.now(),clientId,caption:body.caption,imageUrl:body.imageUrl||null,platforms:body.platforms||["facebook"],status:body.scheduledFor?"scheduled":"queued",scheduledFor:body.scheduledFor||null,createdAt:new Date().toISOString(),publishedAt:null,results:null};
+      const np = {id:"post_"+Date.now(),clientId,caption:body.caption,imageUrl:body.imageUrl||null,videoUrl:body.videoUrl||null,postType:body.postType||"feed",platforms:body.platforms||["facebook"],status:body.scheduledFor?"scheduled":"queued",scheduledFor:body.scheduledFor||null,createdAt:new Date().toISOString(),publishedAt:null,results:null};
       list.push(np); await posts.setJSON(clientId,list); return json({success:true,post:np});
     }
     if (action === "update-post" && req.method === "PUT") {
@@ -230,7 +338,7 @@ export default async (req) => {
       const body = await req.json(); if(!body.caption) return json({error:"Caption required"},400);
       const cl = await clients.get("list",{type:"json"}).catch(()=>null)||[];
       const client = cl.find(c=>c.id===clientId); if(!client) return json({error:"Client not found"},404);
-      const np = {id:"post_"+Date.now(),clientId,caption:body.caption,imageUrl:body.imageUrl||null,platforms:body.platforms||["facebook"],status:"publishing",createdAt:new Date().toISOString(),publishedAt:null,results:null};
+      const np = {id:"post_"+Date.now(),clientId,caption:body.caption,imageUrl:body.imageUrl||null,videoUrl:body.videoUrl||null,postType:body.postType||"feed",platforms:body.platforms||["facebook"],status:"publishing",createdAt:new Date().toISOString(),publishedAt:null,results:null};
       const results = await publishToAll(client, np);
       np.status = "published"; np.publishedAt = new Date().toISOString(); np.results = results;
       const list = await posts.get(clientId,{type:"json"}).catch(()=>null)||[];
