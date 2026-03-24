@@ -1,6 +1,6 @@
 [build]
-  command = "npm install"
-  publish = "public"
+  command = "npm install && cd frontend && npm install && npm run build"
+  publish = "frontend/dist"
   functions = "netlify/functions"
 
 [functions]
@@ -12,6 +12,9 @@
     Access-Control-Allow-Origin = "*"
     Access-Control-Allow-Methods = "GET, POST, PUT, DELETE, OPTIONS"
     Access-Control-Allow-Headers = "Content-Type, Authorization"
+    X-Content-Type-Options = "nosniff"
+    X-Frame-Options = "DENY"
+    Referrer-Policy = "strict-origin-when-cross-origin"
 
 [[redirects]]
   from = "/api/admin"
@@ -24,6 +27,16 @@
   status = 200
 
 [[redirects]]
+  from = "/api/auth"
+  to = "/.netlify/functions/auth"
+  status = 200
+
+[[redirects]]
+  from = "/api/auth/*"
+  to = "/.netlify/functions/auth/:splat"
+  status = 200
+
+[[redirects]]
   from = "/api/meta-auth"
   to = "/.netlify/functions/meta-auth"
   status = 200
@@ -31,4 +44,20 @@
 [[redirects]]
   from = "/api/meta-callback"
   to = "/.netlify/functions/meta-callback"
+  status = 200
+
+[[redirects]]
+  from = "/api/ai-writer"
+  to = "/.netlify/functions/ai-writer"
+  status = 200
+
+[[redirects]]
+  from = "/api/publish-webhook"
+  to = "/.netlify/functions/publish-webhook"
+  status = 200
+
+# SPA fallback
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
   status = 200
