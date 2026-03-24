@@ -12,6 +12,25 @@ function json(data, status = 200) {
 }
 function unauthorized() { return json({ error: "Unauthorized" }, 401); }
 
+// JWT verification for user auth
+async function verifyJWT(token, secret) {
+  try {
+    const parts = token.split(".");
+    if (parts.length !== 3) return null;
+    const [headerB64, payloadB64, sigB64] = parts;
+    const enc = new TextEncoder();
+    const key = await globalThis.crypto.subtle.importKey("raw", enc.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["verify"]);
+    const data = `${headerB64}.${payloadB64}`;
+    const sig = Buffer.from(sigB64, "base64url");
+    const valid = await globalThis.crypto.subtle.verify("HMAC", key, sig, enc.encode(data));
+    if (!valid) return null;
+    const payload = JSON.parse(Buffer.from(payloadB64, "base64url").toString());
+    if (payload.exp && Date.now() / 1000 > payload.exp) return null;
+    return payload;
+  } catch { return null; }
+}
+
+
 async function postToFacebook(client, caption, imageUrl) {
   if (!client.fbPageId || !client.pageAccessToken) return null;
   try {
@@ -286,11 +305,35 @@ async function deleteFromPlatforms(client, post) {
 export default async (req) => {
   if (req.method === "OPTIONS") return new Response("", { status: 200, headers: { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS", "Access-Control-Allow-Headers": "Content-Type, Authorization" } });
   const adminKey = process.env.ADMIN_KEY;
+  const jwtSecret = process.env.JWT_SECRET || "gridsocial-jwt-secret-2026";
   const authHeader = req.headers.get("Authorization");
-  if (!adminKey || authHeader !== `Bearer ${adminKey}`) return unauthorized();
+  const token = authHeader?.replace("Bearer ", "");
+  
+  let currentUser = null;
+  if (token && token === adminKey) {
+    currentUser = { role: "admin", email: "admin", assignedClients: [] };
+  } else if (token) {
+    const payload = await verifyJWT(token, jwtSecret);
+    if (payload) currentUser = { id: payload.sub, email: payload.email, name: payload.name, role: payload.role, assignedClients: payload.assignedClients || [] };
+  }
+  if (!currentUser) return unauthorized();
+  
   const url = new URL(req.url);
   const action = url.searchParams.get("action");
   const clientId = url.searchParams.get("clientId");
+  
+  // Non-admin users: can read all clients but only write to assigned ones
+  const writeActions = ["add-post","update-post","delete-post","publish-now","post-now","upload-image","delete-from-platform"];
+  if (currentUser.role !== "admin" && clientId && writeActions.includes(action)) {
+    if (!currentUser.assignedClients.includes(clientId)) {
+      return json({ error: "You don't have permission for this client" }, 403);
+    }
+  }
+  // Non-admin users cannot manage clients
+  const adminActions = ["add-client","update-client","delete-client"];
+  if (currentUser.role !== "admin" && adminActions.includes(action)) {
+    return json({ error: "Admin access required" }, 403);
+  }
 
   try {
     const clients = getStore("clients");
@@ -392,7 +435,7 @@ export default async (req) => {
         return json({error:"Upload request failed: "+e.message},500);
       }
     }
-    if (action === "config") { return json({metaAppId:process.env.META_APP_ID||"",hasSecret:!!process.env.META_APP_SECRET,hasGithubToken:!!process.env.GITHUB_TOKEN}); }
+    if (action === "config") { return json({metaAppId:process.env.META_APP_ID||"",hasSecret:!!process.env.META_APP_SECRET,hasGithubToken:!!process.env.GITHUB_TOKEN,user:{email:currentUser.email,name:currentUser.name,role:currentUser.role,assignedClients:currentUser.assignedClients}}); }
     return json({error:"Unknown action: "+action},400);
   } catch(err) { console.error("[admin] Error:",err); return json({error:err.message},500); }
 };
