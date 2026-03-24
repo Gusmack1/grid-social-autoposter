@@ -258,8 +258,8 @@ function App(){
     <button className="mob" onClick={()=>setSbO(!sbOpen)} style={{position:"fixed",top:12,left:12,zIndex:60,width:40,height:40,borderRadius:10,background:"var(--s1)",border:"1px solid var(--b1)",color:"#fff",fontSize:18,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>{sbOpen?"\u2715":"\u2630"}</button>
     <div className={`mob-sb ${sbOpen?"open":""}`} style={{width:260,background:"#0c0f16",borderRight:"1px solid var(--b1)",display:"flex",flexDirection:"column",flexShrink:0,height:"100vh",position:"fixed",left:0,top:0,zIndex:55,transition:"transform .25s ease"}}>
       <div style={{padding:"18px 16px 12px",borderBottom:"1px solid var(--b1)"}}>
-        <div style={{display:"flex",alignItems:"center",gap:9}}><div style={{width:30,height:30,borderRadius:8,background:"linear-gradient(135deg,var(--ac),#818cf8)",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:14,fontWeight:800}}>G</div>
-        <div style={{fontSize:17,fontWeight:800,color:"#fff"}}>Grid<span style={{color:"var(--ac2)"}}>Social</span></div></div>
+        <a href="/manage" onClick={e=>{e.preventDefault();window.location.reload()}} style={{display:"flex",alignItems:"center",gap:9,textDecoration:"none",cursor:"pointer"}}><div style={{width:30,height:30,borderRadius:8,background:"linear-gradient(135deg,var(--ac),#818cf8)",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:14,fontWeight:800}}>G</div>
+        <div style={{fontSize:17,fontWeight:800,color:"#fff"}}>Grid<span style={{color:"var(--ac2)"}}>Social</span></div></a>
       </div>
       <div style={{padding:"10px 12px",borderBottom:"1px solid var(--b1)"}}>
         <div style={S.lbl}>Posting as</div>
@@ -493,6 +493,7 @@ function App(){
                     {clients.map(c=>{const assigned=(u.assignedClients||[]).includes(c.id);
                       return <button key={c.id} onClick={()=>{
                         const next=assigned?(u.assignedClients||[]).filter(x=>x!==c.id):[...(u.assignedClients||[]),c.id];
+                        setTeamUsers(prev=>prev.map(tu=>tu.email===u.email?{...tu,assignedClients:next}:tu));
                         updateUserClients(u.email,next)
                       }} style={{padding:"4px 10px",borderRadius:8,fontSize:11,cursor:"pointer",fontFamily:"inherit",border:assigned?"1px solid var(--ac)":"1px solid var(--b1)",background:assigned?"var(--acbg)":"var(--s2)",color:assigned?"var(--ac2)":"var(--mu)",fontWeight:assigned?600:400}}>
                         {assigned?"\u2713 ":""}{c.name}
@@ -587,10 +588,9 @@ function EditPostModal({post,onSave,onClose}){
 function AICaptionGen({client,onInsert,onClose}){
   const [pr,setPr]=useState("");const [ld,setLd]=useState(false);const [res,setRes]=useState("");const [tone,setTone]=useState("friendly");
   const gen=async()=>{if(!pr.trim())return;setLd(true);setRes("");
-    try{const r=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:1000,system:`Write social media posts for "${client?.name||"a business"}". Tone: ${tone}. Include emojis and hashtags. Max 200 words. Output ONLY the post. Use British English spelling.`,
-        messages:[{role:"user",content:`Write a post about: ${pr}`}]})});
-      const d=await r.json();setRes(d.content?.map(c=>c.text||"").join("")||"Error")}catch(e){setRes("Error: "+e.message)}setLd(false)};
+    try{const r=await fetch("/api/ai-writer",{method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({prompt:pr,tone:tone,clientName:client?.name||"a business"})});
+      const d=await r.json();if(d.error)throw new Error(d.error);setRes(d.text||"No response")}catch(e){setRes("Error: "+e.message)}setLd(false)};
   return <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.7)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:100,padding:16}} onClick={onClose}>
     <div style={{background:"var(--s1)",border:"1px solid var(--b1)",borderRadius:16,padding:24,width:520,maxWidth:"100%",animation:"pop .2s ease"}} onClick={e=>e.stopPropagation()}>
       <div style={{display:"flex",justifyContent:"space-between",marginBottom:16}}><span style={{fontSize:17,fontWeight:700,color:"#fff"}}>AI Writer</span><button onClick={onClose} style={{background:"none",border:"none",color:"var(--mu)",cursor:"pointer",fontSize:18}}>{"\u2715"}</button></div>
