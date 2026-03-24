@@ -26,7 +26,7 @@ input,textarea,select,button{font-family:inherit}
 <body>
 <div id="root"></div>
 <script type="text/babel">
-const {useState,useEffect,useCallback,useRef,useMemo}=React;
+const {useState,useEffect,useCallback,useRef}=React;
 const PIcon=({p,size=16})=>{const s={width:size,height:size,display:"inline-flex",alignItems:"center",justifyContent:"center",flexShrink:0};
   if(p==="facebook")return React.createElement("span",{style:s},React.createElement("svg",{viewBox:"0 0 24 24",width:size,height:size,fill:"#1877F2"},React.createElement("path",{d:"M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"})));
   if(p==="instagram")return React.createElement("span",{style:s},React.createElement("svg",{viewBox:"0 0 24 24",width:size,height:size,fill:"#E4405F"},React.createElement("path",{d:"M12 0C8.74 0 8.333.015 7.053.072 5.775.132 4.905.333 4.14.63c-.789.306-1.459.717-2.126 1.384S.935 3.35.63 4.14C.333 4.905.131 5.775.072 7.053.012 8.333 0 8.74 0 12s.015 3.667.072 4.947c.06 1.277.261 2.148.558 2.913.306.788.717 1.459 1.384 2.126.667.666 1.336 1.079 2.126 1.384.766.296 1.636.499 2.913.558C8.333 23.988 8.74 24 12 24s3.667-.015 4.947-.072c1.277-.06 2.148-.262 2.913-.558.788-.306 1.459-.718 2.126-1.384.666-.667 1.079-1.335 1.384-2.126.296-.765.499-1.636.558-2.913.06-1.28.072-1.687.072-4.947s-.015-3.667-.072-4.947c-.06-1.277-.262-2.149-.558-2.913-.306-.789-.718-1.459-1.384-2.126C21.319 1.347 20.651.935 19.86.63c-.765-.297-1.636-.499-2.913-.558C15.667.012 15.26 0 12 0zm0 2.16c3.203 0 3.585.016 4.85.071 1.17.055 1.805.249 2.227.415.562.217.96.477 1.382.896.419.42.679.819.896 1.381.164.422.36 1.057.413 2.227.057 1.266.07 1.646.07 4.85s-.015 3.585-.074 4.85c-.061 1.17-.256 1.805-.421 2.227-.224.562-.479.96-.899 1.382-.419.419-.824.679-1.38.896-.42.164-1.065.36-2.235.413-1.274.057-1.649.07-4.859.07s-3.586-.015-4.859-.074c-1.171-.061-1.816-.256-2.236-.421-.569-.224-.96-.479-1.379-.899-.421-.419-.69-.824-.9-1.38-.165-.42-.359-1.065-.42-2.235-.045-1.26-.061-1.649-.061-4.844 0-3.196.016-3.586.061-4.861.061-1.17.255-1.814.42-2.234.21-.57.479-.96.9-1.381.419-.419.81-.689 1.379-.898.42-.166 1.051-.361 2.221-.421 1.275-.045 1.65-.06 4.859-.06l.045.03zm0 3.678a6.162 6.162 0 100 12.324 6.162 6.162 0 100-12.324zM12 16c-2.21 0-4-1.79-4-4s1.79-4 4-4 4 1.79 4 4-1.79 4-4 4zm7.846-10.405a1.441 1.441 0 11-2.882 0 1.441 1.441 0 012.882 0z"})));
@@ -83,7 +83,10 @@ function PhonePreview({caption,imageUrl,platform,name}){
 }
 
 function App(){
-  const [key,setKey]=useState(localStorage.getItem("gsa_key")||"");const [authed,setAuthed]=useState(false);const [ki,setKi]=useState("");const [authErr,setAuthErr]=useState("");
+  const [token,setToken]=useState(localStorage.getItem("gs_token")||"");
+  const [user,setUser]=useState(null);const [authed,setAuthed]=useState(false);
+  const [authView,setAuthView]=useState("login");const [authErr,setAuthErr]=useState("");const [authMsg,setAuthMsg]=useState("");const [authLoad,setAuthLoad]=useState(false);
+  const [lf,setLf]=useState({email:"",password:""});const [rf,setRf]=useState({name:"",email:"",password:"",confirm:""});const [ff,setFf]=useState({email:""});
   const [clients,setCl]=useState([]);const [ac,setAc]=useState(null);const [posts,setPs]=useState([]);
   const [view,setView]=useState("compose");const [admin,setAdmin]=useState(false);
   const [cm,setCm]=useState(new Date().getMonth());const [cy,setCy]=useState(new Date().getFullYear());
@@ -92,21 +95,59 @@ function App(){
   const [comp,setComp]=useState({caption:"",imageUrl:"",fb:true,ig:false,tw:false,tt:false,li:false,gb:false,scheduledFor:""});
   const [dragO,setDragO]=useState(false);const fRef=useRef(null);const [pp,setPP]=useState("facebook");const [pub,setPub]=useState(null);
   const [delModal,setDelModal]=useState(null);
+  const [teamUsers,setTeamUsers]=useState([]);const [editUser,setEditUser]=useState(null);
 
+  const isAdmin=user?.role==="admin";
+  const canWrite=(cid)=>isAdmin||!cid||(user?.assignedClients||[]).includes(cid);
   const st=(m,e)=>{setToast({m,e});setTimeout(()=>setToast(null),3500)};
+
+  const authApi=async(action,body)=>{
+    const r=await fetch("/api/auth?action="+action,{method:"POST",headers:{"Content-Type":"application/json",...(token?{Authorization:"Bearer "+token}:{})},body:JSON.stringify(body)});
+    return r.json();
+  };
+
   const api=useCallback(async(a,method,body,cid)=>{
     let u="/api/admin?action="+a;if(cid)u+="&clientId="+cid;
-    const o={method:method||"GET",headers:{Authorization:"Bearer "+key}};
+    const o={method:method||"GET",headers:{Authorization:"Bearer "+token}};
     if(body){o.headers["Content-Type"]="application/json";o.body=JSON.stringify(body)}
-    try{const r=await fetch(u,o);if(r.status===401){setAuthed(false);localStorage.removeItem("gsa_key");return null}return await r.json()}catch(e){st(e.message,true);return null}
-  },[key]);
+    try{const r=await fetch(u,o);if(r.status===401){setAuthed(false);setUser(null);setToken("");localStorage.removeItem("gs_token");return null}
+      if(r.status===403){const d=await r.json();st(d.error||"Permission denied",true);return null}
+      return await r.json()}catch(e){st(e.message,true);return null}
+  },[token]);
+
+  // Auth: verify stored token on load
+  useEffect(()=>{if(!token)return;
+    fetch("/api/auth?action=verify",{headers:{Authorization:"Bearer "+token}})
+      .then(r=>r.json()).then(d=>{if(d.valid){setUser(d.user);setAuthed(true)}else{localStorage.removeItem("gs_token");setToken("")}})
+      .catch(()=>{})
+  },[]);
+
+  const doLogin=async()=>{if(!lf.email||!lf.password)return;setAuthLoad(true);setAuthErr("");
+    const d=await authApi("login",lf);setAuthLoad(false);
+    if(d.success){setToken(d.token);localStorage.setItem("gs_token",d.token);setUser(d.user);setAuthed(true);setAuthErr("")}
+    else setAuthErr(d.error||"Login failed")};
+
+  const doRegister=async()=>{if(!rf.name||!rf.email||!rf.password)return setAuthErr("All fields required");
+    if(rf.password!==rf.confirm)return setAuthErr("Passwords don't match");
+    if(rf.password.length<6)return setAuthErr("Password must be at least 6 characters");
+    setAuthLoad(true);setAuthErr("");
+    const d=await authApi("register",{name:rf.name,email:rf.email,password:rf.password});setAuthLoad(false);
+    if(d.success){setAuthMsg(d.message);setAuthView("login");setAuthErr("")}else setAuthErr(d.error||"Registration failed")};
+
+  const doForgot=async()=>{if(!ff.email)return;setAuthLoad(true);setAuthErr("");
+    const d=await authApi("forgot-password",{email:ff.email});setAuthLoad(false);
+    if(d.success){setAuthMsg(d.message);setAuthView("login")}else setAuthErr(d.error||"Failed")};
+
+  const logout=()=>{setToken("");setUser(null);setAuthed(false);localStorage.removeItem("gs_token")};
 
   const loadCl=useCallback(async()=>{const d=await api("get-clients");if(d){setCl(d);if(d.length&&!ac)setAc(d[0])}},[api]);
   const loadPs=useCallback(async()=>{if(!ac)return;const d=await api("get-posts","GET",null,ac.id);if(d)setPs(d)},[api,ac]);
+  const loadTeam=useCallback(async()=>{if(!isAdmin)return;
+    const r=await fetch("/api/auth?action=get-users",{headers:{Authorization:"Bearer "+token}});
+    const d=await r.json();if(Array.isArray(d))setTeamUsers(d)},[token,isAdmin]);
   useEffect(()=>{if(authed)loadCl()},[authed]);
   useEffect(()=>{if(authed&&ac)loadPs()},[authed,ac]);
   useEffect(()=>{if(ac)setComp(c=>({...c,fb:!!ac.fbPageId,ig:!!ac.igUserId,tw:!!ac.twitterAccessToken,tt:!!ac.tiktokAccessToken,li:!!ac.linkedinAccessToken,gb:!!ac.gbpAccessToken}))},[ac?.id]);
-  useEffect(()=>{if(key){fetch("/api/admin?action=config",{headers:{Authorization:"Bearer "+key}}).then(r=>{if(r.ok)setAuthed(true);else{localStorage.removeItem("gsa_key");setKey("")}}).catch(()=>{})}},[]);
 
   const compressImg=(file,mW=1200,q=0.75)=>new Promise((res,rej)=>{const img=new Image();img.onload=()=>{let w=img.width,h=img.height;if(w>mW){h=Math.round(h*(mW/w));w=mW}const c=document.createElement("canvas");c.width=w;c.height=h;c.getContext("2d").drawImage(img,0,0,w,h);c.toBlob(b=>{if(b){const r=new FileReader();r.onload=()=>res(r.result.split(",")[1]);r.readAsDataURL(b)}else rej(new Error("fail"))},"image/jpeg",q)};img.onerror=()=>rej(new Error("fail"));img.src=URL.createObjectURL(file)});
   const handleImg=async(file)=>{if(!file?.type.startsWith("image/"))return st("Not an image",true);if(file.size>15*1024*1024)return st("Max 15MB",true);
@@ -116,21 +157,19 @@ function App(){
     const html=e.dataTransfer.getData("text/html");if(html){const m=html.match(/src=["']([^"']+\.(jpg|jpeg|png|gif|webp)[^"']*)/i);if(m){setComp(p=>({...p,imageUrl:m[1]}));st("Image added!");return}}
     const url=e.dataTransfer.getData("text/uri-list")||e.dataTransfer.getData("text/plain")||"";if(url&&/^https?:\/\//.test(url)){setComp(p=>({...p,imageUrl:url}));st("URL added!");return}
     st("Drop an image file",true)};
-  useEffect(()=>{if(!authed)return;const h=async(e)=>{const items=e.clipboardData?.items;if(!items)return;for(const item of items){if(item.type.startsWith("image/")){e.preventDefault();handleImg(item.getAsFile());return}}};document.addEventListener("paste",h);return()=>document.removeEventListener("paste",h)},[authed,key]);
+  useEffect(()=>{if(!authed)return;const h=async(e)=>{const items=e.clipboardData?.items;if(!items)return;for(const item of items){if(item.type.startsWith("image/")){e.preventDefault();handleImg(item.getAsFile());return}}};document.addEventListener("paste",h);return()=>document.removeEventListener("paste",h)},[authed,token]);
 
-  const login=async()=>{if(!ki.trim())return;try{const r=await fetch("/api/admin?action=config",{headers:{Authorization:"Bearer "+ki.trim()}});if(r.ok){setKey(ki.trim());localStorage.setItem("gsa_key",ki.trim());setAuthed(true);setAuthErr("")}else setAuthErr("Wrong key")}catch(e){setAuthErr("Connection failed")}};
   const getPl=()=>{const p=[];if(comp.fb)p.push("facebook");if(comp.ig)p.push("instagram");if(comp.tw)p.push("twitter");if(comp.tt)p.push("tiktok");if(comp.li)p.push("linkedin");if(comp.gb)p.push("google_business");return p};
   const resetC=()=>setComp({caption:"",imageUrl:"",fb:!!ac?.fbPageId,ig:!!ac?.igUserId,tw:!!ac?.twitterAccessToken,tt:!!ac?.tiktokAccessToken,li:!!ac?.linkedinAccessToken,gb:!!ac?.gbpAccessToken,scheduledFor:""});
-
-  const addPost=async()=>{if(!comp.caption.trim())return st("Write a caption first!",true);const pl=getPl();if(!pl.length)return st("Pick a platform",true);
+  const addPost=async()=>{if(!canWrite(ac?.id))return st("You don't have permission for this client",true);if(!comp.caption.trim())return st("Write a caption first!",true);const pl=getPl();if(!pl.length)return st("Pick a platform",true);
     const r=await api("add-post","POST",{caption:comp.caption,imageUrl:comp.imageUrl||null,platforms:pl,scheduledFor:comp.scheduledFor||null},ac.id);if(r?.success){st(comp.scheduledFor?"Scheduled!":"Added to queue!");resetC();loadPs()}};
-  const publishPost=async(pid)=>{if(!confirm("Post this now?"))return;setPub(pid);st("Publishing...");
+  const publishPost=async(pid)=>{if(!canWrite(ac?.id))return st("No permission",true);if(!confirm("Post this now?"))return;setPub(pid);st("Publishing...");
     const r=await api("publish-now","POST",{postId:pid},ac.id);setPub(null);
     if(r){const m=[];Object.entries(r.results||{}).forEach(([k,v])=>m.push(`${PI[k]?.l||k} ${v.success?"\u2713":"\u2717"}`));st((r.success?"Posted! ":"Error: ")+m.join(" "),!r.success);loadPs()}else st("Failed",true)};
-  const pubDirect=async()=>{if(!comp.caption.trim()||!ac)return;const pl=getPl();if(!pl.length)return st("Pick a platform",true);if(!confirm(`Post to ${pl.map(p=>PI[p]?.l).join(", ")}?`))return;
+  const pubDirect=async()=>{if(!canWrite(ac?.id))return st("No permission",true);if(!comp.caption.trim()||!ac)return;const pl=getPl();if(!pl.length)return st("Pick a platform",true);if(!confirm(`Post to ${pl.map(p=>PI[p]?.l).join(", ")}?`))return;
     setPub("d");st("Publishing...");const r=await api("post-now","POST",{caption:comp.caption,imageUrl:comp.imageUrl||null,platforms:pl},ac.id);setPub(null);
     if(r?.success){st("Posted!");resetC();loadPs();setView("published")}else st("Failed",true)};
-  const delPost=async(pid)=>{if(!confirm("Remove this post from the dashboard?\n\nThis only removes it from the queue \u2014 it will not delete anything already published to Facebook, Instagram, etc."))return;await api("delete-post","DELETE",{postId:pid},ac.id);loadPs();st("Removed from dashboard")};
+  const delPost=async(pid)=>{if(!confirm("Remove this post from the dashboard?\n\nThis only removes it from the queue \u2014 it will not delete anything already published."))return;await api("delete-post","DELETE",{postId:pid},ac.id);loadPs();st("Removed from dashboard")};
   const saveEp=async(u)=>{await api("update-post","PUT",{postId:u.id,...u},ac.id);setEp(null);loadPs();st("Updated!")};
   const moveP=async(pid,dir)=>{const q=posts.filter(p=>p.status==="queued"||p.status==="scheduled");const i=q.findIndex(p=>p.id===pid);if((dir==="u"&&i<=0)||(dir==="d"&&i>=q.length-1))return;const j=dir==="u"?i-1:i+1;const tmp=q[i].createdAt;await api("update-post","PUT",{postId:q[i].id,createdAt:q[j].createdAt},ac.id);await api("update-post","PUT",{postId:q[j].id,createdAt:tmp},ac.id);loadPs()};
   const delPlat=async(pid,p)=>{if(!confirm(`Remove this post from ${PI[p]?.l}?\n\nThis will delete it from the live platform.`))return;await api("delete-from-platform","POST",{postId:pid,platform:p},ac.id);loadPs();st(`Removed from ${PI[p]?.l}`)};
@@ -140,25 +179,80 @@ function App(){
   const calDays=()=>{const f=new Date(cy,cm,1),l=new Date(cy,cm+1,0),s=(f.getDay()+6)%7,d=[];for(let i=0;i<s;i++)d.push(null);for(let i=1;i<=l.getDate();i++)d.push(i);return d};
   const getDp=(day)=>{const ds=new Date(cy,cm,day).toISOString().split("T")[0];return posts.filter(p=>{const pd=p.scheduledFor?p.scheduledFor.split("T")[0]:p.publishedAt?p.publishedAt.split("T")[0]:p.createdAt?.split("T")[0];return pd===ds})};
 
+  // Team management
+  const approveUser=async(email)=>{await authApi("approve-user",{email});loadTeam();st("Approved!")};
+  const declineUser=async(email)=>{if(!confirm("Decline this user?"))return;await authApi("decline-user",{email});loadTeam();st("Declined")};
+  const updateUserClients=async(email,assignedClients)=>{
+    const r=await fetch("/api/auth?action=update-user",{method:"PUT",headers:{Authorization:"Bearer "+token,"Content-Type":"application/json"},body:JSON.stringify({email,assignedClients})});
+    await r.json();loadTeam();st("Updated!")};
+  const updateUserRole=async(email,role)=>{
+    const r=await fetch("/api/auth?action=update-user",{method:"PUT",headers:{Authorization:"Bearer "+token,"Content-Type":"application/json"},body:JSON.stringify({email,role})});
+    await r.json();loadTeam();st("Role updated!")};
+  const deleteUser=async(email)=>{if(!confirm("Delete this user permanently?"))return;
+    const r=await fetch("/api/auth?action=delete-user",{method:"DELETE",headers:{Authorization:"Bearer "+token,"Content-Type":"application/json"},body:JSON.stringify({email})});
+    await r.json();loadTeam();st("User deleted")};
+  const resetUserPw=async(email)=>{const pw=prompt("Enter new password for "+email);if(!pw||pw.length<6)return st("Password must be at least 6 characters",true);
+    const r=await fetch("/api/auth?action=admin-reset-password",{method:"POST",headers:{Authorization:"Bearer "+token,"Content-Type":"application/json"},body:JSON.stringify({email,newPassword:pw})});
+    await r.json();st("Password reset!")};
+
   const queued=posts.filter(p=>p.status==="queued"||p.status==="scheduled");
   const published=posts.filter(p=>p.status==="published"||p.status==="deleted");
   const cc=comp.caption.length;
   const wk=published.filter(p=>{const d=new Date(p.publishedAt);return d>=new Date(Date.now()-7*864e5)}).length;
   const totalOk=published.length?Math.round(published.filter(p=>Object.values(p.results||{}).some(r=>r.success)).length/published.length*100):0;
+  const pendingCount=teamUsers.filter(u=>u.status==="pending").length;
 
-  if(!authed)return <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"radial-gradient(ellipse at top,#0f1320,#090b10 70%)"}}>
-    <div style={{textAlign:"center",animation:"fadeIn .5s ease both",maxWidth:380,width:"100%",padding:"0 24px"}}>
-      <div style={{width:60,height:60,borderRadius:16,background:"linear-gradient(135deg,var(--ac),#818cf8)",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 20px",fontSize:26,fontWeight:800,color:"#fff",animation:"glow 3s ease infinite"}}>G</div>
+  // ============ AUTH SCREENS ============
+  if(!authed){
+    const logo=<div style={{textAlign:"center",marginBottom:24}}>
+      <div style={{width:60,height:60,borderRadius:16,background:"linear-gradient(135deg,var(--ac),#818cf8)",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 16px",fontSize:26,fontWeight:800,color:"#fff",animation:"glow 3s ease infinite"}}>G</div>
       <div style={{fontSize:28,fontWeight:800,color:"#fff",marginBottom:4}}>Grid<span style={{color:"var(--ac2)"}}>Social</span></div>
-      <p style={{color:"var(--mu)",fontSize:14,marginBottom:28}}>Social Media Manager</p>
-      <input type="password" placeholder="Enter your key" value={ki} onChange={e=>setKi(e.target.value)} onKeyDown={e=>e.key==="Enter"&&login()} autoFocus style={{...S.inp,marginBottom:12,padding:"14px 18px",fontSize:15,background:"var(--s1)",border:"1px solid var(--b2)",textAlign:"center"}} />
-      {authErr&&<p style={{color:"var(--rd)",fontSize:13,marginBottom:10}}>{authErr}</p>}
-      <button onClick={login} style={{...S.btn(true,"lg"),width:"100%",justifyContent:"center",background:"linear-gradient(135deg,var(--ac),#818cf8)"}}>Sign In</button>
-    </div>
-  </div>;
+    </div>;
+    const errBox=authErr?<div style={{background:"var(--rdbg)",border:"1px solid rgba(239,68,68,.2)",borderRadius:10,padding:"10px 14px",marginBottom:12,fontSize:13,color:"var(--rd)",lineHeight:1.5}}>{authErr}</div>:null;
+    const msgBox=authMsg?<div style={{background:"var(--gnbg)",border:"1px solid rgba(16,185,129,.2)",borderRadius:10,padding:"10px 14px",marginBottom:12,fontSize:13,color:"var(--gn)",lineHeight:1.5}}>{authMsg}</div>:null;
 
+    return <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"radial-gradient(ellipse at top,#0f1320,#090b10 70%)",padding:24}}>
+      <div style={{maxWidth:400,width:"100%",animation:"fadeIn .5s ease both"}}>
+        {logo}
+
+        {authView==="login"&&<div>
+          <p style={{color:"var(--mu)",fontSize:14,marginBottom:20,textAlign:"center"}}>Sign in to your account</p>
+          {errBox}{msgBox}
+          <input type="email" placeholder="Email address" value={lf.email} onChange={e=>setLf(f=>({...f,email:e.target.value}))} style={{...S.inp,marginBottom:10}} />
+          <input type="password" placeholder="Password" value={lf.password} onChange={e=>setLf(f=>({...f,password:e.target.value}))} onKeyDown={e=>e.key==="Enter"&&doLogin()} style={{...S.inp,marginBottom:16}} />
+          <button onClick={doLogin} disabled={authLoad} style={{...S.btn(true,"lg"),width:"100%",justifyContent:"center",background:"linear-gradient(135deg,var(--ac),#818cf8)",opacity:authLoad?.6:1}}>{authLoad?"Signing in...":"Sign In"}</button>
+          <div style={{display:"flex",justifyContent:"space-between",marginTop:14}}>
+            <button onClick={()=>{setAuthView("forgot");setAuthErr("");setAuthMsg("")}} style={{background:"none",border:"none",color:"var(--ac2)",fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>Forgot password?</button>
+            <button onClick={()=>{setAuthView("register");setAuthErr("");setAuthMsg("")}} style={{background:"none",border:"none",color:"var(--ac2)",fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>Create account</button>
+          </div>
+        </div>}
+
+        {authView==="register"&&<div>
+          <p style={{color:"var(--mu)",fontSize:14,marginBottom:20,textAlign:"center"}}>Create your account</p>
+          {errBox}
+          <input placeholder="Your name" value={rf.name} onChange={e=>setRf(f=>({...f,name:e.target.value}))} style={{...S.inp,marginBottom:10}} />
+          <input type="email" placeholder="Email address" value={rf.email} onChange={e=>setRf(f=>({...f,email:e.target.value}))} style={{...S.inp,marginBottom:10}} />
+          <input type="password" placeholder="Password (min 6 characters)" value={rf.password} onChange={e=>setRf(f=>({...f,password:e.target.value}))} style={{...S.inp,marginBottom:10}} />
+          <input type="password" placeholder="Confirm password" value={rf.confirm} onChange={e=>setRf(f=>({...f,confirm:e.target.value}))} onKeyDown={e=>e.key==="Enter"&&doRegister()} style={{...S.inp,marginBottom:16}} />
+          <button onClick={doRegister} disabled={authLoad} style={{...S.btn(true,"lg"),width:"100%",justifyContent:"center",background:"linear-gradient(135deg,var(--ac),#818cf8)",opacity:authLoad?.6:1}}>{authLoad?"Creating...":"Create Account"}</button>
+          <p style={{textAlign:"center",marginTop:10,fontSize:12,color:"var(--mu)"}}>Your account will need admin approval before you can sign in.</p>
+          <button onClick={()=>{setAuthView("login");setAuthErr("")}} style={{background:"none",border:"none",color:"var(--ac2)",fontSize:13,cursor:"pointer",fontFamily:"inherit",display:"block",margin:"10px auto"}}>Back to sign in</button>
+        </div>}
+
+        {authView==="forgot"&&<div>
+          <p style={{color:"var(--mu)",fontSize:14,marginBottom:20,textAlign:"center"}}>Reset your password</p>
+          {errBox}{msgBox}
+          <input type="email" placeholder="Email address" value={ff.email} onChange={e=>setFf({email:e.target.value})} onKeyDown={e=>e.key==="Enter"&&doForgot()} style={{...S.inp,marginBottom:16}} />
+          <button onClick={doForgot} disabled={authLoad} style={{...S.btn(true,"lg"),width:"100%",justifyContent:"center",opacity:authLoad?.6:1}}>{authLoad?"Sending...":"Send Reset Link"}</button>
+          <button onClick={()=>{setAuthView("login");setAuthErr("");setAuthMsg("")}} style={{background:"none",border:"none",color:"var(--ac2)",fontSize:13,cursor:"pointer",fontFamily:"inherit",display:"block",margin:"10px auto"}}>Back to sign in</button>
+        </div>}
+      </div>
+    </div>;
+  }
+
+  // ============ MAIN DASHBOARD ============
   const navs=[{id:"compose",i:"\u270F\uFE0F",l:"Create Post"},{id:"queue",i:"\uD83D\uDCCB",l:"Queue",c:queued.length},{id:"calendar",i:"\uD83D\uDCC5",l:"Calendar"},{id:"published",i:"\u2705",l:"Published",c:published.length}];
-  const adminNavs=[{id:"health",i:"\uD83E\uDE7A",l:"API Health"},{id:"clients",i:"\u2699\uFE0F",l:"Clients & API"}];
+  const adminNavs=[...(isAdmin?[{id:"team",i:"\uD83D\uDC65",l:"Team",c:pendingCount}]:[]),{id:"health",i:"\uD83E\uDE7A",l:"API Health"},...(isAdmin?[{id:"clients",i:"\u2699\uFE0F",l:"Clients & API"}]:[])];
 
   return <div style={{display:"flex",minHeight:"100vh"}}>
     <button className="mob" onClick={()=>setSbO(!sbOpen)} style={{position:"fixed",top:12,left:12,zIndex:60,width:40,height:40,borderRadius:10,background:"var(--s1)",border:"1px solid var(--b1)",color:"#fff",fontSize:18,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>{sbOpen?"\u2715":"\u2630"}</button>
@@ -170,9 +264,10 @@ function App(){
       <div style={{padding:"10px 12px",borderBottom:"1px solid var(--b1)"}}>
         <div style={S.lbl}>Posting as</div>
         <select value={ac?.id||""} onChange={e=>{setAc(clients.find(x=>x.id===e.target.value));setSbO(false)}} style={{...S.inp,cursor:"pointer",fontSize:12,padding:"9px 10px",fontWeight:600}}>
-          {clients.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
+          {clients.map(c=><option key={c.id} value={c.id}>{c.name}{!canWrite(c.id)?" (view only)":""}</option>)}
         </select>
         {ac&&<div style={{display:"flex",gap:4,marginTop:6,flexWrap:"wrap"}}>{Object.entries(PI).map(([k,v])=>{const h=!!ac[v.f];return h?<span key={k} style={{display:"inline-flex",alignItems:"center",gap:3,fontSize:9,padding:"2px 6px",borderRadius:4,...S.badge(true)}}><PIcon p={k} size={11}/>{v.l}</span>:null})}</div>}
+        {ac&&!canWrite(ac.id)&&<div style={{fontSize:10,color:"var(--am)",marginTop:4}}>View only \u2014 ask admin for access</div>}
       </div>
       <div style={{padding:"6px 8px",flex:1,overflow:"auto"}}>
         {navs.map(n=><button key={n.id} onClick={()=>{setView(n.id);setSbO(false)}} style={{width:"100%",padding:"10px 14px",background:view===n.id?"var(--acbg)":"transparent",border:view===n.id?"1px solid rgba(99,102,241,0.15)":"1px solid transparent",borderRadius:9,color:view===n.id?"var(--ac2)":"var(--mu)",fontSize:13,fontWeight:view===n.id?600:400,cursor:"pointer",textAlign:"left",display:"flex",alignItems:"center",gap:10,marginBottom:2,fontFamily:"inherit"}}>
@@ -180,20 +275,32 @@ function App(){
           {n.c>0&&<span style={{marginLeft:"auto",background:view===n.id?"var(--ac)":"var(--s2)",color:view===n.id?"#fff":"var(--mu)",fontSize:9,padding:"2px 7px",borderRadius:10,fontWeight:700}}>{n.c}</span>}
         </button>)}
         <div style={{borderTop:"1px solid var(--b1)",marginTop:12,paddingTop:8}}>
-          <button onClick={()=>setAdmin(!admin)} style={{width:"100%",padding:"8px 14px",background:"transparent",border:"none",borderRadius:9,color:"var(--mu)",fontSize:12,cursor:"pointer",textAlign:"left",display:"flex",alignItems:"center",gap:10,fontFamily:"inherit"}}>
+          <button onClick={()=>{setAdmin(!admin);if(!admin&&isAdmin)loadTeam()}} style={{width:"100%",padding:"8px 14px",background:"transparent",border:"none",borderRadius:9,color:"var(--mu)",fontSize:12,cursor:"pointer",textAlign:"left",display:"flex",alignItems:"center",gap:10,fontFamily:"inherit"}}>
             <span style={{fontSize:14}}>{"\uD83D\uDD27"}</span>Admin{admin?" \u25B2":" \u25BC"}
+            {pendingCount>0&&<span style={{marginLeft:"auto",background:"var(--rd)",color:"#fff",fontSize:9,padding:"2px 7px",borderRadius:10,fontWeight:700}}>{pendingCount}</span>}
           </button>
-          {admin&&adminNavs.map(n=><button key={n.id} onClick={()=>{setView(n.id);setSbO(false)}} style={{width:"100%",padding:"9px 14px 9px 24px",background:view===n.id?"var(--acbg)":"transparent",border:view===n.id?"1px solid rgba(99,102,241,0.15)":"1px solid transparent",borderRadius:9,color:view===n.id?"var(--ac2)":"var(--mu)",fontSize:12,cursor:"pointer",textAlign:"left",display:"flex",alignItems:"center",gap:10,marginBottom:2,fontFamily:"inherit"}}><span>{n.i}</span>{n.l}</button>)}
+          {admin&&adminNavs.map(n=><button key={n.id} onClick={()=>{setView(n.id);setSbO(false);if(n.id==="team")loadTeam()}} style={{width:"100%",padding:"9px 14px 9px 24px",background:view===n.id?"var(--acbg)":"transparent",border:view===n.id?"1px solid rgba(99,102,241,0.15)":"1px solid transparent",borderRadius:9,color:view===n.id?"var(--ac2)":"var(--mu)",fontSize:12,cursor:"pointer",textAlign:"left",display:"flex",alignItems:"center",gap:10,marginBottom:2,fontFamily:"inherit"}}><span>{n.i}</span>{n.l}
+            {n.c>0&&<span style={{marginLeft:"auto",background:"var(--rd)",color:"#fff",fontSize:9,padding:"2px 6px",borderRadius:10,fontWeight:700}}>{n.c}</span>}
+          </button>)}
         </div>
       </div>
-      <div style={{padding:"10px 14px",borderTop:"1px solid var(--b1)",display:"flex",justifyContent:"space-around"}}>
-        <div style={{textAlign:"center"}}><div style={{fontSize:16,fontWeight:800,color:"var(--ac2)"}}>{queued.length}</div><div style={{fontSize:8,color:"var(--mu)"}}>Queued</div></div>
-        <div style={{textAlign:"center"}}><div style={{fontSize:16,fontWeight:800,color:"var(--gn)"}}>{published.length}</div><div style={{fontSize:8,color:"var(--mu)"}}>Posted</div></div>
-        <div style={{textAlign:"center"}}><div style={{fontSize:16,fontWeight:800,color:totalOk>80?"var(--gn)":"var(--am)"}}>{totalOk}%</div><div style={{fontSize:8,color:"var(--mu)"}}>OK</div></div>
+      <div style={{padding:"8px 14px",borderTop:"1px solid var(--b1)"}}>
+        <div style={{display:"flex",justifyContent:"space-around",marginBottom:8}}>
+          <div style={{textAlign:"center"}}><div style={{fontSize:16,fontWeight:800,color:"var(--ac2)"}}>{queued.length}</div><div style={{fontSize:8,color:"var(--mu)"}}>Queued</div></div>
+          <div style={{textAlign:"center"}}><div style={{fontSize:16,fontWeight:800,color:"var(--gn)"}}>{published.length}</div><div style={{fontSize:8,color:"var(--mu)"}}>Posted</div></div>
+          <div style={{textAlign:"center"}}><div style={{fontSize:16,fontWeight:800,color:totalOk>80?"var(--gn)":"var(--am)"}}>{totalOk}%</div><div style={{fontSize:8,color:"var(--mu)"}}>OK</div></div>
+        </div>
+        <div style={{display:"flex",alignItems:"center",gap:8,padding:"6px 0"}}>
+          <div style={{width:26,height:26,borderRadius:"50%",background:"var(--ac)",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:11,fontWeight:700}}>{user?.name?.charAt(0)||"?"}</div>
+          <div style={{flex:1,minWidth:0}}><div style={{fontSize:11,fontWeight:600,color:"#fff",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{user?.name}</div>
+            <div style={{fontSize:9,color:"var(--mu)"}}>{isAdmin?"Admin":"Member"}</div></div>
+          <button onClick={logout} style={{background:"none",border:"none",color:"var(--mu)",cursor:"pointer",fontSize:14}} title="Sign out">{"\u23FB"}</button>
+        </div>
       </div>
     </div>
     <div className="desk" style={{width:260,flexShrink:0}} />
     {sbOpen&&<div className="mob" onClick={()=>setSbO(false)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,.5)",zIndex:52}} />}
+
     <div style={{flex:1,overflow:"auto",minWidth:0}}>
       <div style={{maxWidth:1020,margin:"0 auto",padding:"24px 20px",paddingTop:typeof window!=="undefined"&&window.innerWidth<769?"60px":"24px"}}>
 
@@ -201,6 +308,7 @@ function App(){
           <h2 style={{fontSize:24,fontWeight:800,color:"#fff",marginBottom:6}}>Create a Post</h2>
           <p style={{fontSize:13,color:"var(--mu)",marginBottom:18}}>Write it, add a photo, hit post</p>
           {!ac?<div style={{...S.card,padding:50,textAlign:"center"}}><p style={{color:"var(--mu)"}}>Add a client to start</p></div>
+          :!canWrite(ac.id)?<div style={{...S.card,padding:50,textAlign:"center"}}><p style={{fontSize:20,marginBottom:8}}>View only</p><p style={{color:"var(--mu)"}}>You don't have permission to post for {ac.name}. Ask your admin for access.</p></div>
           :<>
           <div style={{display:"flex",gap:6,marginBottom:14,overflowX:"auto",paddingBottom:4}}>
             {TEMPLATES.map((t,i)=><button key={i} onClick={()=>setComp(c=>({...c,caption:t.t}))} style={{padding:"8px 14px",background:"var(--s2)",border:"1px solid var(--b1)",borderRadius:10,color:"var(--tx)",fontSize:12,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap",flexShrink:0,borderLeft:`3px solid ${t.color}`}}>{t.n}</button>)}
@@ -262,14 +370,14 @@ function App(){
         {view==="queue"&&<div className="anim">
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20,flexWrap:"wrap",gap:8}}>
             <div><h2 style={{fontSize:24,fontWeight:800,color:"#fff"}}>Queue</h2><p style={{fontSize:13,color:"var(--mu)"}}>{queued.length} posts waiting</p></div>
-            {queued.length>0&&<button onClick={()=>publishPost(queued[0].id)} style={S.btn(true)}>Publish Next</button>}
+            {queued.length>0&&canWrite(ac?.id)&&<button onClick={()=>publishPost(queued[0].id)} style={S.btn(true)}>Publish Next</button>}
           </div>
           {!queued.length?<div style={{...S.card,padding:50,textAlign:"center"}}><p style={{fontSize:28,marginBottom:8}}>Empty</p><p style={{color:"var(--mu)",marginBottom:12}}>No posts in queue</p><button onClick={()=>setView("compose")} style={S.btn(true,"lg")}>Create a Post</button></div>
           :queued.map((p,i)=><div key={p.id} style={{...S.card,marginBottom:8,display:"flex",gap:12,padding:16,animationDelay:`${i*40}ms`,opacity:pub===p.id?.5:1}}>
             <div style={{display:"flex",flexDirection:"column",gap:2,justifyContent:"center",flexShrink:0}}>
-              <button onClick={()=>moveP(p.id,"u")} disabled={i===0} style={{background:"var(--s2)",border:"none",borderRadius:4,width:22,height:22,cursor:i===0?"default":"pointer",color:i===0?"#151820":"var(--mu)",fontSize:10,display:"flex",alignItems:"center",justifyContent:"center"}}>{"\u25B2"}</button>
+              <button onClick={()=>moveP(p.id,"u")} disabled={i===0||!canWrite(ac?.id)} style={{background:"var(--s2)",border:"none",borderRadius:4,width:22,height:22,cursor:i===0?"default":"pointer",color:i===0?"#151820":"var(--mu)",fontSize:10,display:"flex",alignItems:"center",justifyContent:"center"}}>{"\u25B2"}</button>
               <div style={{textAlign:"center",fontSize:12,color:"var(--ac2)",fontWeight:800}}>{i+1}</div>
-              <button onClick={()=>moveP(p.id,"d")} disabled={i===queued.length-1} style={{background:"var(--s2)",border:"none",borderRadius:4,width:22,height:22,cursor:i===queued.length-1?"default":"pointer",color:i===queued.length-1?"#151820":"var(--mu)",fontSize:10,display:"flex",alignItems:"center",justifyContent:"center"}}>{"\u25BC"}</button>
+              <button onClick={()=>moveP(p.id,"d")} disabled={i===queued.length-1||!canWrite(ac?.id)} style={{background:"var(--s2)",border:"none",borderRadius:4,width:22,height:22,cursor:i===queued.length-1?"default":"pointer",color:i===queued.length-1?"#151820":"var(--mu)",fontSize:10,display:"flex",alignItems:"center",justifyContent:"center"}}>{"\u25BC"}</button>
             </div>
             {p.imageUrl&&<div style={{width:52,height:52,borderRadius:8,overflow:"hidden",flexShrink:0}}><img src={p.imageUrl} style={{width:"100%",height:"100%",objectFit:"cover"}} /></div>}
             <div style={{flex:1,minWidth:0}}>
@@ -277,16 +385,14 @@ function App(){
               <div style={{display:"flex",gap:4,marginTop:6,flexWrap:"wrap",alignItems:"center"}}>
                 {p.platforms?.map(pl=><span key={pl} style={{fontSize:10,padding:"2px 6px",background:"var(--s2)",border:"1px solid var(--b1)",borderRadius:4,color:"var(--mu)",display:"inline-flex",alignItems:"center",gap:3}}><PIcon p={pl} size={10}/>{PI[pl]?.l}</span>)}
               </div>
-              {p.scheduledFor&&<div style={{display:"flex",alignItems:"center",gap:4,marginTop:5}}>
-                <span style={{fontSize:11,color:"var(--ac2)",fontWeight:600}}>{"\uD83D\uDD52"} {fmtSchedule(p.scheduledFor)}</span>
-              </div>}
+              {p.scheduledFor&&<div style={{display:"flex",alignItems:"center",gap:4,marginTop:5}}><span style={{fontSize:11,color:"var(--ac2)",fontWeight:600}}>{"\uD83D\uDD52"} {fmtSchedule(p.scheduledFor)}</span></div>}
               {!p.scheduledFor&&<div style={{fontSize:10,color:"var(--mu)",marginTop:4}}>In queue \u2014 posts at next scheduled run</div>}
             </div>
-            <div style={{display:"flex",gap:4,flexShrink:0,alignItems:"flex-start"}}>
+            {canWrite(ac?.id)&&<div style={{display:"flex",gap:4,flexShrink:0,alignItems:"flex-start"}}>
               <button onClick={()=>setEp(p)} style={S.btn(false,"sm")}>Edit</button>
               <button onClick={()=>publishPost(p.id)} disabled={pub===p.id} style={{...S.btn(true,"sm"),background:"var(--gn)"}}>{pub===p.id?"...":"Post"}</button>
-              <button onClick={()=>delPost(p.id)} style={{...S.btn(false,"sm"),color:"var(--rd)"}} title="Remove from queue">{"\u2715"}</button>
-            </div>
+              <button onClick={()=>delPost(p.id)} style={{...S.btn(false,"sm"),color:"var(--rd)"}}>{"\u2715"}</button>
+            </div>}
           </div>)}
         </div>}
 
@@ -302,12 +408,11 @@ function App(){
           <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:1,background:"var(--b1)",borderRadius:14,overflow:"hidden"}}>
             {DAYS.map(d=><div key={d} style={{padding:8,textAlign:"center",fontSize:10,fontWeight:600,color:"var(--mu)",background:"var(--s1)"}}>{d}</div>)}
             {calDays().map((day,i)=>{const dp=day?getDp(day):[];const today=day&&new Date().getDate()===day&&new Date().getMonth()===cm&&new Date().getFullYear()===cy;
-              return <div key={i} onClick={()=>{if(day){setComp(c=>({...c,scheduledFor:new Date(cy,cm,day,10,0).toISOString().slice(0,16)}));setView("compose")}}} style={{minHeight:78,padding:4,background:"var(--bg)",cursor:day?"pointer":"default"}}>
+              return <div key={i} onClick={()=>{if(day&&canWrite(ac?.id)){setComp(c=>({...c,scheduledFor:new Date(cy,cm,day,10,0).toISOString().slice(0,16)}));setView("compose")}}} style={{minHeight:78,padding:4,background:"var(--bg)",cursor:day&&canWrite(ac?.id)?"pointer":"default"}}>
                 {day&&<><span style={{fontSize:11,color:today?"var(--ac2)":"var(--mu)",fontWeight:today?700:400,display:"inline-flex",alignItems:"center",justifyContent:"center",width:20,height:20,borderRadius:"50%",background:today?"var(--acbg)":"transparent"}}>{day}</span>
                 {dp.map(p=><div key={p.id} style={{fontSize:8,padding:"2px 3px",marginTop:1,borderRadius:3,background:p.status==="published"?"var(--gnbg)":"var(--acbg)",color:p.status==="published"?"var(--gn)":"var(--ac2)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.caption.substring(0,14)}</div>)}</>}
               </div>})}
           </div>
-          <p style={{fontSize:11,color:"var(--mu)",marginTop:10}}>Click any day to schedule a post for that date</p>
         </div>}
 
         {view==="published"&&<div className="anim">
@@ -319,11 +424,11 @@ function App(){
               <div style={{flex:1,minWidth:0}}><div style={{fontSize:14,lineHeight:1.5,whiteSpace:"pre-wrap",maxHeight:50,overflow:"hidden"}}>{p.caption}</div>
                 <div style={{fontSize:11,color:"var(--mu)",marginTop:4}}>{fmtShort(p.publishedAt||p.createdAt)} GMT</div>
                 <div style={{display:"flex",gap:4,marginTop:5,flexWrap:"wrap"}}>{Object.entries(p.results||{}).map(([k,v])=><div key={k} style={{display:"inline-flex",alignItems:"center",gap:3,fontSize:11,padding:"3px 8px",borderRadius:6,...S.badge(v.success)}}><PIcon p={k} size={12}/>{v.success?"OK":"Fail"}
-                  {v.success&&v.id&&<button onClick={()=>delPlat(p.id,k)} style={{background:"none",border:"none",cursor:"pointer",color:"var(--rd)",fontSize:10,opacity:.7,fontWeight:700}} title={`Remove from ${PI[k]?.l}`}>{"\u2715"}</button>}
+                  {v.success&&v.id&&canWrite(ac?.id)&&<button onClick={()=>delPlat(p.id,k)} style={{background:"none",border:"none",cursor:"pointer",color:"var(--rd)",fontSize:10,opacity:.7,fontWeight:700}} title={`Remove from ${PI[k]?.l}`}>{"\u2715"}</button>}
                 </div>)}</div>
               </div>
-              <div style={{display:"flex",gap:4,flexShrink:0}}><button onClick={()=>dupPost(p)} style={S.btn(false,"sm")} title="Reuse">Reuse</button>
-                <button onClick={()=>setDelModal(p)} style={{...S.btn(false,"sm"),color:"var(--rd)"}} title="Delete options">{"\u2715"}</button>
+              <div style={{display:"flex",gap:4,flexShrink:0}}><button onClick={()=>dupPost(p)} style={S.btn(false,"sm")}>Reuse</button>
+                {canWrite(ac?.id)&&<button onClick={()=>setDelModal(p)} style={{...S.btn(false,"sm"),color:"var(--rd)"}}>{"\u2715"}</button>}
               </div>
             </div>
           </div>)}
@@ -333,28 +438,93 @@ function App(){
           <h2 style={{fontSize:24,fontWeight:800,color:"#fff",marginBottom:20}}>API Health</h2>
           {ac&&<div style={S.card}><h3 style={{fontSize:16,fontWeight:700,color:"#fff",marginBottom:14}}>{ac.name}</h3>
             <ApiHealth client={ac} />
-            <div style={{borderTop:"1px solid var(--b1)",marginTop:16,paddingTop:16}}><a href="/api/meta-auth" style={{display:"inline-flex",padding:"10px 18px",background:"#1877F2",color:"#fff",borderRadius:10,textDecoration:"none",fontWeight:700,fontSize:13,alignItems:"center",gap:6}}><PIcon p="facebook" size={14}/>Reconnect Facebook</a></div>
+            {isAdmin&&<div style={{borderTop:"1px solid var(--b1)",marginTop:16,paddingTop:16}}><a href="/api/meta-auth" style={{display:"inline-flex",padding:"10px 18px",background:"#1877F2",color:"#fff",borderRadius:10,textDecoration:"none",fontWeight:700,fontSize:13,alignItems:"center",gap:6}}><PIcon p="facebook" size={14}/>Reconnect Facebook</a></div>}
           </div>}
         </div>}
 
-        {view==="clients"&&<div className="anim">
+        {view==="clients"&&isAdmin&&<div className="anim">
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}><h2 style={{fontSize:24,fontWeight:800,color:"#fff"}}>Clients</h2><button onClick={()=>{setEc(null);setSCM(true)}} style={S.btn(true)}>Add Client</button></div>
           {clients.map((c,i)=><div key={c.id} style={{...S.card,marginBottom:10}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:10}}>
-              <div><h3 style={{fontSize:16,fontWeight:700,color:"#fff",marginBottom:8}}>{c.name}</h3>
+              <div><h3 style={{fontSize:16,fontWeight:700,color:"#fff",marginBottom:4}}>{c.name}</h3>
+                <div style={{fontSize:10,color:"var(--mu)",marginBottom:8}}>ID: {c.id}</div>
                 <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
                   <span style={S.badge(!!c.pageAccessToken)}>{c.pageAccessToken?"Token OK":"No Token"}</span>
                   {Object.entries(PI).map(([k,v])=>c[v.f]?<span key={k} style={{...S.badge(true),display:"inline-flex",alignItems:"center",gap:3}}><PIcon p={k} size={11}/>{v.l}</span>:null)}
                 </div>
-                {!c.pageAccessToken&&<a href="/api/meta-auth" style={{display:"inline-flex",marginTop:8,padding:"7px 14px",background:"#1877F2",color:"#fff",borderRadius:8,textDecoration:"none",fontWeight:600,fontSize:12}}>Connect Facebook</a>}
               </div>
               <div style={{display:"flex",gap:6}}><button onClick={()=>{setEc(c);setSCM(true)}} style={S.btn(false)}>Edit</button><button onClick={()=>delCl(c.id)} style={{...S.btn(false),color:"var(--rd)"}}>Delete</button></div>
             </div>
           </div>)}
         </div>}
+
+        {/* TEAM MANAGEMENT */}
+        {view==="team"&&isAdmin&&<div className="anim">
+          <h2 style={{fontSize:24,fontWeight:800,color:"#fff",marginBottom:6}}>Team</h2>
+          <p style={{fontSize:13,color:"var(--mu)",marginBottom:20}}>Manage users, approve requests, assign clients</p>
+
+          {/* Pending approvals */}
+          {teamUsers.filter(u=>u.status==="pending").length>0&&<div style={{marginBottom:20}}>
+            <div style={S.lbl}>Pending Approval</div>
+            {teamUsers.filter(u=>u.status==="pending").map(u=><div key={u.email} style={{...S.card,marginBottom:6,display:"flex",alignItems:"center",gap:12,padding:14,border:"1px solid rgba(245,158,11,.2)",background:"rgba(245,158,11,.03)"}}>
+              <div style={{width:36,height:36,borderRadius:"50%",background:"var(--ambg)",display:"flex",alignItems:"center",justifyContent:"center",color:"var(--am)",fontSize:14,fontWeight:700}}>{u.name?.charAt(0)}</div>
+              <div style={{flex:1}}><div style={{fontSize:14,fontWeight:600,color:"#fff"}}>{u.name}</div><div style={{fontSize:12,color:"var(--mu)"}}>{u.email}</div></div>
+              <button onClick={()=>approveUser(u.email)} style={{...S.btn(true,"sm"),background:"var(--gn)"}}>Approve</button>
+              <button onClick={()=>declineUser(u.email)} style={{...S.btn(false,"sm"),color:"var(--rd)"}}>Decline</button>
+            </div>)}
+          </div>}
+
+          {/* Active users */}
+          <div style={S.lbl}>Active Users</div>
+          {teamUsers.filter(u=>u.status==="active").map(u=><div key={u.email} style={{...S.card,marginBottom:8,padding:16}}>
+            <div style={{display:"flex",alignItems:"flex-start",gap:12}}>
+              <div style={{width:40,height:40,borderRadius:"50%",background:u.role==="admin"?"var(--acbg)":"var(--s2)",display:"flex",alignItems:"center",justifyContent:"center",color:u.role==="admin"?"var(--ac2)":"var(--mu)",fontSize:16,fontWeight:700,flexShrink:0}}>{u.name?.charAt(0)}</div>
+              <div style={{flex:1}}>
+                <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
+                  <span style={{fontSize:15,fontWeight:700,color:"#fff"}}>{u.name}</span>
+                  <span style={{...S.badge(u.role==="admin"),fontSize:10}}>{u.role==="admin"?"Admin":"Member"}</span>
+                </div>
+                <div style={{fontSize:12,color:"var(--mu)",marginBottom:8}}>{u.email}</div>
+
+                {/* Assigned clients */}
+                <div style={{marginBottom:8}}>
+                  <div style={{fontSize:10,fontWeight:600,color:"var(--mu)",marginBottom:4}}>ASSIGNED CLIENTS</div>
+                  <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
+                    {clients.map(c=>{const assigned=(u.assignedClients||[]).includes(c.id);
+                      return <button key={c.id} onClick={()=>{
+                        const next=assigned?(u.assignedClients||[]).filter(x=>x!==c.id):[...(u.assignedClients||[]),c.id];
+                        updateUserClients(u.email,next)
+                      }} style={{padding:"4px 10px",borderRadius:8,fontSize:11,cursor:"pointer",fontFamily:"inherit",border:assigned?"1px solid var(--ac)":"1px solid var(--b1)",background:assigned?"var(--acbg)":"var(--s2)",color:assigned?"var(--ac2)":"var(--mu)",fontWeight:assigned?600:400}}>
+                        {assigned?"\u2713 ":""}{c.name}
+                      </button>
+                    })}
+                  </div>
+                </div>
+
+                <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                  {u.role!=="admin"&&<button onClick={()=>updateUserRole(u.email,"admin")} style={{...S.btn(false,"sm"),fontSize:11}}>Make Admin</button>}
+                  {u.role==="admin"&&u.email!==user?.email&&<button onClick={()=>updateUserRole(u.email,"member")} style={{...S.btn(false,"sm"),fontSize:11}}>Make Member</button>}
+                  <button onClick={()=>resetUserPw(u.email)} style={{...S.btn(false,"sm"),fontSize:11}}>Reset Password</button>
+                  {u.email!==user?.email&&<button onClick={()=>deleteUser(u.email)} style={{...S.btn(false,"sm"),fontSize:11,color:"var(--rd)"}}>Delete</button>}
+                </div>
+              </div>
+            </div>
+          </div>)}
+
+          {/* Declined */}
+          {teamUsers.filter(u=>u.status==="declined").length>0&&<div style={{marginTop:16}}>
+            <div style={S.lbl}>Declined</div>
+            {teamUsers.filter(u=>u.status==="declined").map(u=><div key={u.email} style={{...S.card,marginBottom:6,display:"flex",alignItems:"center",gap:12,padding:12,opacity:.5}}>
+              <span style={{fontSize:13,color:"var(--mu)",flex:1}}>{u.name} ({u.email})</span>
+              <button onClick={()=>approveUser(u.email)} style={{...S.btn(false,"sm"),fontSize:11}}>Approve</button>
+              <button onClick={()=>deleteUser(u.email)} style={{...S.btn(false,"sm"),fontSize:11,color:"var(--rd)"}}>Delete</button>
+            </div>)}
+          </div>}
+        </div>}
       </div>
     </div>
 
+    {/* DELETE MODAL */}
     {delModal&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.7)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:100,padding:16}} onClick={()=>setDelModal(null)}>
       <div style={{background:"var(--s1)",border:"1px solid var(--b1)",borderRadius:16,padding:24,width:420,maxWidth:"100%",animation:"pop .2s ease"}} onClick={e=>e.stopPropagation()}>
         <h3 style={{fontSize:17,fontWeight:700,color:"#fff",marginBottom:6}}>Delete Post</h3>
@@ -366,8 +536,7 @@ function App(){
               <button key={k} onClick={()=>{delPlat(delModal.id,k);setDelModal(null)}} style={{display:"flex",alignItems:"center",gap:8,padding:"10px 14px",background:"var(--s2)",border:"1px solid var(--b1)",borderRadius:10,cursor:"pointer",color:"var(--tx)",fontFamily:"inherit",fontSize:13}}>
                 <PIcon p={k} size={16}/><span>Remove from {PI[k]?.l}</span>
                 <span style={{marginLeft:"auto",fontSize:11,color:"var(--rd)",fontWeight:600}}>Delete live post</span>
-              </button>
-            )}
+              </button>)}
           </div>
         </>}
         <div style={S.lbl}>Remove from dashboard</div>
