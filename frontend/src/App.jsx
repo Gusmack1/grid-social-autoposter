@@ -421,9 +421,27 @@ export default function App({ user, onLogout }) {
                     <strong>{c.name}</strong>
                     <div className="post-meta" style={{ marginTop: 4 }}>
                       FB: {c.fbPageId || '—'} · IG: {c.igUserId || '—'} · Token: {c.pageAccessToken ? '✓' : '✗'}
+                      {c.tokenHealth && (
+                        <span style={{ marginLeft: 8 }}>
+                          · Health: {Object.values(c.tokenHealth.platforms || {}).every(p => p.valid) ?
+                            <span style={{ color: 'var(--success)' }}>✓ OK</span> :
+                            <span style={{ color: 'var(--danger)' }}>✗ Issue</span>}
+                        </span>
+                      )}
                     </div>
                   </div>
-                  <button className="btn-ghost btn-sm" onClick={() => setClientModal({ ...c })}>Edit</button>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <button className="btn-ghost btn-sm" onClick={async () => {
+                      try {
+                        const data = await apiPost('/admin?action=generate-invite', { clientId: c.id });
+                        if (data.url) {
+                          await navigator.clipboard.writeText(data.url);
+                          alert('Invite link copied to clipboard!\n\nSend this to ' + c.name + ':\n' + data.url);
+                        }
+                      } catch (e) { alert('Error: ' + e.message); }
+                    }}>🔗 Invite</button>
+                    <button className="btn-ghost btn-sm" onClick={() => setClientModal({ ...c })}>Edit</button>
+                  </div>
                 </div>
               </div>
             ))}

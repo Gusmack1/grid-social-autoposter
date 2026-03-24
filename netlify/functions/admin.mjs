@@ -5,6 +5,7 @@ import { encrypt, decrypt } from './lib/crypto/encryption.mjs';
 import { publishToAll, deleteFromPlatforms } from './lib/publisher.mjs';
 import { uploadMedia } from './lib/r2.mjs';
 import { migrateTokens } from './lib/migrate-tokens.mjs';
+import { generateInviteLink } from './lib/invites.mjs';
 import { json, cors, unauthorized, forbidden, badRequest, notFound, serverError } from './lib/http.mjs';
 import { logger } from './lib/logger.mjs';
 
@@ -35,7 +36,7 @@ export default async (req) => {
   if (user.role !== 'admin' && clientId && writeActions.includes(action)) {
     if (!user.assignedClients.includes(clientId)) return forbidden("You don't have permission for this client");
   }
-  const adminActions = ['add-client', 'update-client', 'delete-client', 'migrate-tokens'];
+  const adminActions = ['add-client', 'update-client', 'delete-client', 'migrate-tokens', 'generate-invite', 'check-token-health'];
   if (user.role !== 'admin' && adminActions.includes(action)) return forbidden('Admin access required');
 
   try {
@@ -232,6 +233,29 @@ export default async (req) => {
     if (action === 'migrate-tokens' && req.method === 'POST') {
       const result = await migrateTokens();
       return json({ success: true, ...result });
+    }
+
+    // ── GENERATE INVITE LINK ──
+    if (action === 'generate-invite' && req.method === 'POST') {
+      const body = await req.json();
+      if (!body.clientId) return badRequest('clientId required');
+      const clients = await db.getClients();
+      const client = clients.find(c => c.id === body.clientId);
+      if (!client) return notFound('Client not found');
+      const url = new URL(req.url);
+      const invite = await generateInviteLink(body.clientId, client.name, url.origin);
+      return json({ success: true, ...invite });
+    }
+
+    // ── CHECK TOKEN HEALTH (manual trigger) ──
+    if (action === 'check-token-health') {
+      const clients = await db.getClients();
+      const results = [];
+      for (const client of clients) {
+        const health = { clientId: client.id, name: client.name, tokenHealth: client.tokenHealth || null };
+        results.push(health);
+      }
+      return json(results);
     }
 
     return badRequest('Unknown action: ' + action);

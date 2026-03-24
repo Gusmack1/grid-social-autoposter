@@ -56,6 +56,17 @@
   to = "/.netlify/functions/publish-webhook"
   status = 200
 
+# Client connect portal
+[[redirects]]
+  from = "/connect"
+  to = "/.netlify/functions/connect-portal"
+  status = 200
+
+[[redirects]]
+  from = "/connect/*"
+  to = "/.netlify/functions/connect-portal/:splat"
+  status = 200
+
 # SPA fallback
 [[redirects]]
   from = "/*"
