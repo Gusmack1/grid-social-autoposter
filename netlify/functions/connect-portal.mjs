@@ -129,10 +129,10 @@ export default async (req) => {
       name: 'LinkedIn',
       icon: 'li',
       description: 'Connect your LinkedIn Company Page',
-      url: null,
-      available: false,
+      url: process.env.LINKEDIN_CLIENT_ID ? `/api/linkedin-auth?invite=${inviteToken}` : null,
+      available: !!process.env.LINKEDIN_CLIENT_ID,
       connected: !!client?.linkedinAccessToken,
-      note: 'Coming soon',
+      note: process.env.LINKEDIN_CLIENT_ID ? null : 'Coming soon',
     },
     {
       name: 'TikTok',

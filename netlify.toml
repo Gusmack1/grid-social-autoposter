@@ -47,6 +47,11 @@
   status = 200
 
 [[redirects]]
+  from = "/api/meta-deletion"
+  to = "/.netlify/functions/meta-deletion"
+  status = 200
+
+[[redirects]]
   from = "/api/ai-writer"
   to = "/.netlify/functions/ai-writer"
   status = 200
@@ -65,6 +70,28 @@
 [[redirects]]
   from = "/connect/*"
   to = "/.netlify/functions/connect-portal/:splat"
+  status = 200
+
+# LinkedIn OAuth
+[[redirects]]
+  from = "/api/linkedin-auth"
+  to = "/.netlify/functions/linkedin-auth"
+  status = 200
+
+[[redirects]]
+  from = "/api/linkedin-callback"
+  to = "/.netlify/functions/linkedin-callback"
+  status = 200
+
+# Client approval portal
+[[redirects]]
+  from = "/approve"
+  to = "/.netlify/functions/approval-portal"
+  status = 200
+
+[[redirects]]
+  from = "/approve/*"
+  to = "/.netlify/functions/approval-portal/:splat"
   status = 200
 
 # SPA fallback

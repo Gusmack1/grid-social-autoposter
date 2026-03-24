@@ -29,12 +29,32 @@ export default async (req) => {
       continue;
     }
 
-    // Find next queued or due scheduled post
+    // Auto-approve passive posts that have passed their deadline
     const now = new Date();
+    let passiveApproved = 0;
+    for (let i = 0; i < postList.length; i++) {
+      const p = postList[i];
+      if (p.approvalStatus === 'pending' && p.approvalMode === 'passive' && p.passiveDeadline) {
+        if (new Date(p.passiveDeadline) <= now) {
+          postList[i].approvalStatus = 'approved';
+          postList[i].approvedAt = now.toISOString();
+          postList[i].approvedBy = 'passive-auto';
+          passiveApproved++;
+        }
+      }
+    }
+    if (passiveApproved > 0) {
+      await db.savePosts(client.id, postList);
+      logger.info('Passive approval auto-approved posts', { client: client.name, count: passiveApproved });
+    }
+
+    // Find next queued or due scheduled post that is approved (or has no approval status = legacy)
     const nextPost = postList.find(p => {
-      if (p.status === 'queued') return true;
-      if (p.status === 'scheduled' && p.scheduledFor) return new Date(p.scheduledFor) <= now;
-      return false;
+      const isReady = p.status === 'queued' || (p.status === 'scheduled' && p.scheduledFor && new Date(p.scheduledFor) <= now);
+      if (!isReady) return false;
+      // Approval gate: only publish approved posts (or legacy posts without approval status)
+      const isApproved = !p.approvalStatus || p.approvalStatus === 'approved';
+      return isApproved;
     });
 
     if (!nextPost) {

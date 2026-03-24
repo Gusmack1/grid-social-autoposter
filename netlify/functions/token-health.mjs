@@ -77,6 +77,41 @@ export default async (req) => {
       }
     }
 
+    // Check LinkedIn token
+    if (client.linkedinAccessToken) {
+      const liToken = decrypt(client.linkedinAccessToken);
+      try {
+        const res = await fetch('https://api.linkedin.com/v2/userinfo', {
+          headers: { Authorization: `Bearer ${liToken}` },
+        });
+        const data = await res.json();
+        if (res.status === 401 || data.status === 401) {
+          health.platforms.linkedin = { valid: false, error: 'Token expired or revoked' };
+          logger.warn('LinkedIn token invalid', { client: client.name });
+        } else {
+          health.platforms.linkedin = { valid: true, name: data.name || client.linkedinName };
+        }
+      } catch (e) {
+        health.platforms.linkedin = { valid: false, error: e.message };
+      }
+
+      // Check if LinkedIn token is nearing expiry (60 day tokens)
+      if (client.linkedinTokenExpiresAt) {
+        const expiresAt = new Date(client.linkedinTokenExpiresAt).getTime();
+        const daysUntilExpiry = Math.floor((expiresAt - Date.now()) / (24 * 3600 * 1000));
+        if (daysUntilExpiry <= 7 && daysUntilExpiry > 0) {
+          health.platforms.linkedin = {
+            ...health.platforms.linkedin,
+            warning: `Token expires in ${daysUntilExpiry} days — needs refresh`,
+          };
+          logger.warn('LinkedIn token expiring soon', { client: client.name, daysUntilExpiry });
+        } else if (daysUntilExpiry <= 0) {
+          health.platforms.linkedin = { valid: false, error: 'Token has expired' };
+          logger.warn('LinkedIn token expired', { client: client.name });
+        }
+      }
+    }
+
     results.push(health);
   }
 
