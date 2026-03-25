@@ -45,7 +45,11 @@ export default function App({ user, onLogout }) {
   const [aiImageAnalysis, setAiImageAnalysis] = useState(null);
   const [aiAnalysing, setAiAnalysing] = useState(false);
   const [aiRemaining, setAiRemaining] = useState(null); // null = unknown, -1 = unlimited
-  const [aiModel, setAiModel] = useState(null); // 'fast' or 'advanced'
+  const [aiModel, setAiModel] = useState(null); // 'trial' or 'full'
+  const [aiUsingOwnKey, setAiUsingOwnKey] = useState(false);
+  const [userHasApiKey, setUserHasApiKey] = useState(false);
+  const [apiKeyInput, setApiKeyInput] = useState('');
+  const [apiKeySaving, setApiKeySaving] = useState(false);
 
   // Team state
   const [users, setUsers] = useState([]);
@@ -129,6 +133,43 @@ export default function App({ user, onLogout }) {
 
   useEffect(() => { loadPlanUsage(); }, []);
   useEffect(() => { if (tab === 'billing') loadPlanUsage(); }, [tab]);
+
+  // Check if user has API key on load
+  const checkApiKey = useCallback(async () => {
+    try {
+      const data = await apiGet('/admin?action=check-api-key');
+      setUserHasApiKey(data.hasKey);
+    } catch {}
+  }, []);
+  useEffect(() => { checkApiKey(); }, []);
+
+  const handleSaveApiKey = async () => {
+    if (!apiKeyInput.trim() || !apiKeyInput.startsWith('sk-ant-')) {
+      alert('Please enter a valid Anthropic API key (starts with sk-ant-)');
+      return;
+    }
+    setApiKeySaving(true);
+    try {
+      const data = await apiPost('/admin?action=save-api-key', { apiKey: apiKeyInput });
+      if (data.success) {
+        setUserHasApiKey(true);
+        setApiKeyInput('');
+        alert('API key saved! AI Writer will now use your key with full Sonnet quality.');
+      } else {
+        alert(data.error || 'Failed to save');
+      }
+    } catch (e) { alert('Failed: ' + e.message); }
+    setApiKeySaving(false);
+  };
+
+  const handleRemoveApiKey = async () => {
+    if (!confirm('Remove your Anthropic API key? AI Writer will revert to the limited free trial.')) return;
+    try {
+      await apiDelete('/admin?action=remove-api-key');
+      setUserHasApiKey(false);
+      setAiUsingOwnKey(false);
+    } catch (e) { alert('Failed: ' + e.message); }
+  };
 
   // Clear selection when switching client or tab
   useEffect(() => { setSelectedQueueIds([]); }, [selectedClient, tab]);
@@ -272,13 +313,16 @@ export default function App({ user, onLogout }) {
         imageUrl: imageUrl || undefined,
       });
       if (data.rateLimited) {
-        alert(data.error || 'Daily AI Writer limit reached. Upgrade your plan for more.');
+        alert(data.error || 'Free trial limit reached. Add your own API key in Settings for unlimited use.');
+      } else if (data.needsApiKey) {
+        alert(data.error || 'Add your Anthropic API key in the Clients & API tab to use AI Writer.');
       } else if (data.text) {
         setCaption(data.text);
         setAiOpen(false);
         setAiPrompt('');
         if (data.remaining !== undefined) setAiRemaining(data.remaining);
         if (data.model) setAiModel(data.model);
+        if (data.usingOwnKey !== undefined) setAiUsingOwnKey(data.usingOwnKey);
       } else {
         alert(data.error || 'AI Writer error');
       }
@@ -656,12 +700,15 @@ export default function App({ user, onLogout }) {
               {aiOpen && (
                 <div style={{ marginTop: 14, padding: 16, background: 'rgba(99,102,241,0.08)', borderRadius: 10, border: '1px solid var(--accent)' }}>
                   <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 12, color: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <span>🤖 AI Writer {aiModel === 'fast' ? '(Fast)' : aiModel === 'advanced' ? '(Advanced)' : ''}</span>
+                    <span>🤖 AI Writer {aiModel === 'trial' ? '(Trial)' : aiModel === 'full' ? '(Your Key)' : ''}</span>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      {aiRemaining !== null && aiRemaining !== -1 && (
-                        <span style={{ fontSize: 10, color: aiRemaining <= 3 ? 'var(--danger)' : 'var(--text-muted)', fontWeight: aiRemaining <= 3 ? 600 : 400 }}>
-                          {aiRemaining <= 3 ? '⚠️ ' : ''}{aiRemaining} left today
+                      {aiRemaining !== null && aiRemaining !== -1 && !aiUsingOwnKey && (
+                        <span style={{ fontSize: 10, color: aiRemaining <= 2 ? 'var(--danger)' : 'var(--text-muted)', fontWeight: aiRemaining <= 2 ? 600 : 400 }}>
+                          {aiRemaining <= 2 ? '⚠️ ' : ''}{aiRemaining} trial left today
                         </span>
+                      )}
+                      {aiUsingOwnKey && (
+                        <span style={{ fontSize: 10, color: '#4ade80' }}>✓ Your key</span>
                       )}
                       <button className="btn-ghost" style={{ fontSize: 11, padding: '2px 8px' }} onClick={() => { setAiOpen(false); setAiPrompt(''); setAiImageAnalysis(null); }}>✕</button>
                     </div>
@@ -1407,6 +1454,39 @@ export default function App({ user, onLogout }) {
             <div className="header">
               <h1>Clients & API</h1>
               <button className="btn-primary btn-sm" onClick={() => setClientModal({ name: '' })}>+ Add Client</button>
+            </div>
+
+            {/* AI Writer API Key Settings */}
+            <div className="card" style={{ marginBottom: 16, border: '1px solid var(--accent)', background: 'rgba(99,102,241,0.04)' }}>
+              <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 8, color: 'var(--accent)' }}>🔑 AI Writer — Anthropic API Key</div>
+              <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '0 0 10px 0', lineHeight: 1.5 }}>
+                The AI Writer uses the Anthropic API to generate captions, analyse images, and suggest hashtags.
+                {!userHasApiKey
+                  ? ' You get 5 free trial calls per day. Add your own API key for unlimited use with the best model (Claude Sonnet).'
+                  : ' Your key is saved securely (AES-256 encrypted). You have unlimited AI Writer access with Claude Sonnet.'}
+              </p>
+              {!userHasApiKey ? (
+                <div>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                    <input type="password" placeholder="sk-ant-api03-..." value={apiKeyInput}
+                      onChange={e => setApiKeyInput(e.target.value)}
+                      style={{ flex: 1, minWidth: 200, fontSize: 12 }} />
+                    <button className="btn-primary btn-sm" onClick={handleSaveApiKey} disabled={apiKeySaving || !apiKeyInput.trim()}>
+                      {apiKeySaving ? 'Saving...' : 'Save Key'}
+                    </button>
+                  </div>
+                  <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener noreferrer"
+                    style={{ fontSize: 11, color: 'var(--accent)', marginTop: 6, display: 'inline-block' }}>
+                    Get your API key from console.anthropic.com →
+                  </a>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <span style={{ fontSize: 12, color: '#4ade80', fontWeight: 500 }}>✓ API key saved — unlimited AI Writer</span>
+                  <button className="btn-ghost btn-sm" onClick={handleRemoveApiKey}
+                    style={{ fontSize: 11, color: 'var(--danger)' }}>Remove Key</button>
+                </div>
+              )}
             </div>
             {clients.map(c => (
               <div key={c.id} className="card" style={{ marginBottom: 12 }}>

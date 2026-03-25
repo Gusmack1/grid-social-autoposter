@@ -1,9 +1,10 @@
-// ai-writer.mjs — AI caption generation with tone presets, hashtag control, image analysis
-// Rate-limited per plan tier. Free = 10/day (Haiku), Starter = 50/day, Agency = 200/day, Pro = unlimited
+// ai-writer.mjs — AI caption generation (BYOK: Bring Your Own Key)
+// Users provide their own Anthropic API key. Free trial: 5 calls/day using platform key.
 // POST /api/ai-writer { prompt, tone, clientName, clientType, platforms, hashtagMode, imageUrl, action }
 
 import { db } from './lib/db/index.mjs';
 import { verifyJWT } from './lib/crypto/jwt.mjs';
+import { decrypt } from './lib/crypto/encryption.mjs';
 import { logger } from './lib/logger.mjs';
 
 const CORS = {
@@ -12,14 +13,8 @@ const CORS = {
   "Access-Control-Allow-Headers": "Content-Type, Authorization",
 };
 
-// ── RATE LIMITS PER PLAN (calls per day) ──
-const AI_LIMITS = {
-  free:       { daily: 10,  imageAnalysis: 3,   model: 'claude-haiku-4-5-20251001' },
-  starter:    { daily: 50,  imageAnalysis: 15,  model: 'claude-haiku-4-5-20251001' },
-  agency:     { daily: 200, imageAnalysis: 50,  model: 'claude-sonnet-4-20250514' },
-  agency_pro: { daily: -1,  imageAnalysis: -1,  model: 'claude-sonnet-4-20250514' },  // -1 = unlimited
-  enterprise: { daily: -1,  imageAnalysis: -1,  model: 'claude-sonnet-4-20250514' },
-};
+// Free trial limits (uses platform key)
+const FREE_TRIAL = { daily: 5, imageAnalysis: 2 };
 
 // ── TONE PRESETS ──
 const TONE_PRESETS = {
@@ -56,20 +51,28 @@ async function authenticate(req) {
   return payload || null;
 }
 
-// ── RATE LIMITING ──
-async function checkAiRateLimit(email, plan, action) {
-  const limits = AI_LIMITS[plan] || AI_LIMITS.free;
+// ── GET USER'S API KEY ──
+async function getUserApiKey(email) {
+  if (email === 'admin') return null; // Admin uses platform key
+  const emailKey = email.toLowerCase().replace(/[^a-z0-9]/g, '_');
+  const userData = await db.getUser(emailKey);
+  if (userData?.anthropicApiKey) {
+    try {
+      return decrypt(userData.anthropicApiKey);
+    } catch { return null; }
+  }
+  return null;
+}
+
+// ── FREE TRIAL RATE LIMITING ──
+async function checkFreeTrialLimit(email, action) {
   const isImageAction = action === 'analyse-image';
-  const dailyLimit = isImageAction ? limits.imageAnalysis : limits.daily;
+  const dailyLimit = isImageAction ? FREE_TRIAL.imageAnalysis : FREE_TRIAL.daily;
 
-  // Unlimited
-  if (dailyLimit === -1) return { allowed: true, remaining: -1, model: limits.model };
-
-  const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
-  const key = `ai_${email}_${today}`;
+  const today = new Date().toISOString().slice(0, 10);
+  const key = `ai_trial_${email}_${today}`;
   const usage = await db.getRateLimit(key) || { writes: 0, images: 0, date: today };
 
-  // Reset if different day
   if (usage.date !== today) {
     usage.writes = 0;
     usage.images = 0;
@@ -78,27 +81,17 @@ async function checkAiRateLimit(email, plan, action) {
 
   const currentCount = isImageAction ? usage.images : usage.writes;
   if (currentCount >= dailyLimit) {
-    const planName = (AI_LIMITS[plan] || AI_LIMITS.free) === AI_LIMITS.free ? 'Free' : plan.charAt(0).toUpperCase() + plan.slice(1);
     return {
       allowed: false,
       remaining: 0,
-      reason: `AI Writer daily limit reached (${currentCount}/${dailyLimit}). ${plan === 'free' ? 'Upgrade to Starter for 50/day.' : 'Upgrade your plan for more.'}`,
-      model: limits.model,
+      reason: `Free AI trial limit reached (${currentCount}/${dailyLimit} today). Add your own Anthropic API key in Settings for unlimited use.`,
     };
   }
 
-  return {
-    allowed: true,
-    remaining: dailyLimit - currentCount - 1,
-    model: limits.model,
-    // Pass usage object so we can increment after successful call
-    _usage: usage,
-    _key: key,
-    _isImage: isImageAction,
-  };
+  return { allowed: true, remaining: dailyLimit - currentCount - 1, _usage: usage, _key: key, _isImage: isImageAction };
 }
 
-async function incrementAiUsage(rateResult) {
+async function incrementTrialUsage(rateResult) {
   if (!rateResult._usage || !rateResult._key) return;
   const usage = rateResult._usage;
   if (rateResult._isImage) usage.images++;
@@ -137,7 +130,16 @@ async function callClaude(apiKey, messages, system, model) {
     body: JSON.stringify({ model, max_tokens: 1500, system, messages })
   });
   const d = await r.json();
-  if (d.error) return { error: d.error.message || "API error" };
+  if (d.error) {
+    // Give helpful message for common errors
+    if (d.error.message?.includes('invalid x-api-key')) {
+      return { error: 'Invalid API key. Please check your Anthropic API key in Settings.' };
+    }
+    if (d.error.message?.includes('credit')) {
+      return { error: 'Your Anthropic account has no credits. Top up at console.anthropic.com.' };
+    }
+    return { error: d.error.message || "API error" };
+  }
   const text = d.content?.map(c => c.text || "").join("") || "";
   return { text };
 }
@@ -154,9 +156,6 @@ export default async function handler(req) {
   if (req.method === "OPTIONS") return new Response("", { status: 204, headers: CORS });
   if (req.method !== "POST") return jsonRes({ error: "POST only" }, 405);
 
-  const API_KEY = process.env.ANTHROPIC_API_KEY;
-  if (!API_KEY) return jsonRes({ error: "AI Writer not configured" }, 503);
-
   // ── AUTH CHECK ──
   const user = await authenticate(req);
   if (!user) return jsonRes({ error: "Unauthorised. Please log in." }, 401);
@@ -165,17 +164,37 @@ export default async function handler(req) {
     const body = await req.json();
     const { prompt, tone, clientName, clientType, platforms, hashtagMode, imageUrl, action } = body;
 
-    // ── RATE LIMIT CHECK ──
-    const rateCheck = await checkAiRateLimit(user.email, user.plan || 'free', action || 'write');
-    if (!rateCheck.allowed) {
+    // ── RESOLVE API KEY (user's own key or free trial) ──
+    const userKey = await getUserApiKey(user.email);
+    const platformKey = process.env.ANTHROPIC_API_KEY;
+    const usingOwnKey = !!userKey;
+    let apiKey;
+    let trialCheck = null;
+
+    if (usingOwnKey) {
+      // User has their own key — no limits, use Sonnet
+      apiKey = userKey;
+    } else if (platformKey) {
+      // No user key — use platform key with free trial limits
+      trialCheck = await checkFreeTrialLimit(user.email, action || 'write');
+      if (!trialCheck.allowed) {
+        return jsonRes({
+          error: trialCheck.reason,
+          rateLimited: true,
+          remaining: 0,
+          needsApiKey: true,
+        }, 429);
+      }
+      apiKey = platformKey;
+    } else {
       return jsonRes({
-        error: rateCheck.reason,
-        rateLimited: true,
-        remaining: 0,
-      }, 429);
+        error: "AI Writer requires an Anthropic API key. Add yours in Settings → API Key.",
+        needsApiKey: true,
+      }, 503);
     }
 
-    const model = rateCheck.model;
+    // Use Sonnet for own-key users, Haiku for trial
+    const model = usingOwnKey ? 'claude-sonnet-4-20250514' : 'claude-haiku-4-5-20251001';
 
     // ── ACTION: ANALYSE IMAGE ──
     if (action === 'analyse-image') {
@@ -197,16 +216,16 @@ Return ONLY the JSON object, no markdown fences or explanation.` }
         ]
       }];
 
-      const r = await callClaude(API_KEY, messages, "You are a visual content analyst for social media marketing. Always return valid JSON.", model);
+      const r = await callClaude(apiKey, messages, "You are a visual content analyst for social media marketing. Always return valid JSON.", model);
       if (r.error) return jsonRes({ error: r.error }, 500);
 
-      await incrementAiUsage(rateCheck);
+      if (trialCheck) await incrementTrialUsage(trialCheck);
 
       try {
         const parsed = JSON.parse(r.text);
-        return jsonRes({ analysis: parsed, remaining: rateCheck.remaining });
+        return jsonRes({ analysis: parsed, remaining: trialCheck?.remaining ?? -1, usingOwnKey });
       } catch {
-        return jsonRes({ analysis: { description: r.text, captionIdeas: [], suggestedTone: 'casual', suggestedHashtags: [] }, remaining: rateCheck.remaining });
+        return jsonRes({ analysis: { description: r.text, captionIdeas: [], suggestedTone: 'casual', suggestedHashtags: [] }, remaining: trialCheck?.remaining ?? -1, usingOwnKey });
       }
     }
 
@@ -230,16 +249,16 @@ Return ONLY a JSON object with:
 Return ONLY the JSON, no explanation.`
       }];
 
-      const r = await callClaude(API_KEY, messages, "You are a social media hashtag strategist. Always return valid JSON.", model);
+      const r = await callClaude(apiKey, messages, "You are a social media hashtag strategist. Always return valid JSON.", model);
       if (r.error) return jsonRes({ error: r.error }, 500);
 
-      await incrementAiUsage(rateCheck);
+      if (trialCheck) await incrementTrialUsage(trialCheck);
 
       try {
         const parsed = JSON.parse(r.text);
-        return jsonRes({ hashtags: parsed, remaining: rateCheck.remaining });
+        return jsonRes({ hashtags: parsed, remaining: trialCheck?.remaining ?? -1, usingOwnKey });
       } catch {
-        return jsonRes({ hashtags: { hashtags: [], platformSuggestions: {} }, remaining: rateCheck.remaining });
+        return jsonRes({ hashtags: { hashtags: [], platformSuggestions: {} }, remaining: trialCheck?.remaining ?? -1, usingOwnKey });
       }
     }
 
@@ -275,19 +294,20 @@ RULES:
     }
 
     const messages = [{ role: "user", content: userContent.length === 1 ? userContent[0].text : userContent }];
-    const r = await callClaude(API_KEY, messages, systemPrompt, model);
+    const r = await callClaude(apiKey, messages, systemPrompt, model);
     if (r.error) return jsonRes({ error: r.error }, 500);
 
-    await incrementAiUsage(rateCheck);
+    if (trialCheck) await incrementTrialUsage(trialCheck);
 
-    logger.info('AI Writer used', { email: user.email, plan: user.plan, action: action || 'write', model, remaining: rateCheck.remaining });
+    logger.info('AI Writer used', { email: user.email, usingOwnKey, action: action || 'write', model });
 
     return jsonRes({
       text: r.text,
       tone: tone || 'casual',
       tonePresets: Object.keys(TONE_PRESETS),
-      remaining: rateCheck.remaining,
-      model: model.includes('haiku') ? 'fast' : 'advanced',
+      remaining: trialCheck?.remaining ?? -1,
+      usingOwnKey,
+      model: model.includes('haiku') ? 'trial' : 'full',
     });
   } catch (e) {
     logger.error('AI Writer error', { error: e.message });

@@ -36,7 +36,8 @@ export default async (req) => {
   // Permission checks
   const writeActions = ['add-post', 'update-post', 'delete-post', 'publish-now', 'post-now', 'upload-image', 'delete-from-platform', 'bulk-import', 'save-template', 'delete-template', 'duplicate-post', 'bulk-delete', 'bulk-publish', 'bulk-reschedule'];
   const publishActions = ['publish-now', 'post-now', 'bulk-publish', 'delete-from-platform'];
-  const readOnlyActions = ['get-clients', 'get-posts', 'config', 'get-templates', 'check-token-health', 'export-analytics', 'plan-usage'];
+  const readOnlyActions = ['get-clients', 'get-posts', 'config', 'get-templates', 'check-token-health', 'export-analytics', 'plan-usage', 'check-api-key'];
+  const selfServiceActions = ['save-api-key', 'remove-api-key', 'check-api-key'];
 
   // Viewer role = read-only
   if (user.role === 'viewer' && !readOnlyActions.includes(action)) {
@@ -52,7 +53,7 @@ export default async (req) => {
     if (!user.assignedClients.includes(clientId)) return forbidden("You don't have permission for this client");
   }
   const adminActions = ['add-client', 'update-client', 'delete-client', 'migrate-tokens', 'generate-invite', 'check-token-health', 'generate-approval-link', 'set-approval-mode', 'set-approval-status', 'migrate-to-supabase', 'reorder-queue'];
-  if (user.role !== 'admin' && adminActions.includes(action)) return forbidden('Admin access required');
+  if (user.role !== 'admin' && adminActions.includes(action) && !selfServiceActions.includes(action)) return forbidden('Admin access required');
 
   try {
     // ── CLIENT MANAGEMENT ──
@@ -649,6 +650,44 @@ export default async (req) => {
           clients: clients.length,
           users: users.length || 1,
         },
+      });
+    }
+
+    // ── SAVE USER API KEY (Anthropic) ──
+    if (action === 'save-api-key' && req.method === 'POST') {
+      const body = await req.json();
+      const { apiKey } = body;
+      if (!apiKey || !apiKey.startsWith('sk-ant-')) {
+        return badRequest('Invalid Anthropic API key. It should start with sk-ant-');
+      }
+      const emailKey = user.email.toLowerCase().replace(/[^a-z0-9]/g, '_');
+      const userData = await db.getUser(emailKey) || { email: user.email };
+      userData.anthropicApiKey = encrypt(apiKey);
+      userData.apiKeySetAt = new Date().toISOString();
+      await db.saveUser(emailKey, userData);
+      logger.info('User saved Anthropic API key', { email: user.email });
+      return json({ success: true, hasKey: true });
+    }
+
+    // ── REMOVE USER API KEY ──
+    if (action === 'remove-api-key' && req.method === 'DELETE') {
+      const emailKey = user.email.toLowerCase().replace(/[^a-z0-9]/g, '_');
+      const userData = await db.getUser(emailKey);
+      if (userData) {
+        delete userData.anthropicApiKey;
+        delete userData.apiKeySetAt;
+        await db.saveUser(emailKey, userData);
+      }
+      return json({ success: true, hasKey: false });
+    }
+
+    // ── CHECK IF USER HAS API KEY ──
+    if (action === 'check-api-key') {
+      const emailKey = user.email.toLowerCase().replace(/[^a-z0-9]/g, '_');
+      const userData = await db.getUser(emailKey);
+      return json({
+        hasKey: !!(userData?.anthropicApiKey),
+        setAt: userData?.apiKeySetAt || null,
       });
     }
 
