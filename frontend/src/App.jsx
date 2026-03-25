@@ -44,6 +44,8 @@ export default function App({ user, onLogout }) {
   const [aiHashtagMode, setAiHashtagMode] = useState('auto');
   const [aiImageAnalysis, setAiImageAnalysis] = useState(null);
   const [aiAnalysing, setAiAnalysing] = useState(false);
+  const [aiRemaining, setAiRemaining] = useState(null); // null = unknown, -1 = unlimited
+  const [aiModel, setAiModel] = useState(null); // 'fast' or 'advanced'
 
   // Team state
   const [users, setUsers] = useState([]);
@@ -269,10 +271,14 @@ export default function App({ user, onLogout }) {
         hashtagMode: aiHashtagMode,
         imageUrl: imageUrl || undefined,
       });
-      if (data.text) {
+      if (data.rateLimited) {
+        alert(data.error || 'Daily AI Writer limit reached. Upgrade your plan for more.');
+      } else if (data.text) {
         setCaption(data.text);
         setAiOpen(false);
         setAiPrompt('');
+        if (data.remaining !== undefined) setAiRemaining(data.remaining);
+        if (data.model) setAiModel(data.model);
       } else {
         alert(data.error || 'AI Writer error');
       }
@@ -291,9 +297,12 @@ export default function App({ user, onLogout }) {
         clientName: currentClient.name,
         clientType: currentClient.brandDescription || '',
       });
-      if (data.analysis) {
+      if (data.rateLimited) {
+        alert(data.error || 'Daily image analysis limit reached.');
+      } else if (data.analysis) {
         setAiImageAnalysis(data.analysis);
         setAiOpen(true);
+        if (data.remaining !== undefined) setAiRemaining(data.remaining);
       } else {
         alert(data.error || 'Image analysis failed');
       }
@@ -312,13 +321,15 @@ export default function App({ user, onLogout }) {
         clientName: currentClient?.name || '',
         clientType: currentClient?.brandDescription || '',
       });
-      if (data.hashtags?.hashtags?.length) {
+      if (data.rateLimited) {
+        alert(data.error || 'Daily AI Writer limit reached.');
+      } else if (data.hashtags?.hashtags?.length) {
         const tags = data.hashtags.hashtags.map(h => `#${h}`).join(' ');
         setCaption(prev => {
-          // Remove existing hashtags and append new ones
           const cleaned = prev.replace(/\n*(?:#\w+\s*)+$/m, '').trimEnd();
           return cleaned + '\n\n' + tags;
         });
+        if (data.remaining !== undefined) setAiRemaining(data.remaining);
       }
     } catch (e) { alert('Hashtag generation failed: ' + e.message); }
     setAiLoading(false);
@@ -645,8 +656,15 @@ export default function App({ user, onLogout }) {
               {aiOpen && (
                 <div style={{ marginTop: 14, padding: 16, background: 'rgba(99,102,241,0.08)', borderRadius: 10, border: '1px solid var(--accent)' }}>
                   <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 12, color: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <span>🤖 AI Writer</span>
-                    <button className="btn-ghost" style={{ fontSize: 11, padding: '2px 8px' }} onClick={() => { setAiOpen(false); setAiPrompt(''); setAiImageAnalysis(null); }}>✕</button>
+                    <span>🤖 AI Writer {aiModel === 'fast' ? '(Fast)' : aiModel === 'advanced' ? '(Advanced)' : ''}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      {aiRemaining !== null && aiRemaining !== -1 && (
+                        <span style={{ fontSize: 10, color: aiRemaining <= 3 ? 'var(--danger)' : 'var(--text-muted)', fontWeight: aiRemaining <= 3 ? 600 : 400 }}>
+                          {aiRemaining <= 3 ? '⚠️ ' : ''}{aiRemaining} left today
+                        </span>
+                      )}
+                      <button className="btn-ghost" style={{ fontSize: 11, padding: '2px 8px' }} onClick={() => { setAiOpen(false); setAiPrompt(''); setAiImageAnalysis(null); }}>✕</button>
+                    </div>
                   </div>
 
                   {/* Tone + Hashtag controls */}
