@@ -70,7 +70,7 @@ export default async (req) => {
   }
 
   // Queue stats
-  const queued = allPosts.filter(p => p.status === 'queued');
+  const queued = allPosts.filter(p => p.status === 'queued' || p.status === 'scheduled');
   const failed = allPosts.filter(p => p.status === 'failed');
 
   // ── Platform insights (best-effort) ──

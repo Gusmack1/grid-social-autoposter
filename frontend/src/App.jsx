@@ -767,14 +767,19 @@ export default function App({ user, onLogout }) {
                           transition: 'background 0.1s',
                         }}>
                         <div style={{ fontSize: 12, fontWeight: isToday ? 700 : 400, color: isToday ? 'var(--accent)' : 'var(--text-muted)', marginBottom: 4 }}>{day}</div>
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
-                          {dp.slice(0, 4).map(p => (
-                            <div key={p.id} title={truncate(p.caption, 60)} style={{
-                              width: 8, height: 8, borderRadius: '50%',
-                              background: p.status === 'published' ? 'var(--success)' : p.status === 'failed' ? 'var(--danger)' : 'var(--accent)',
-                            }} />
-                          ))}
-                          {dp.length > 4 && <span style={{ fontSize: 9, color: 'var(--text-muted)' }}>+{dp.length - 4}</span>}
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 2, marginTop: 2 }}>
+                          {dp.length > 0 && (() => {
+                            const pub = dp.filter(p => p.status === 'published').length;
+                            const q = dp.filter(p => p.status === 'queued' || p.status === 'scheduled').length;
+                            const fail = dp.filter(p => p.status === 'failed').length;
+                            return (
+                              <>
+                                {q > 0 && <span style={{ fontSize: 10, fontWeight: 600, background: 'var(--accent)', color: '#fff', borderRadius: 4, padding: '1px 5px' }}>{q}</span>}
+                                {pub > 0 && <span style={{ fontSize: 10, fontWeight: 600, background: 'var(--success)', color: '#fff', borderRadius: 4, padding: '1px 5px' }}>{pub}</span>}
+                                {fail > 0 && <span style={{ fontSize: 10, fontWeight: 600, background: 'var(--danger)', color: '#fff', borderRadius: 4, padding: '1px 5px' }}>{fail}</span>}
+                              </>
+                            );
+                          })()}
                         </div>
                       </div>
                     );
@@ -829,10 +834,11 @@ export default function App({ user, onLogout }) {
               )}
 
               {/* Legend */}
-              <div style={{ marginTop: 12, display: 'flex', gap: 16, fontSize: 11, color: 'var(--text-muted)' }}>
-                <span><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: 'var(--accent)', marginRight: 4 }} />Queued</span>
-                <span><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: 'var(--success)', marginRight: 4 }} />Published</span>
-                <span><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: 'var(--danger)', marginRight: 4 }} />Failed</span>
+              <div style={{ marginTop: 12, display: 'flex', gap: 16, fontSize: 11, color: 'var(--text-muted)', alignItems: 'center' }}>
+                <span><span style={{ display: 'inline-block', fontSize: 10, fontWeight: 600, background: 'var(--accent)', color: '#fff', borderRadius: 4, padding: '1px 5px', marginRight: 4 }}>2</span>Queued</span>
+                <span><span style={{ display: 'inline-block', fontSize: 10, fontWeight: 600, background: 'var(--success)', color: '#fff', borderRadius: 4, padding: '1px 5px', marginRight: 4 }}>1</span>Published</span>
+                <span><span style={{ display: 'inline-block', fontSize: 10, fontWeight: 600, background: 'var(--danger)', color: '#fff', borderRadius: 4, padding: '1px 5px', marginRight: 4 }}>!</span>Failed</span>
+                <span style={{ marginLeft: 8 }}>Click a day to see details</span>
               </div>
             </div>
           );
