@@ -802,10 +802,28 @@ export default function App({ user, onLogout }) {
                       {' '}
                       {post.platforms?.map(p => {
                         const r = post.results?.[p];
+                        const postUrl = r?.success && r?.id ? (
+                          p === 'facebook' ? `https://www.facebook.com/${r.id}` :
+                          p === 'instagram' && r.permalink ? r.permalink :
+                          p === 'twitter' && r.id ? `https://twitter.com/i/status/${r.id}` :
+                          p === 'linkedin' && r.id ? `https://www.linkedin.com/feed/update/${r.id}` :
+                          p === 'threads' && r.id ? `https://www.threads.net/post/${r.id}` :
+                          null
+                        ) : null;
                         return (
                           <span key={p} style={{ marginRight: 6 }}>
-                            <PlatformIcon platform={p} />
-                            {r?.success ? '✓' : r ? '✗' : '—'}
+                            {postUrl ? (
+                              <a href={postUrl} target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'none', color: 'inherit' }} title={`View on ${p}`}>
+                                <PlatformIcon platform={p} />
+                                {'✓ '}
+                                <span style={{ fontSize: 11, color: 'var(--accent)', textDecoration: 'underline' }}>View</span>
+                              </a>
+                            ) : (
+                              <>
+                                <PlatformIcon platform={p} />
+                                {r?.success ? '✓' : r ? '✗' : '—'}
+                              </>
+                            )}
                           </span>
                         );
                       })}

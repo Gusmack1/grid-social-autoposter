@@ -34,7 +34,16 @@ async function createAndPublish(igUserId, token, containerParams, { pollInterval
   });
   const pd = await pr.json();
   if (pd.error) throw new Error(pd.error.message);
-  return { success: true, id: pd.id };
+
+  // Fetch permalink for public link
+  let permalink = null;
+  try {
+    const plr = await fetch(`${GRAPH_API}/${pd.id}?fields=permalink&access_token=${token}`);
+    const pld = await plr.json();
+    permalink = pld.permalink || null;
+  } catch (_) { /* non-critical */ }
+
+  return { success: true, id: pd.id, permalink };
 }
 
 export async function postFeed(client, caption, imageUrl) {
