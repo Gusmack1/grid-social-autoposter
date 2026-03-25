@@ -40,6 +40,10 @@ export default function App({ user, onLogout }) {
   const [aiPrompt, setAiPrompt] = useState('');
   const [aiLoading, setAiLoading] = useState(false);
   const [aiOpen, setAiOpen] = useState(false);
+  const [aiTone, setAiTone] = useState('casual');
+  const [aiHashtagMode, setAiHashtagMode] = useState('auto');
+  const [aiImageAnalysis, setAiImageAnalysis] = useState(null);
+  const [aiAnalysing, setAiAnalysing] = useState(false);
 
   // Team state
   const [users, setUsers] = useState([]);
@@ -258,9 +262,12 @@ export default function App({ user, onLogout }) {
     try {
       const data = await apiPost('/ai-writer', {
         prompt: aiPrompt,
-        tone: 'conversational',
+        tone: aiTone,
         clientName: currentClient.name,
         clientType: currentClient.brandDescription || '',
+        platforms,
+        hashtagMode: aiHashtagMode,
+        imageUrl: imageUrl || undefined,
       });
       if (data.text) {
         setCaption(data.text);
@@ -270,6 +277,50 @@ export default function App({ user, onLogout }) {
         alert(data.error || 'AI Writer error');
       }
     } catch (e) { alert('AI Writer failed: ' + e.message); }
+    setAiLoading(false);
+  };
+
+  const handleAiAnalyseImage = async () => {
+    if (!imageUrl || !currentClient) return;
+    setAiAnalysing(true);
+    setAiImageAnalysis(null);
+    try {
+      const data = await apiPost('/ai-writer', {
+        action: 'analyse-image',
+        imageUrl,
+        clientName: currentClient.name,
+        clientType: currentClient.brandDescription || '',
+      });
+      if (data.analysis) {
+        setAiImageAnalysis(data.analysis);
+        setAiOpen(true);
+      } else {
+        alert(data.error || 'Image analysis failed');
+      }
+    } catch (e) { alert('Image analysis failed: ' + e.message); }
+    setAiAnalysing(false);
+  };
+
+  const handleAiHashtags = async () => {
+    if (!caption.trim()) return;
+    setAiLoading(true);
+    try {
+      const data = await apiPost('/ai-writer', {
+        action: 'hashtags',
+        prompt: caption,
+        platforms,
+        clientName: currentClient?.name || '',
+        clientType: currentClient?.brandDescription || '',
+      });
+      if (data.hashtags?.hashtags?.length) {
+        const tags = data.hashtags.hashtags.map(h => `#${h}`).join(' ');
+        setCaption(prev => {
+          // Remove existing hashtags and append new ones
+          const cleaned = prev.replace(/\n*(?:#\w+\s*)+$/m, '').trimEnd();
+          return cleaned + '\n\n' + tags;
+        });
+      }
+    } catch (e) { alert('Hashtag generation failed: ' + e.message); }
     setAiLoading(false);
   };
 
@@ -592,18 +643,92 @@ export default function App({ user, onLogout }) {
 
               {/* AI Writer panel */}
               {aiOpen && (
-                <div style={{ marginTop: 14, padding: 14, background: 'rgba(99,102,241,0.08)', borderRadius: 8, border: '1px solid var(--accent)' }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8, color: 'var(--accent)' }}>🤖 AI Writer</div>
+                <div style={{ marginTop: 14, padding: 16, background: 'rgba(99,102,241,0.08)', borderRadius: 10, border: '1px solid var(--accent)' }}>
+                  <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 12, color: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span>🤖 AI Writer</span>
+                    <button className="btn-ghost" style={{ fontSize: 11, padding: '2px 8px' }} onClick={() => { setAiOpen(false); setAiPrompt(''); setAiImageAnalysis(null); }}>✕</button>
+                  </div>
+
+                  {/* Tone + Hashtag controls */}
+                  <div style={{ display: 'flex', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
+                    <div style={{ flex: 1, minWidth: 140 }}>
+                      <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 3 }}>Tone</label>
+                      <select value={aiTone} onChange={e => setAiTone(e.target.value)}
+                        style={{ fontSize: 12, padding: '6px 8px', width: '100%' }}>
+                        <option value="professional">Professional</option>
+                        <option value="casual">Casual & Friendly</option>
+                        <option value="humorous">Witty & Fun</option>
+                        <option value="scottish">Scottish</option>
+                        <option value="inspirational">Inspirational</option>
+                        <option value="sales">Sales & CTA</option>
+                        <option value="storytelling">Storytelling</option>
+                      </select>
+                    </div>
+                    <div style={{ flex: 1, minWidth: 140 }}>
+                      <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 3 }}>Hashtags</label>
+                      <select value={aiHashtagMode} onChange={e => setAiHashtagMode(e.target.value)}
+                        style={{ fontSize: 12, padding: '6px 8px', width: '100%' }}>
+                        <option value="auto">Auto (platform-aware)</option>
+                        <option value="minimal">Minimal (1-2)</option>
+                        <option value="none">No hashtags</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Prompt input */}
                   <input type="text" placeholder="What should the post be about? e.g. 'Why reviews matter for tradespeople'"
                     value={aiPrompt} onChange={e => setAiPrompt(e.target.value)}
                     onKeyDown={e => e.key === 'Enter' && handleAiWrite()}
-                    style={{ marginBottom: 8, fontSize: 13 }} />
-                  <div style={{ display: 'flex', gap: 8 }}>
+                    style={{ marginBottom: 10, fontSize: 13 }} />
+
+                  {/* Image analysis results */}
+                  {aiImageAnalysis && (
+                    <div style={{ marginBottom: 10, padding: 10, background: 'rgba(74,222,128,0.1)', borderRadius: 6, border: '1px solid rgba(74,222,128,0.3)', fontSize: 12 }}>
+                      <div style={{ fontWeight: 600, marginBottom: 4, color: '#4ade80' }}>Image Analysis</div>
+                      <div style={{ marginBottom: 6, color: 'var(--text)' }}>{aiImageAnalysis.description}</div>
+                      {aiImageAnalysis.captionIdeas?.length > 0 && (
+                        <div style={{ marginBottom: 6 }}>
+                          <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>Caption ideas (click to use):</span>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginTop: 3 }}>
+                            {aiImageAnalysis.captionIdeas.map((idea, i) => (
+                              <button key={i} className="btn-ghost" onClick={() => setAiPrompt(idea)}
+                                style={{ fontSize: 11, textAlign: 'left', padding: '4px 8px', whiteSpace: 'normal', lineHeight: 1.3 }}>
+                                {idea}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {aiImageAnalysis.suggestedTone && aiImageAnalysis.suggestedTone !== aiTone && (
+                        <button className="btn-ghost" style={{ fontSize: 10, padding: '2px 6px' }}
+                          onClick={() => setAiTone(aiImageAnalysis.suggestedTone)}>
+                          Suggested tone: {aiImageAnalysis.suggestedTone}
+                        </button>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Action buttons */}
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                     <button className="btn-primary btn-sm" onClick={handleAiWrite}
                       disabled={!aiPrompt.trim() || aiLoading}>
                       {aiLoading ? 'Writing...' : 'Generate Caption'}
                     </button>
-                    <button className="btn-ghost btn-sm" onClick={() => { setAiOpen(false); setAiPrompt(''); }}>Cancel</button>
+                    {imageUrl && (
+                      <button className="btn-sm" onClick={handleAiAnalyseImage}
+                        disabled={aiAnalysing}
+                        style={{ background: 'rgba(74,222,128,0.15)', color: '#4ade80', border: '1px solid rgba(74,222,128,0.3)', borderRadius: 6, padding: '4px 10px', fontSize: 12, cursor: 'pointer' }}>
+                        {aiAnalysing ? 'Analysing...' : '🔍 Analyse Image'}
+                      </button>
+                    )}
+                    {caption.trim() && (
+                      <button className="btn-sm" onClick={handleAiHashtags}
+                        disabled={aiLoading}
+                        style={{ background: 'rgba(96,165,250,0.15)', color: '#60a5fa', border: '1px solid rgba(96,165,250,0.3)', borderRadius: 6, padding: '4px 10px', fontSize: 12, cursor: 'pointer' }}>
+                        #️⃣ Regenerate Hashtags
+                      </button>
+                    )}
+                    <button className="btn-ghost btn-sm" onClick={() => { setAiOpen(false); setAiPrompt(''); setAiImageAnalysis(null); }}>Cancel</button>
                   </div>
                 </div>
               )}
