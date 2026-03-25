@@ -37,6 +37,9 @@ export default function App({ user, onLogout }) {
   const [postType, setPostType] = useState('feed');
   const [scheduledFor, setScheduledFor] = useState('');
   const [uploading, setUploading] = useState(false);
+  const [aiPrompt, setAiPrompt] = useState('');
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiOpen, setAiOpen] = useState(false);
 
   // Team state
   const [users, setUsers] = useState([]);
@@ -249,6 +252,27 @@ export default function App({ user, onLogout }) {
     setCsvImporting(false);
   };
 
+  const handleAiWrite = async () => {
+    if (!aiPrompt.trim() || !currentClient) return;
+    setAiLoading(true);
+    try {
+      const data = await apiPost('/ai-writer', {
+        prompt: aiPrompt,
+        tone: 'conversational',
+        clientName: currentClient.name,
+        clientType: currentClient.brandDescription || '',
+      });
+      if (data.text) {
+        setCaption(data.text);
+        setAiOpen(false);
+        setAiPrompt('');
+      } else {
+        alert(data.error || 'AI Writer error');
+      }
+    } catch (e) { alert('AI Writer failed: ' + e.message); }
+    setAiLoading(false);
+  };
+
   // ── TEMPLATE HANDLER ──
   const handleTemplate = (action, data) => {
     if (action === 'get') {
@@ -457,7 +481,7 @@ export default function App({ user, onLogout }) {
               </div>
 
               {/* Image */}
-              <div style={{ display: 'flex', gap: 8, marginBottom: 12, alignItems: 'center' }}>
+              <div style={{ display: 'flex', gap: 8, marginBottom: 8, alignItems: 'center' }}>
                 <input type="text" placeholder="Image URL (or upload below)" value={imageUrl}
                   onChange={e => setImageUrl(e.target.value)} style={{ flex: 1 }} />
                 <label className="btn-ghost btn-sm" style={{ cursor: 'pointer', whiteSpace: 'nowrap' }}>
@@ -465,6 +489,14 @@ export default function App({ user, onLogout }) {
                   <input type="file" accept="image/*" onChange={handleImageUpload} hidden />
                 </label>
               </div>
+              {imageUrl && (
+                <div style={{ marginBottom: 12, display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <img src={imageUrl} alt="Preview" onError={e => e.target.style.display = 'none'}
+                    style={{ maxHeight: 80, maxWidth: 120, borderRadius: 6, objectFit: 'cover', border: '1px solid var(--border)' }} />
+                  <button className="btn-ghost btn-sm" onClick={() => setImageUrl('')}
+                    style={{ fontSize: 11, color: 'var(--danger)' }}>✕ Remove</button>
+                </div>
+              )}
 
               {/* Carousel images */}
               {postType === 'carousel' && (
@@ -522,7 +554,7 @@ export default function App({ user, onLogout }) {
               <div style={{ display: 'flex', gap: 8, marginBottom: 16, alignItems: 'center' }}>
                 <input type="datetime-local" value={scheduledFor}
                   onChange={e => setScheduledFor(e.target.value)} style={{ flex: 1 }} />
-                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>GMT</span>
+                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>UK time</span>
               </div>
 
               {/* Approval mode warning */}
@@ -543,6 +575,10 @@ export default function App({ user, onLogout }) {
                 <button className="btn-success" onClick={() => handleSubmit(true)} disabled={!caption.trim() || loading}>
                   Post Now
                 </button>
+                <button className="btn-ghost" onClick={() => setAiOpen(!aiOpen)}
+                  style={{ fontSize: 13, background: aiOpen ? 'var(--accent)' : '', color: aiOpen ? '#fff' : '' }}>
+                  🤖 AI Writer
+                </button>
                 <button className={`btn-ghost ${showPreview ? 'btn-sm' : ''}`}
                   onClick={() => setShowPreview(!showPreview)}
                   style={{ fontSize: 13 }}>
@@ -553,6 +589,24 @@ export default function App({ user, onLogout }) {
                   <input type="file" accept=".csv" onChange={handleCsvImport} hidden />
                 </label>
               </div>
+
+              {/* AI Writer panel */}
+              {aiOpen && (
+                <div style={{ marginTop: 14, padding: 14, background: 'rgba(99,102,241,0.08)', borderRadius: 8, border: '1px solid var(--accent)' }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8, color: 'var(--accent)' }}>🤖 AI Writer</div>
+                  <input type="text" placeholder="What should the post be about? e.g. 'Why reviews matter for tradespeople'"
+                    value={aiPrompt} onChange={e => setAiPrompt(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && handleAiWrite()}
+                    style={{ marginBottom: 8, fontSize: 13 }} />
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button className="btn-primary btn-sm" onClick={handleAiWrite}
+                      disabled={!aiPrompt.trim() || aiLoading}>
+                      {aiLoading ? 'Writing...' : 'Generate Caption'}
+                    </button>
+                    <button className="btn-ghost btn-sm" onClick={() => { setAiOpen(false); setAiPrompt(''); }}>Cancel</button>
+                  </div>
+                </div>
+              )}
 
               {/* Post preview */}
               {showPreview && (caption || imageUrl) && (
@@ -577,7 +631,8 @@ export default function App({ user, onLogout }) {
               <h1>Queue ({queuedPosts.length})</h1>
               <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                 {planUsage && planUsage.limits.postsPerMonth !== -1 && (
-                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                  <span style={{ fontSize: 11, color: planUsage.usage.postsThisMonth >= planUsage.limits.postsPerMonth ? 'var(--danger)' : 'var(--text-muted)', fontWeight: planUsage.usage.postsThisMonth >= planUsage.limits.postsPerMonth ? 600 : 400 }}>
+                    {planUsage.usage.postsThisMonth >= planUsage.limits.postsPerMonth ? '⚠️ ' : ''}
                     {planUsage.usage.postsThisMonth}/{planUsage.limits.postsPerMonth} posts this month
                   </span>
                 )}
