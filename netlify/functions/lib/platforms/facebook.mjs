@@ -97,3 +97,27 @@ export async function postCarousel(client, caption, imageUrls) {
     return { success: true, id: postData.id };
   }, { label: `fb-carousel-${client.fbPageId}` }).catch(err => ({ success: false, error: err.message }));
 }
+
+export async function postStory(client, caption, imageUrl) {
+  if (!client.fbPageId || !client.pageAccessToken || !imageUrl) return null;
+  const token = decrypt(client.pageAccessToken);
+
+  return withRetry(async () => {
+    // Step 1: Upload photo as unpublished
+    const photoRes = await fetch(`${GRAPH_API}/${client.fbPageId}/photos`, {
+      method: 'POST',
+      body: new URLSearchParams({ url: imageUrl, published: 'false', access_token: token }),
+    });
+    const photoData = await photoRes.json();
+    if (photoData.error) throw new Error(`Photo upload failed: ${photoData.error.message}`);
+
+    // Step 2: Create photo story
+    const storyRes = await fetch(`${GRAPH_API}/${client.fbPageId}/photo_stories`, {
+      method: 'POST',
+      body: new URLSearchParams({ photo_id: photoData.id, access_token: token }),
+    });
+    const storyData = await storyRes.json();
+    if (storyData.error) throw new Error(storyData.error.message);
+    return { success: true, id: storyData.id || storyData.post_id };
+  }, { label: `fb-story-${client.fbPageId}` }).catch(err => ({ success: false, error: err.message }));
+}

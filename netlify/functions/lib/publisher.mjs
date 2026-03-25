@@ -15,7 +15,10 @@ export async function publishToAll(client, post) {
   const tasks = [];
 
   if (pt === 'story') {
-    // Stories: Instagram only
+    // Stories: Facebook + Instagram
+    if (post.platforms.includes('facebook') && client.fbPageId && post.imageUrl) {
+      tasks.push({ platform: 'facebook', fn: () => facebook.postStory(client, post.caption, post.imageUrl) });
+    }
     if (post.platforms.includes('instagram') && client.igUserId && post.imageUrl) {
       tasks.push({ platform: 'instagram', fn: () => instagram.postStory(client, post.caption, post.imageUrl) });
     }
