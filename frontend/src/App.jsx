@@ -440,7 +440,7 @@ export default function App({ user, onLogout }) {
       if (data.rateLimited) {
         alert(data.error || 'Free trial limit reached. Add your own API key in Settings for unlimited use.');
       } else if (data.needsApiKey) {
-        alert(data.error || 'Add your Anthropic API key in the Clients & API tab to use AI Writer.');
+        alert(data.error || 'Daily free trial limit reached. Add your own Anthropic API key in the AI Writer panel for unlimited use.');
       } else if (data.text) {
         setCaption(data.text);
         setAiOpen(false);
@@ -815,10 +815,12 @@ export default function App({ user, onLogout }) {
 
               {/* Actions */}
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                <button className="btn-primary" onClick={() => handleSubmit(false)} disabled={!caption.trim() || loading}>
+                <button className="btn-primary" onClick={() => handleSubmit(false)}
+                  disabled={!caption.trim() || loading || platforms.filter(p => clientPlatforms.includes(p)).length === 0}>
                   {scheduledFor ? 'Schedule' : 'Add to Queue'}
                 </button>
-                <button className="btn-success" onClick={() => handleSubmit(true)} disabled={!caption.trim() || loading}>
+                <button className="btn-success" onClick={() => handleSubmit(true)}
+                  disabled={!caption.trim() || loading || platforms.filter(p => clientPlatforms.includes(p)).length === 0}>
                   Post Now
                 </button>
                 <button className="btn-ghost" onClick={() => setAiOpen(!aiOpen)}
@@ -934,6 +936,37 @@ export default function App({ user, onLogout }) {
                       </button>
                     )}
                     <button className="btn-ghost btn-sm" onClick={() => { setAiOpen(false); setAiPrompt(''); setAiImageAnalysis(null); }}>Cancel</button>
+                  </div>
+
+                  {/* API Key Settings — inside AI Writer panel */}
+                  <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid rgba(99,102,241,0.2)' }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 6, color: 'var(--text-muted)' }}>🔑 Your API Key</div>
+                    {!userHasApiKey ? (
+                      <div>
+                        <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '0 0 8px 0', lineHeight: 1.4 }}>
+                          5 free trial calls/day. Add your own Anthropic key for unlimited use with Claude Sonnet.
+                        </p>
+                        <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+                          <input type="password" placeholder="sk-ant-api03-..." value={apiKeyInput}
+                            onChange={e => setApiKeyInput(e.target.value)}
+                            style={{ flex: 1, minWidth: 180, fontSize: 11, padding: '5px 8px' }} />
+                          <button className="btn-primary btn-sm" onClick={handleSaveApiKey} disabled={apiKeySaving || !apiKeyInput.trim()}
+                            style={{ fontSize: 11, padding: '5px 10px' }}>
+                            {apiKeySaving ? 'Saving...' : 'Save'}
+                          </button>
+                        </div>
+                        <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener noreferrer"
+                          style={{ fontSize: 10, color: 'var(--accent)', marginTop: 4, display: 'inline-block' }}>
+                          Get a key from console.anthropic.com →
+                        </a>
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                        <span style={{ fontSize: 11, color: '#4ade80', fontWeight: 500 }}>✓ Key saved — unlimited AI Writer</span>
+                        <button className="btn-ghost btn-sm" onClick={handleRemoveApiKey}
+                          style={{ fontSize: 10, padding: '2px 6px', color: 'var(--danger)' }}>Remove</button>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
@@ -1434,7 +1467,7 @@ export default function App({ user, onLogout }) {
         {/* ── BILLING TAB ── */}
         {tab === 'billing' && isAdmin && (() => {
           const PLAN_DATA = [
-            { id: 'free', name: 'Free', price: '£0', profiles: 3, users: 1, features: ['3 social profiles', '1 user', 'Basic scheduling', 'Manual posting'] },
+            { id: 'free', name: 'Free', price: '£0', profiles: 1, users: 1, features: ['1 social profile', '1 user', '1 post/month', 'Basic scheduling'] },
             { id: 'starter', name: 'Starter', price: '£15/mo', profiles: 10, users: 2, features: ['10 social profiles', '2 users', 'AI Writer', 'Approval workflows', 'Email notifications'], priceEnv: 'STRIPE_PRICE_STARTER' },
             { id: 'agency', name: 'Agency', price: '£59/mo', profiles: 25, users: 5, features: ['25 social profiles', '5 users', 'White-label ready', 'Client connect portal', 'Priority support'], priceEnv: 'STRIPE_PRICE_AGENCY', popular: true },
             { id: 'agency_pro', name: 'Agency Pro', price: '£119/mo', profiles: 50, users: -1, features: ['50 social profiles', 'Unlimited users', 'Custom branding', 'API access', 'Dedicated support'], priceEnv: 'STRIPE_PRICE_AGENCY_PRO' },
@@ -1603,38 +1636,7 @@ export default function App({ user, onLogout }) {
               <button className="btn-primary btn-sm" onClick={() => setClientModal({ name: '' })}>+ Add Client</button>
             </div>
 
-            {/* AI Writer API Key Settings */}
-            <div className="card" style={{ marginBottom: 16, border: '1px solid var(--accent)', background: 'rgba(99,102,241,0.04)' }}>
-              <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 8, color: 'var(--accent)' }}>🔑 AI Writer — Anthropic API Key</div>
-              <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '0 0 10px 0', lineHeight: 1.5 }}>
-                The AI Writer uses the Anthropic API to generate captions, analyse images, and suggest hashtags.
-                {!userHasApiKey
-                  ? ' You get 5 free trial calls per day. Add your own API key for unlimited use with the best model (Claude Sonnet).'
-                  : ' Your key is saved securely (AES-256 encrypted). You have unlimited AI Writer access with Claude Sonnet.'}
-              </p>
-              {!userHasApiKey ? (
-                <div>
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                    <input type="password" placeholder="sk-ant-api03-..." value={apiKeyInput}
-                      onChange={e => setApiKeyInput(e.target.value)}
-                      style={{ flex: 1, minWidth: 200, fontSize: 12 }} />
-                    <button className="btn-primary btn-sm" onClick={handleSaveApiKey} disabled={apiKeySaving || !apiKeyInput.trim()}>
-                      {apiKeySaving ? 'Saving...' : 'Save Key'}
-                    </button>
-                  </div>
-                  <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener noreferrer"
-                    style={{ fontSize: 11, color: 'var(--accent)', marginTop: 6, display: 'inline-block' }}>
-                    Get your API key from console.anthropic.com →
-                  </a>
-                </div>
-              ) : (
-                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                  <span style={{ fontSize: 12, color: '#4ade80', fontWeight: 500 }}>✓ API key saved — unlimited AI Writer</span>
-                  <button className="btn-ghost btn-sm" onClick={handleRemoveApiKey}
-                    style={{ fontSize: 11, color: 'var(--danger)' }}>Remove Key</button>
-                </div>
-              )}
-            </div>
+            {/* API key settings moved to AI Writer panel in compose tab */}
             {clients.map(c => (
               <div key={c.id} className="card" style={{ marginBottom: 12 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>

@@ -19,7 +19,7 @@ function verifySignature(payload, sigHeader, secret) {
 
 // Plan limits
 const PLAN_LIMITS = {
-  free:       { profiles: 3,  users: 1  },
+  free:       { profiles: 1,  users: 1  },
   starter:    { profiles: 10, users: 2  },
   agency:     { profiles: 25, users: 5  },
   agency_pro: { profiles: 50, users: -1 }, // -1 = unlimited

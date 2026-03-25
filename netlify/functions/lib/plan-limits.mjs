@@ -2,7 +2,7 @@
 // Used by admin.mjs to enforce post/client/user caps
 
 export const PLAN_LIMITS = {
-  free:       { postsPerMonth: 30,   clients: 3,  users: 1,  bulkImportMax: 10  },
+  free:       { postsPerMonth: 1,    clients: 1,  users: 1,  bulkImportMax: 1   },
   starter:    { postsPerMonth: 300,  clients: 10, users: 2,  bulkImportMax: 50  },
   agency:     { postsPerMonth: 1500, clients: 25, users: 5,  bulkImportMax: 200 },
   agency_pro: { postsPerMonth: -1,   clients: 50, users: -1, bulkImportMax: 500 }, // -1 = unlimited
