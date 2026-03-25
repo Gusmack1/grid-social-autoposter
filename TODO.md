@@ -1,6 +1,6 @@
 # Grid Social — Current TODO
 
-**Last updated:** 25 March 2026 (Phase 6 complete)
+**Last updated:** 25 March 2026 (Phase 7 complete)
 
 ---
 
@@ -15,26 +15,29 @@
 | Phase 4a | ✅ DEPLOYED | LinkedIn auto-refresh, Billing tab, Threads + Bluesky platforms, post approval emails |
 | Phase 4b | ✅ DEPLOYED | TikTok OAuth, GBP OAuth, carousel posts, analytics dashboard+API, connect portal updates |
 | Phase 5 | ✅ DEPLOYED | White-label, calendar, CSV import, advanced analytics (Recharts), Pinterest OAuth+posting |
-| Phase 6 | ✅ BUILT | Supabase migration ready, post preview, templates, drag-and-drop queue, analytics PDF export |
-| Phase 7 | 🔲 TODO | Custom domains, real-time notifications, rate limiting per plan, team chat |
+| Phase 6 | ✅ DEPLOYED | Supabase migration ready, post preview, templates, drag-and-drop queue, analytics PDF export |
+| Phase 7 | ✅ BUILT | Rate limiting per plan, multi-user roles, bulk queue actions, post duplication, custom domain support |
+| Phase 8 | 🔲 TODO | Real-time notifications, webhook integrations, AI auto-caption improvements, team chat |
 
 ---
 
-## COMPLETED THIS SESSION (Phase 6)
+## COMPLETED THIS SESSION (Phase 7)
 
-- [x] Supabase migration: SQL schema (supabase-schema.sql), Supabase REST adapter (lib/db/supabase.mjs)
-- [x] Supabase migration: Auto-detect — set SUPABASE_URL + SUPABASE_ANON_KEY to switch, falls back to Netlify Blobs
-- [x] Supabase migration: Data migration script (lib/migrate-supabase.mjs), triggered via admin API
-- [x] Supabase migration: Templates table added to both Supabase schema and Blobs adapter
-- [x] Post preview: Platform-specific mockups (FB, IG, X, Threads, Bluesky, LinkedIn, TikTok, GBP, Pinterest)
-- [x] Post preview: Character limit warnings per platform, toggle in compose section
-- [x] Post templates: Save current compose state as reusable template, load/apply templates
-- [x] Post templates: CRUD API (save-template, get-templates, delete-template) + TemplatePicker component
-- [x] Drag-and-drop queue: HTML5 drag handles on queue items, reorder saved to backend
-- [x] Drag-and-drop queue: sortOrder field on posts, DraggableQueue component
-- [x] Export analytics as PDF: Server-side report generation (export-analytics action)
-- [x] Export analytics as PDF: Client-side HTML report with charts, print-to-PDF dialog
-- [x] DB backend indicator in config API (dbBackend: 'supabase' or 'netlify-blobs')
+- [x] Rate limiting per plan tier: lib/plan-limits.mjs (free 30/mo, starter 300, agency 1500, pro unlimited)
+- [x] Plan limit enforcement on add-post, post-now, bulk-import, add-client
+- [x] Plan usage API endpoint (plan-usage action) — returns monthly post count vs limit
+- [x] Plan usage display in billing tab + queue header
+- [x] Multi-user roles: editor (compose/edit, no publish), viewer (read-only)
+- [x] Role permission enforcement in admin.mjs (writeActions, publishActions, readOnlyActions)
+- [x] Role picker dropdown in Team Management tab (admin/member/editor/viewer)
+- [x] Client assignment multi-select in Team Management tab
+- [x] Bulk queue actions: checkbox select, select all, bulk delete, bulk publish, bulk reschedule
+- [x] Bulk action bar with datetime picker for reschedule
+- [x] Post duplication: duplicate-post API action (clones caption/platforms/postType/imageUrl)
+- [x] Duplicate button (⎘) on queue and published posts
+- [x] Custom domain field on client records (customDomain in client modal)
+- [x] custom_domain column added to Supabase schema
+- [x] Plan field included in JWT tokens and auth verify response
 
 ---
 
@@ -83,17 +86,17 @@
 
 ---
 
-## NEXT BUILD SESSION (Phase 7)
+## NEXT BUILD SESSION (Phase 8)
 
-- [ ] Custom domain support per client (CNAME white-label)
-- [ ] Real-time notifications (webhook → dashboard)
-- [ ] Rate limiting per plan tier
+- [ ] Real-time notifications (webhook → dashboard push)
 - [ ] Team chat / notes per client
-- [ ] AI auto-caption improvements (tone, hashtag gen)
-- [ ] Multi-user roles (editor, viewer, approver)
-- [ ] Bulk actions on queue (select multiple → delete/publish/reschedule)
-- [ ] Post duplication (clone existing post)
-- [ ] Webhook integrations (Zapier, n8n, Make)
+- [ ] AI auto-caption improvements (tone selection, hashtag gen, image analysis)
+- [ ] Webhook integrations (Zapier, n8n, Make) — outgoing webhooks on publish/fail
+- [ ] Client-facing analytics dashboard (read-only, branded, shareable link)
+- [ ] Scheduling time slots (preset times per client, auto-fill)
+- [ ] Post recycling / evergreen content rotation
+- [ ] Content calendar export (iCal)
+- [ ] Dashboard dark/light theme toggle
 
 ---
 

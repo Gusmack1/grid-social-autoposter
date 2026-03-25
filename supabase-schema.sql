@@ -33,6 +33,7 @@ CREATE TABLE IF NOT EXISTS clients (
   brand_name TEXT,
   brand_color TEXT,
   logo_url TEXT,
+  custom_domain TEXT,
   token_health JSONB,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()

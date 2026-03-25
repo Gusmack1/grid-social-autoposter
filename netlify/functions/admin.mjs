@@ -9,6 +9,7 @@ import { generateInviteLink, generateApprovalLink } from './lib/invites.mjs';
 import { notifyClientPostsReady } from './lib/email.mjs';
 import { json, cors, unauthorized, forbidden, badRequest, notFound, serverError } from './lib/http.mjs';
 import { logger } from './lib/logger.mjs';
+import { getPlanLimits, checkPlanLimit, countMonthlyPosts } from './lib/plan-limits.mjs';
 
 // Authenticate request — returns user object or null
 async function authenticate(req) {
@@ -16,10 +17,10 @@ async function authenticate(req) {
   const jwtSecret = process.env.JWT_SECRET || 'gridsocial-jwt-secret-2026';
   const token = req.headers.get('Authorization')?.replace('Bearer ', '');
   if (!token) return null;
-  if (token === adminKey) return { role: 'admin', email: 'admin', assignedClients: [] };
+  if (token === adminKey) return { role: 'admin', email: 'admin', plan: 'enterprise', assignedClients: [] };
   const payload = await verifyJWT(token, jwtSecret);
   if (!payload) return null;
-  return { id: payload.sub, email: payload.email, name: payload.name, role: payload.role, assignedClients: payload.assignedClients || [] };
+  return { id: payload.sub, email: payload.email, name: payload.name, role: payload.role, plan: payload.plan || 'free', assignedClients: payload.assignedClients || [] };
 }
 
 export default async (req) => {
@@ -33,8 +34,21 @@ export default async (req) => {
   const clientId = url.searchParams.get('clientId');
 
   // Permission checks
-  const writeActions = ['add-post', 'update-post', 'delete-post', 'publish-now', 'post-now', 'upload-image', 'delete-from-platform', 'bulk-import', 'save-template', 'delete-template'];
-  if (user.role !== 'admin' && clientId && writeActions.includes(action)) {
+  const writeActions = ['add-post', 'update-post', 'delete-post', 'publish-now', 'post-now', 'upload-image', 'delete-from-platform', 'bulk-import', 'save-template', 'delete-template', 'duplicate-post', 'bulk-delete', 'bulk-publish', 'bulk-reschedule'];
+  const publishActions = ['publish-now', 'post-now', 'bulk-publish', 'delete-from-platform'];
+  const readOnlyActions = ['get-clients', 'get-posts', 'config', 'get-templates', 'check-token-health', 'export-analytics', 'plan-usage'];
+
+  // Viewer role = read-only
+  if (user.role === 'viewer' && !readOnlyActions.includes(action)) {
+    return forbidden('Viewer accounts have read-only access');
+  }
+
+  // Editor role = can compose/edit but not publish
+  if (user.role === 'editor' && publishActions.includes(action)) {
+    return forbidden('Editor accounts cannot publish — ask an admin to publish');
+  }
+
+  if (!['admin'].includes(user.role) && clientId && writeActions.includes(action)) {
     if (!user.assignedClients.includes(clientId)) return forbidden("You don't have permission for this client");
   }
   const adminActions = ['add-client', 'update-client', 'delete-client', 'migrate-tokens', 'generate-invite', 'check-token-health', 'generate-approval-link', 'set-approval-mode', 'set-approval-status', 'migrate-to-supabase', 'reorder-queue'];
@@ -68,6 +82,12 @@ export default async (req) => {
       const body = await req.json();
       if (!body.name) return badRequest('Client name required');
       const list = await db.getClients();
+
+      // Plan limit check
+      const userPlan = user.plan || 'free';
+      const limitCheck = await checkPlanLimit(userPlan, 'add-client', { clientCount: list.length });
+      if (!limitCheck.allowed) return json({ error: limitCheck.reason, usage: limitCheck.usage }, 403);
+
       // Encrypt tokens on save
       const nc = { id: 'client_' + Date.now(), ...body, createdAt: new Date().toISOString() };
       if (nc.pageAccessToken) nc.pageAccessToken = encrypt(nc.pageAccessToken);
@@ -125,10 +145,17 @@ export default async (req) => {
     if (action === 'add-post' && req.method === 'POST') {
       const body = await req.json();
       if (!body.caption) return badRequest('Caption required');
-      const list = await db.getPosts(clientId);
-      // Get client's approval mode
+
+      // Plan limit check
       const clients = await db.getClients();
       const client = clients.find(c => c.id === clientId);
+      const userPlan = user.plan || 'free';
+      const allClientIds = clients.map(c => c.id);
+      const monthlyPosts = await countMonthlyPosts(db.getPosts.bind(db), allClientIds);
+      const limitCheck = await checkPlanLimit(userPlan, 'add-post', { monthlyPosts });
+      if (!limitCheck.allowed) return json({ error: limitCheck.reason, usage: limitCheck.usage }, 403);
+
+      const list = await db.getPosts(clientId);
       const approvalMode = client?.approvalMode || 'auto';
       let approvalStatus = 'approved'; // auto mode = no approval needed
       if (approvalMode === 'manual') approvalStatus = 'pending';
@@ -186,6 +213,14 @@ export default async (req) => {
       const clients = await db.getClients();
       const client = clients.find(c => c.id === clientId);
       if (!client) return notFound('Client not found');
+
+      // Plan limit check
+      const userPlan = user.plan || 'free';
+      const allClientIds = clients.map(c => c.id);
+      const monthlyPosts = await countMonthlyPosts(db.getPosts.bind(db), allClientIds);
+      const limitCheck = await checkPlanLimit(userPlan, 'add-post', { monthlyPosts });
+      if (!limitCheck.allowed) return json({ error: limitCheck.reason, usage: limitCheck.usage }, 403);
+
       const np = {
         id: 'post_' + Date.now(), clientId, caption: body.caption,
         imageUrl: body.imageUrl || null, videoUrl: body.videoUrl || null,
@@ -242,8 +277,17 @@ export default async (req) => {
     if (action === 'bulk-import' && req.method === 'POST') {
       const body = await req.json();
       if (!body.posts || !Array.isArray(body.posts)) return badRequest('posts array required');
+
+      // Plan limit check
+      const allClients = await db.getClients();
+      const userPlan = user.plan || 'free';
+      const allClientIds = allClients.map(c => c.id);
+      const monthlyPosts = await countMonthlyPosts(db.getPosts.bind(db), allClientIds);
+      const limitCheck = await checkPlanLimit(userPlan, 'bulk-import', { monthlyPosts, importCount: body.posts.length });
+      if (!limitCheck.allowed) return json({ error: limitCheck.reason, usage: limitCheck.usage }, 403);
+
       const list = await db.getPosts(clientId);
-      const clients = await db.getClients();
+      const clients = allClients;
       const client = clients.find(c => c.id === clientId);
       const approvalMode = client?.approvalMode || 'auto';
       let imported = 0;
@@ -299,7 +343,7 @@ export default async (req) => {
         hasR2: !!process.env.R2_BUCKET,
         hasSupabase: !!(process.env.SUPABASE_URL && process.env.SUPABASE_ANON_KEY),
         dbBackend: DB_BACKEND,
-        user: { email: user.email, name: user.name, role: user.role, assignedClients: user.assignedClients },
+        user: { email: user.email, name: user.name, role: user.role, plan: user.plan || 'free', assignedClients: user.assignedClients },
       });
     }
 
@@ -496,6 +540,116 @@ export default async (req) => {
       };
 
       return json(report);
+    }
+
+    // ── DUPLICATE POST ──
+    if (action === 'duplicate-post' && req.method === 'POST') {
+      const body = await req.json();
+      if (!body.postId) return badRequest('postId required');
+      const list = await db.getPosts(clientId);
+      const original = list.find(p => p.id === body.postId);
+      if (!original) return notFound('Post not found');
+      const dup = {
+        id: 'post_' + Date.now(),
+        clientId,
+        caption: original.caption,
+        imageUrl: original.imageUrl || null,
+        videoUrl: original.videoUrl || null,
+        imageUrls: original.imageUrls || null,
+        postType: original.postType || 'feed',
+        platforms: [...(original.platforms || ['facebook'])],
+        status: 'queued',
+        scheduledFor: null,
+        approvalStatus: 'approved',
+        approvalMode: 'auto',
+        createdAt: new Date().toISOString(),
+        publishedAt: null,
+        results: null,
+      };
+      list.push(dup);
+      await db.savePosts(clientId, list);
+      logger.info('Post duplicated', { originalId: body.postId, newId: dup.id, clientId });
+      return json({ success: true, post: dup });
+    }
+
+    // ── BULK DELETE ──
+    if (action === 'bulk-delete' && req.method === 'POST') {
+      const body = await req.json();
+      if (!Array.isArray(body.postIds) || body.postIds.length === 0) return badRequest('postIds[] required');
+      let list = await db.getPosts(clientId);
+      const before = list.length;
+      list = list.filter(p => !body.postIds.includes(p.id));
+      await db.savePosts(clientId, list);
+      const deleted = before - list.length;
+      logger.info('Bulk delete', { clientId, deleted, requested: body.postIds.length });
+      return json({ success: true, deleted });
+    }
+
+    // ── BULK PUBLISH ──
+    if (action === 'bulk-publish' && req.method === 'POST') {
+      const body = await req.json();
+      if (!Array.isArray(body.postIds) || body.postIds.length === 0) return badRequest('postIds[] required');
+      const clients = await db.getClients();
+      const client = clients.find(c => c.id === clientId);
+      if (!client) return notFound('Client not found');
+      const list = await db.getPosts(clientId);
+      const results = [];
+      for (const pid of body.postIds) {
+        const post = list.find(p => p.id === pid);
+        if (!post || post.status === 'published') continue;
+        if (post.approvalStatus === 'pending' || post.approvalStatus === 'changes_requested') continue;
+        try {
+          const pubResults = await publishToAll(client, post);
+          const idx = list.findIndex(p => p.id === pid);
+          list[idx].status = 'published';
+          list[idx].publishedAt = new Date().toISOString();
+          list[idx].results = pubResults;
+          results.push({ postId: pid, success: true, results: pubResults });
+        } catch (e) {
+          results.push({ postId: pid, success: false, error: e.message });
+        }
+      }
+      await db.savePosts(clientId, list);
+      logger.info('Bulk publish', { clientId, published: results.filter(r => r.success).length, total: body.postIds.length });
+      return json({ success: true, results });
+    }
+
+    // ── BULK RESCHEDULE ──
+    if (action === 'bulk-reschedule' && req.method === 'POST') {
+      const body = await req.json();
+      if (!Array.isArray(body.postIds) || !body.scheduledFor) return badRequest('postIds[] and scheduledFor required');
+      const list = await db.getPosts(clientId);
+      let updated = 0;
+      for (const pid of body.postIds) {
+        const idx = list.findIndex(p => p.id === pid);
+        if (idx === -1) continue;
+        if (list[idx].status === 'published') continue;
+        list[idx].scheduledFor = body.scheduledFor;
+        list[idx].status = 'scheduled';
+        updated++;
+      }
+      await db.savePosts(clientId, list);
+      logger.info('Bulk reschedule', { clientId, updated, scheduledFor: body.scheduledFor });
+      return json({ success: true, updated });
+    }
+
+    // ── PLAN USAGE ──
+    if (action === 'plan-usage') {
+      const clients = await db.getClients();
+      const userPlan = user.plan || 'free';
+      const limits = getPlanLimits(userPlan);
+      const allClientIds = clients.map(c => c.id);
+      const monthlyPosts = await countMonthlyPosts(db.getPosts.bind(db), allClientIds);
+      const users = user.role === 'admin' ? await db.listUsers() : [];
+      return json({
+        plan: userPlan,
+        limits,
+        usage: {
+          postsThisMonth: monthlyPosts,
+          clients: clients.length,
+          users: users.length || 1,
+        },
+      });
     }
 
     return badRequest('Unknown action: ' + action);

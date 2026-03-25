@@ -58,6 +58,14 @@ export default function App({ user, onLogout }) {
   // Preview toggle
   const [showPreview, setShowPreview] = useState(false);
 
+  // Bulk queue selection
+  const [selectedQueueIds, setSelectedQueueIds] = useState([]);
+  const [bulkRescheduleDate, setBulkRescheduleDate] = useState('');
+  const [bulkActionLoading, setBulkActionLoading] = useState(false);
+
+  // Plan usage
+  const [planUsage, setPlanUsage] = useState(null);
+
   // Modal state
   const [deleteModal, setDeleteModal] = useState(null);
   const [clientModal, setClientModal] = useState(null);
@@ -101,6 +109,20 @@ export default function App({ user, onLogout }) {
   }, [selectedClient, analyticsRange]);
 
   useEffect(() => { if (tab === 'analytics') loadAnalytics(); }, [tab, selectedClient, analyticsRange]);
+
+  // Load plan usage
+  const loadPlanUsage = useCallback(async () => {
+    try {
+      const data = await apiGet('/admin?action=plan-usage');
+      setPlanUsage(data);
+    } catch (e) { console.error('Load plan usage:', e); }
+  }, []);
+
+  useEffect(() => { loadPlanUsage(); }, []);
+  useEffect(() => { if (tab === 'billing') loadPlanUsage(); }, [tab]);
+
+  // Clear selection when switching client or tab
+  useEffect(() => { setSelectedQueueIds([]); }, [selectedClient, tab]);
 
   const currentClient = clients.find(c => c.id === selectedClient);
 
@@ -266,6 +288,70 @@ export default function App({ user, onLogout }) {
     } catch (e) { alert(e.message); }
     setLoading(false);
     setDeleteModal(null);
+  };
+
+  // ── DUPLICATE POST ──
+  const handleDuplicate = async (postId) => {
+    try {
+      await apiPost(`/admin?action=duplicate-post&clientId=${selectedClient}`, { postId });
+      await loadPosts();
+    } catch (e) { alert(e.message); }
+  };
+
+  // ── BULK QUEUE ACTIONS ──
+  const handleToggleSelect = (postId) => {
+    setSelectedQueueIds(prev =>
+      prev.includes(postId) ? prev.filter(id => id !== postId) : [...prev, postId]
+    );
+  };
+
+  const handleSelectAll = () => {
+    if (selectedQueueIds.length === queuedPosts.length) {
+      setSelectedQueueIds([]);
+    } else {
+      setSelectedQueueIds(queuedPosts.map(p => p.id));
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (!selectedQueueIds.length) return;
+    if (!confirm(`Delete ${selectedQueueIds.length} post(s)?`)) return;
+    setBulkActionLoading(true);
+    try {
+      await apiPost(`/admin?action=bulk-delete&clientId=${selectedClient}`, { postIds: selectedQueueIds });
+      setSelectedQueueIds([]);
+      await loadPosts();
+    } catch (e) { alert(e.message); }
+    setBulkActionLoading(false);
+  };
+
+  const handleBulkPublish = async () => {
+    if (!selectedQueueIds.length) return;
+    if (!confirm(`Publish ${selectedQueueIds.length} post(s) now?`)) return;
+    setBulkActionLoading(true);
+    try {
+      const result = await apiPost(`/admin?action=bulk-publish&clientId=${selectedClient}`, { postIds: selectedQueueIds });
+      const ok = result.results?.filter(r => r.success).length || 0;
+      const fail = result.results?.filter(r => !r.success).length || 0;
+      alert(`Published: ${ok}${fail ? `, Failed: ${fail}` : ''}`);
+      setSelectedQueueIds([]);
+      await loadPosts();
+    } catch (e) { alert(e.message); }
+    setBulkActionLoading(false);
+  };
+
+  const handleBulkReschedule = async () => {
+    if (!selectedQueueIds.length || !bulkRescheduleDate) return;
+    setBulkActionLoading(true);
+    try {
+      await apiPost(`/admin?action=bulk-reschedule&clientId=${selectedClient}`, {
+        postIds: selectedQueueIds, scheduledFor: bulkRescheduleDate,
+      });
+      setSelectedQueueIds([]);
+      setBulkRescheduleDate('');
+      await loadPosts();
+    } catch (e) { alert(e.message); }
+    setBulkActionLoading(false);
   };
 
   // ── TEAM ACTIONS ──
@@ -489,18 +575,58 @@ export default function App({ user, onLogout }) {
           <div>
             <div className="header">
               <h1>Queue ({queuedPosts.length})</h1>
-              <div style={{ display: 'flex', gap: 8 }}>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                {planUsage && planUsage.limits.postsPerMonth !== -1 && (
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                    {planUsage.usage.postsThisMonth}/{planUsage.limits.postsPerMonth} posts this month
+                  </span>
+                )}
                 <span style={{ fontSize: 11, color: 'var(--text-muted)', alignSelf: 'center' }}>⠿ Drag to reorder</span>
                 <button className="btn-ghost btn-sm" onClick={loadPosts}>Refresh</button>
               </div>
             </div>
+
+            {/* Bulk action bar */}
+            {selectedQueueIds.length > 0 && (
+              <div style={{
+                display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap',
+                padding: '10px 14px', marginBottom: 8,
+                background: 'rgba(59,130,246,0.08)', border: '1px solid rgba(59,130,246,0.2)',
+                borderRadius: 'var(--radius)',
+              }}>
+                <span style={{ fontSize: 13, fontWeight: 600 }}>{selectedQueueIds.length} selected</span>
+                <button className="btn-success btn-sm" onClick={handleBulkPublish} disabled={bulkActionLoading}>
+                  Publish All
+                </button>
+                <button className="btn-danger btn-sm" onClick={handleBulkDelete} disabled={bulkActionLoading}>
+                  Delete All
+                </button>
+                <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                  <input type="datetime-local" value={bulkRescheduleDate}
+                    onChange={e => setBulkRescheduleDate(e.target.value)}
+                    style={{ fontSize: 12, padding: '4px 8px', width: 180 }} />
+                  <button className="btn-ghost btn-sm" onClick={handleBulkReschedule}
+                    disabled={bulkActionLoading || !bulkRescheduleDate}>
+                    Reschedule
+                  </button>
+                </div>
+                <button className="btn-ghost btn-sm" onClick={() => setSelectedQueueIds([])}>
+                  Clear
+                </button>
+              </div>
+            )}
+
             <DraggableQueue
               posts={queuedPosts}
               clientId={selectedClient}
               onRefresh={loadPosts}
               onPublish={handlePublish}
               onDelete={(post) => setDeleteModal({ post, type: 'queue' })}
+              onDuplicate={handleDuplicate}
               loading={loading}
+              selectedIds={selectedQueueIds}
+              onToggleSelect={handleToggleSelect}
+              onSelectAll={handleSelectAll}
             />
           </div>
         )}
@@ -687,7 +813,8 @@ export default function App({ user, onLogout }) {
                       <span>{post.publishedAt ? timeAgo(post.publishedAt) : ''}</span>
                     </div>
                   </div>
-                  <div className="post-actions">
+                  <div className="post-actions" style={{ display: 'flex', gap: 4 }}>
+                    <button className="btn-ghost btn-sm" onClick={() => handleDuplicate(post.id)} title="Duplicate post">⎘</button>
                     <button className="btn-danger btn-sm" onClick={() => setDeleteModal({ post, type: 'published' })}>✕</button>
                   </div>
                 </div>
@@ -932,9 +1059,18 @@ export default function App({ user, onLogout }) {
                     <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 4 }}>Current Plan</div>
                     <div style={{ fontSize: 22, fontWeight: 700 }}>{planInfo.name} <span style={{ fontSize: 14, color: 'var(--text-muted)', fontWeight: 400 }}>{planInfo.price}</span></div>
                   </div>
-                  <div style={{ display: 'flex', gap: 16, fontSize: 13 }}>
+                  <div style={{ display: 'flex', gap: 16, fontSize: 13, flexWrap: 'wrap' }}>
                     <div><span style={{ color: 'var(--text-muted)' }}>Profiles:</span> <strong>{profileCount}</strong>{planInfo.profiles > 0 ? `/${planInfo.profiles}` : ''}</div>
                     <div><span style={{ color: 'var(--text-muted)' }}>Users:</span> <strong>{userCount}</strong>{planInfo.users > 0 ? `/${planInfo.users}` : planInfo.users === -1 ? ' (unlimited)' : ''}</div>
+                    {planUsage && (
+                      <div>
+                        <span style={{ color: 'var(--text-muted)' }}>Posts this month:</span>{' '}
+                        <strong style={{ color: planUsage.limits.postsPerMonth !== -1 && planUsage.usage.postsThisMonth >= planUsage.limits.postsPerMonth ? 'var(--danger)' : undefined }}>
+                          {planUsage.usage.postsThisMonth}
+                        </strong>
+                        {planUsage.limits.postsPerMonth !== -1 ? `/${planUsage.limits.postsPerMonth}` : ' (unlimited)'}
+                      </div>
+                    )}
                   </div>
                 </div>
                 {user?.stripeCustomerId && (
@@ -983,22 +1119,62 @@ export default function App({ user, onLogout }) {
           <div>
             <div className="header"><h1>Team Management</h1></div>
             <div className="card" style={{ padding: 0 }}>
+              {users.length === 0 && (
+                <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>No team members yet.</div>
+              )}
               {users.map(u => (
-                <div key={u.email} className="post-item">
-                  <div style={{ flex: 1 }}>
+                <div key={u.email} className="post-item" style={{ flexWrap: 'wrap', gap: 8 }}>
+                  <div style={{ flex: 1, minWidth: 200 }}>
                     <div style={{ fontWeight: 500 }}>{u.name}</div>
-                    <div className="post-meta">{u.email} · {u.role} · <span className={`badge badge-${u.status === 'active' ? 'published' : u.status === 'pending' ? 'scheduled' : 'deleted'}`}>{u.status}</span></div>
+                    <div className="post-meta">{u.email} · <span className={`badge badge-${u.status === 'active' ? 'published' : u.status === 'pending' ? 'scheduled' : 'deleted'}`}>{u.status}</span></div>
                   </div>
-                  <div className="post-actions">
+                  <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
                     {u.status === 'pending' && (
                       <>
                         <button className="btn-success btn-sm" onClick={() => handleApprove(u.email)}>Approve</button>
                         <button className="btn-danger btn-sm" onClick={() => handleDecline(u.email)}>Decline</button>
                       </>
                     )}
+                    {u.status === 'active' && u.email !== 'admin' && (
+                      <>
+                        <select
+                          value={u.role || 'member'}
+                          onChange={async (e) => {
+                            try {
+                              await apiPut('/auth?action=update-user', { email: u.email, role: e.target.value });
+                              loadUsers();
+                            } catch (err) { alert('Error: ' + err.message); }
+                          }}
+                          style={{ fontSize: 12, padding: '4px 8px', background: 'var(--bg)', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: 6, minWidth: 90 }}
+                        >
+                          <option value="admin">Admin</option>
+                          <option value="member">Member</option>
+                          <option value="editor">Editor</option>
+                          <option value="viewer">Viewer</option>
+                        </select>
+                        <select
+                          multiple
+                          value={u.assignedClients || []}
+                          onChange={async (e) => {
+                            const selected = Array.from(e.target.selectedOptions, o => o.value);
+                            try {
+                              await apiPut('/auth?action=update-user', { email: u.email, assignedClients: selected });
+                              loadUsers();
+                            } catch (err) { alert('Error: ' + err.message); }
+                          }}
+                          style={{ fontSize: 11, padding: '4px 6px', background: 'var(--bg)', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: 6, minHeight: 30, maxHeight: 60 }}
+                          title="Assigned clients (hold Ctrl/Cmd to select multiple)"
+                        >
+                          {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                        </select>
+                      </>
+                    )}
                   </div>
                 </div>
               ))}
+            </div>
+            <div style={{ marginTop: 12, padding: '10px 14px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', fontSize: 12, color: 'var(--text-muted)' }}>
+              <strong>Roles:</strong> Admin = full access · Member = compose + publish assigned clients · Editor = compose/edit only (no publish) · Viewer = read-only
             </div>
           </div>
         )}
@@ -1167,6 +1343,12 @@ export default function App({ user, onLogout }) {
               <input value={clientModal.blueskyIdentifier || ''} onChange={e => setClientModal({ ...clientModal, blueskyIdentifier: e.target.value })} placeholder="e.g. yourname.bsky.social" />
               <label style={{ fontSize: 12, color: 'var(--text-muted)' }}>Bluesky App Password</label>
               <input type="password" value={clientModal.blueskyAppPassword || ''} onChange={e => setClientModal({ ...clientModal, blueskyAppPassword: e.target.value })} placeholder="Generate at bsky.app/settings/app-passwords" />
+
+              <div style={{ borderTop: '1px solid var(--border)', marginTop: 8, paddingTop: 12 }}>
+                <label style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 600 }}>Custom Domain</label>
+              </div>
+              <label style={{ fontSize: 12, color: 'var(--text-muted)' }}>Custom Connect Domain <span style={{ fontSize: 10, color: '#6b7280' }}>(CNAME to grid-social-autoposter.netlify.app)</span></label>
+              <input value={clientModal.customDomain || ''} onChange={e => setClientModal({ ...clientModal, customDomain: e.target.value })} placeholder="e.g. connect.clientname.com" />
             </div>
 
             <div className="modal-actions">

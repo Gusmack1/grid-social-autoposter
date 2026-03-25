@@ -3,17 +3,19 @@ import { apiPut } from '../hooks/useApi.js';
 import PlatformIcon from './PlatformIcon.jsx';
 import { truncate, formatDateGMT } from '../utils.js';
 
-export default function DraggableQueue({ posts, clientId, onRefresh, onPublish, onDelete, loading }) {
+export default function DraggableQueue({ posts, clientId, onRefresh, onPublish, onDelete, onDuplicate, loading, selectedIds, onToggleSelect, onSelectAll }) {
   const [dragIdx, setDragIdx] = useState(null);
   const [overIdx, setOverIdx] = useState(null);
   const [saving, setSaving] = useState(false);
   const dragItem = useRef(null);
 
+  const allSelected = posts.length > 0 && selectedIds.length === posts.length;
+  const someSelected = selectedIds.length > 0 && selectedIds.length < posts.length;
+
   const handleDragStart = (e, idx) => {
     dragItem.current = idx;
     setDragIdx(idx);
     e.dataTransfer.effectAllowed = 'move';
-    // Transparent drag image
     const ghost = e.target.cloneNode(true);
     ghost.style.opacity = '0.5';
     ghost.style.position = 'absolute';
@@ -37,16 +39,11 @@ export default function DraggableQueue({ posts, clientId, onRefresh, onPublish, 
       setOverIdx(null);
       return;
     }
-
-    // Reorder locally
     const reordered = [...posts];
     const [moved] = reordered.splice(fromIdx, 1);
     reordered.splice(dropIdx, 0, moved);
-
     setDragIdx(null);
     setOverIdx(null);
-
-    // Save new order to backend
     setSaving(true);
     try {
       await apiPut(`/admin?action=reorder-queue&clientId=${clientId}`, {
@@ -77,6 +74,25 @@ export default function DraggableQueue({ posts, clientId, onRefresh, onPublish, 
           Saving new order...
         </div>
       )}
+
+      {/* Select all header */}
+      {posts.length > 0 && (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 10, padding: '8px 14px',
+          borderBottom: '1px solid var(--border)', fontSize: 12, color: 'var(--text-muted)',
+        }}>
+          <input
+            type="checkbox"
+            checked={allSelected}
+            ref={el => { if (el) el.indeterminate = someSelected; }}
+            onChange={() => onSelectAll()}
+            style={{ cursor: 'pointer', width: 16, height: 16, accentColor: 'var(--accent)' }}
+            title={allSelected ? 'Deselect all' : 'Select all'}
+          />
+          <span>{selectedIds.length > 0 ? `${selectedIds.length} selected` : 'Select all'}</span>
+        </div>
+      )}
+
       {posts.map((post, idx) => (
         <div
           key={post.id}
@@ -91,12 +107,22 @@ export default function DraggableQueue({ posts, clientId, onRefresh, onPublish, 
             opacity: dragIdx === idx ? 0.4 : 1,
             borderTop: overIdx === idx && dragIdx !== idx ? '2px solid var(--accent)' : 'none',
             transition: 'opacity 0.15s, border-top 0.1s',
+            background: selectedIds.includes(post.id) ? 'rgba(59,130,246,0.08)' : undefined,
           }}
         >
+          {/* Checkbox */}
+          <input
+            type="checkbox"
+            checked={selectedIds.includes(post.id)}
+            onChange={() => onToggleSelect(post.id)}
+            onClick={e => e.stopPropagation()}
+            style={{ cursor: 'pointer', width: 16, height: 16, accentColor: 'var(--accent)', flexShrink: 0 }}
+          />
+
           {/* Drag handle */}
           <div style={{
             display: 'flex', alignItems: 'center', color: 'var(--text-muted)',
-            fontSize: 16, cursor: 'grab', userSelect: 'none', padding: '0 4px',
+            fontSize: 16, cursor: 'grab', userSelect: 'none', padding: '0 2px',
           }}
             title="Drag to reorder">
             ⠿
@@ -133,7 +159,10 @@ export default function DraggableQueue({ posts, clientId, onRefresh, onPublish, 
               </div>
             )}
           </div>
-          <div className="post-actions">
+          <div className="post-actions" style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+            {onDuplicate && (
+              <button className="btn-ghost btn-sm" onClick={() => onDuplicate(post.id)} title="Duplicate post">⎘</button>
+            )}
             <button className="btn-success btn-sm" onClick={() => onPublish(post.id)}
               disabled={loading || post.approvalStatus === 'pending' || post.approvalStatus === 'changes_requested'}
               title={post.approvalStatus === 'pending' ? 'Awaiting client approval' : post.approvalStatus === 'changes_requested' ? 'Client requested changes' : 'Publish now'}>

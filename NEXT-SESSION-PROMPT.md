@@ -1,15 +1,17 @@
-# Grid Social Auto-Poster — Next Session (Phase 7)
+# Grid Social Auto-Poster — Next Session (Phase 8)
 
 ## OVERVIEW
 
-Phases 1–6 deployed and live. Clone: github.com/Gusmack1/grid-social-autoposter
+Phases 1–7 deployed and live. Clone: github.com/Gusmack1/grid-social-autoposter
 Read: TODO.md for full status.
 
-**What's live:** 9-platform publishing (FB, IG, Threads, Bluesky, X, TikTok, LinkedIn, GBP, Pinterest), white-label branding, content calendar, CSV bulk import, advanced analytics with Recharts, carousel posts, approval workflows, token health monitor, billing tab, post preview, post templates, drag-and-drop queue reordering, analytics PDF export.
+**What's live:** 9-platform publishing (FB, IG, Threads, Bluesky, X, TikTok, LinkedIn, GBP, Pinterest), white-label branding, content calendar, CSV bulk import, advanced analytics with Recharts, carousel posts, approval workflows, token health monitor, billing tab, post preview, post templates, drag-and-drop queue reordering, analytics PDF export, rate limiting per plan tier, multi-user roles (admin/member/editor/viewer), bulk queue actions (select/delete/publish/reschedule), post duplication, custom domain support field.
 
 **Supabase ready:** Schema + adapter built. Set SUPABASE_URL + SUPABASE_ANON_KEY env vars → auto-switches from Netlify Blobs. Run migration via admin API.
 
 **4 clients active.** ~30 posts queued for Grid Social.
+
+**Plan tiers enforced:** Free (30 posts/mo, 3 clients), Starter (300/10), Agency (1500/25), Agency Pro (unlimited/50).
 
 ---
 
@@ -64,30 +66,30 @@ Do these in order. You have full Chrome access.
 Clone: github.com/Gusmack1/grid-social-autoposter
 Read: TODO.md
 
-### 1. Custom domain support per client
-- Allow clients to CNAME their own domain to the connect portal
-- Netlify: branch deploys or domain aliases per client
-- Store custom domain in client record, serve correct branding
+### 1. Real-time notifications
+- Webhook endpoint for outgoing events (post published, post failed, approval needed)
+- Dashboard notification bell with unread count
+- Store notifications in DB, mark as read
 
-### 2. Rate limiting per plan tier
-- Map plan → limits (free: 30 posts/mo, starter: 300, agency: 1500, pro: unlimited)
-- Check limit on post creation + bulk import
-- Show usage vs limit in dashboard
+### 2. Team chat / notes per client
+- Notes/comments system attached to each client
+- Threaded discussion between team members
+- New DB table: client_notes (id, clientId, userId, message, createdAt)
 
-### 3. Multi-user roles
-- Add 'editor' and 'viewer' roles alongside 'admin' and 'member'
-- Editor: can compose/edit but not publish
-- Viewer: read-only access to queue/analytics
-- Role picker in team management
+### 3. AI auto-caption improvements
+- Tone selector (professional, casual, humorous, Scottish)
+- Hashtag generator (platform-aware count)
+- Image analysis via Claude Vision (describe uploaded image, suggest caption)
 
-### 4. Bulk queue actions
-- Checkbox select on queue items
-- Bulk delete, bulk publish, bulk reschedule
-- "Select All" toggle
+### 4. Webhook integrations
+- Outgoing webhooks: configurable per client (URL + events)
+- Fire webhook on: post_published, post_failed, approval_requested
+- Webhook log viewer in dashboard
 
-### 5. Post duplication
-- "Duplicate" button on queue and published posts
-- Copies caption, platforms, postType, imageUrl into new draft
+### 5. Client-facing analytics dashboard
+- Public/shareable link (signed JWT, read-only)
+- Branded with client's white-label settings
+- Shows last 30 days analytics, published posts, engagement
 
 Push everything. Update TODO.md. Create NEXT-SESSION-PROMPT.md.
 
