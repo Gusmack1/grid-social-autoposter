@@ -1,19 +1,28 @@
-// Database abstraction — currently Netlify Blobs, swap to Supabase later
+// Database abstraction — auto-detects Supabase, falls back to Netlify Blobs
+// Set SUPABASE_URL + SUPABASE_ANON_KEY to enable Supabase
 import { getStore } from '@netlify/blobs';
 
-// Store names match existing data
+const USE_SUPABASE = !!(process.env.SUPABASE_URL && process.env.SUPABASE_ANON_KEY);
+
+let supabaseDb;
+if (USE_SUPABASE) {
+  supabaseDb = (await import('./supabase.mjs')).supabaseDb;
+}
+
+// ── Netlify Blobs implementation ──
 const STORES = {
   clients: 'clients',
   posts: 'posts',
   users: 'users',
   history: 'history',
   rateLimits: 'rate-limits',
+  templates: 'templates',
 };
 
 function store(name) { return getStore(STORES[name] || name); }
 
-export const db = {
-  // Clients — stored as single "list" key
+const blobsDb = {
+  // Clients
   async getClients() {
     return await store('clients').get('list', { type: 'json' }).catch(() => []) || [];
   },
@@ -25,7 +34,7 @@ export const db = {
     return list.find(c => c.id === id) || null;
   },
 
-  // Posts — keyed by clientId
+  // Posts
   async getPosts(clientId) {
     return await store('posts').get(clientId, { type: 'json' }).catch(() => []) || [];
   },
@@ -33,7 +42,7 @@ export const db = {
     await store('posts').setJSON(clientId, list);
   },
 
-  // Users — keyed by email slug
+  // Users
   async getUser(emailKey) {
     return await store('users').get(emailKey, { type: 'json' }).catch(() => null);
   },
@@ -52,7 +61,7 @@ export const db = {
     return users;
   },
 
-  // History — keyed by clientId
+  // History
   async getHistory(clientId) {
     return await store('history').get(clientId, { type: 'json' }).catch(() => []) || [];
   },
@@ -60,11 +69,37 @@ export const db = {
     await store('history').setJSON(clientId, list);
   },
 
-  // Rate limits — keyed by IP
+  // Rate limits
   async getRateLimit(key) {
     return await store('rateLimits').get(key, { type: 'json' }).catch(() => null);
   },
   async saveRateLimit(key, data) {
     await store('rateLimits').setJSON(key, data);
   },
+
+  // Templates (Blobs fallback)
+  async getTemplates(clientId) {
+    const key = clientId ? `client_${clientId}` : 'global';
+    return await store('templates').get(key, { type: 'json' }).catch(() => []) || [];
+  },
+  async saveTemplate(template) {
+    const key = template.clientId ? `client_${template.clientId}` : 'global';
+    const list = await this.getTemplates(template.clientId);
+    const idx = list.findIndex(t => t.id === template.id);
+    if (idx >= 0) list[idx] = template;
+    else list.push(template);
+    await store('templates').setJSON(key, list);
+  },
+  async deleteTemplate(id, clientId) {
+    const key = clientId ? `client_${clientId}` : 'global';
+    let list = await this.getTemplates(clientId);
+    list = list.filter(t => t.id !== id);
+    await store('templates').setJSON(key, list);
+  },
 };
+
+// Export the active implementation
+export const db = USE_SUPABASE ? supabaseDb : blobsDb;
+
+// Export which backend is active (for diagnostics)
+export const DB_BACKEND = USE_SUPABASE ? 'supabase' : 'netlify-blobs';

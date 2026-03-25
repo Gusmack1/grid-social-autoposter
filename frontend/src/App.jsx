@@ -4,6 +4,10 @@ import { PLATFORMS, POST_TYPES, PLATFORM_LINKS, API_BASE } from './constants.js'
 import { formatDateGMT, timeAgo, truncate } from './utils.js';
 import { api, apiGet, apiPost, apiPut, apiDelete, clearToken } from './hooks/useApi.js';
 import PlatformIcon from './components/PlatformIcon.jsx';
+import PostPreview from './components/PostPreview.jsx';
+import TemplatePicker from './components/TemplatePicker.jsx';
+import DraggableQueue from './components/DraggableQueue.jsx';
+import AnalyticsPdfExport from './components/AnalyticsPdfExport.jsx';
 
 const TABS = [
   { id: 'compose', name: 'Create Post', icon: '✏️' },
@@ -50,6 +54,9 @@ export default function App({ user, onLogout }) {
 
   // CSV import state
   const [csvImporting, setCsvImporting] = useState(false);
+
+  // Preview toggle
+  const [showPreview, setShowPreview] = useState(false);
 
   // Modal state
   const [deleteModal, setDeleteModal] = useState(null);
@@ -220,6 +227,19 @@ export default function App({ user, onLogout }) {
     setUploading(false);
   };
 
+  // ── TEMPLATE HANDLER ──
+  const handleTemplate = (action, data) => {
+    if (action === 'get') {
+      return { caption, platforms, postType, imageUrl };
+    }
+    if (action === 'apply' && data) {
+      setCaption(data.caption || '');
+      setPlatforms(data.platforms || ['facebook', 'instagram']);
+      setPostType(data.postType || 'feed');
+      setImageUrl(data.imageUrl || '');
+    }
+  };
+
   // ── QUEUE/PUBLISHED ACTIONS ──
   const handlePublish = async (postId) => {
     setLoading(true);
@@ -273,6 +293,10 @@ export default function App({ user, onLogout }) {
 
   // Filtered posts
   const queuedPosts = posts.filter(p => p.status === 'queued' || p.status === 'scheduled').sort((a, b) => {
+    // Sort by explicit sortOrder first, then by scheduledFor, then by createdAt
+    if (a.sortOrder !== undefined && b.sortOrder !== undefined && a.sortOrder !== b.sortOrder) {
+      return a.sortOrder - b.sortOrder;
+    }
     if (a.scheduledFor && b.scheduledFor) return new Date(a.scheduledFor) - new Date(b.scheduledFor);
     if (a.scheduledFor) return -1;
     return new Date(a.createdAt) - new Date(b.createdAt);
@@ -327,6 +351,9 @@ export default function App({ user, onLogout }) {
             </div>
 
             <div className="card">
+              {/* Template picker */}
+              <TemplatePicker clientId={selectedClient} onApply={handleTemplate} />
+
               {/* Post type */}
               <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
                 {POST_TYPES.map(pt => (
@@ -423,18 +450,36 @@ export default function App({ user, onLogout }) {
               )}
 
               {/* Actions */}
-              <div style={{ display: 'flex', gap: 8 }}>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 <button className="btn-primary" onClick={() => handleSubmit(false)} disabled={!caption.trim() || loading}>
                   {scheduledFor ? 'Schedule' : 'Add to Queue'}
                 </button>
                 <button className="btn-success" onClick={() => handleSubmit(true)} disabled={!caption.trim() || loading}>
                   Post Now
                 </button>
+                <button className={`btn-ghost ${showPreview ? 'btn-sm' : ''}`}
+                  onClick={() => setShowPreview(!showPreview)}
+                  style={{ fontSize: 13 }}>
+                  {showPreview ? '👁️ Hide Preview' : '👁️ Preview'}
+                </button>
                 <label className="btn-ghost" style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, fontSize: 13 }}>
                   {csvImporting ? '...' : '📥 Import CSV'}
                   <input type="file" accept=".csv" onChange={handleCsvImport} hidden />
                 </label>
               </div>
+
+              {/* Post preview */}
+              {showPreview && (caption || imageUrl) && (
+                <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid var(--border)' }}>
+                  <PostPreview
+                    platforms={platforms}
+                    caption={caption}
+                    imageUrl={imageUrl}
+                    postType={postType}
+                    clientName={currentClient?.name}
+                  />
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -444,56 +489,19 @@ export default function App({ user, onLogout }) {
           <div>
             <div className="header">
               <h1>Queue ({queuedPosts.length})</h1>
-              <button className="btn-ghost btn-sm" onClick={loadPosts}>Refresh</button>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <span style={{ fontSize: 11, color: 'var(--text-muted)', alignSelf: 'center' }}>⠿ Drag to reorder</span>
+                <button className="btn-ghost btn-sm" onClick={loadPosts}>Refresh</button>
+              </div>
             </div>
-            <div className="card" style={{ padding: 0 }}>
-              {queuedPosts.length === 0 && (
-                <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>
-                  No posts in the queue. Create one!
-                </div>
-              )}
-              {queuedPosts.map(post => (
-                <div key={post.id} className="post-item">
-                  {post.imageUrl && (
-                    <img src={post.imageUrl} alt="" style={{ width: 48, height: 48, borderRadius: 6, objectFit: 'cover' }} />
-                  )}
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div className="post-caption">{truncate(post.caption, 120)}</div>
-                    <div className="post-meta">
-                      <span className={`badge badge-${post.status}`}>{post.status}</span>
-                      {' '}
-                      {post.approvalStatus && post.approvalStatus !== 'approved' && (
-                        <span className={`badge badge-${post.approvalStatus}`}>
-                          {post.approvalStatus === 'pending' ? '⏳ pending approval' : post.approvalStatus === 'changes_requested' ? '✎ changes requested' : post.approvalStatus}
-                        </span>
-                      )}
-                      {post.approvalStatus === 'approved' && post.approvalMode && post.approvalMode !== 'auto' && (
-                        <span className="badge badge-approved">✓ approved</span>
-                      )}
-                      {' '}
-                      {post.platforms?.map(p => <PlatformIcon key={p} platform={p} />)}
-                      {' '}
-                      {post.postType && post.postType !== 'feed' && <span className="badge" style={{ background: '#4338ca', color: '#c7d2fe' }}>{post.postType}</span>}
-                      {' '}
-                      {post.scheduledFor && <span style={{ color: 'var(--warning)' }}>{formatDateGMT(post.scheduledFor)}</span>}
-                    </div>
-                    {post.approvalStatus === 'changes_requested' && post.clientComment && (
-                      <div className="approval-comment">
-                        💬 Client: {post.clientComment}
-                      </div>
-                    )}
-                  </div>
-                  <div className="post-actions">
-                    <button className="btn-success btn-sm" onClick={() => handlePublish(post.id)}
-                      disabled={loading || post.approvalStatus === 'pending' || post.approvalStatus === 'changes_requested'}
-                      title={post.approvalStatus === 'pending' ? 'Awaiting client approval' : post.approvalStatus === 'changes_requested' ? 'Client requested changes' : 'Publish now'}>
-                      Publish
-                    </button>
-                    <button className="btn-danger btn-sm" onClick={() => setDeleteModal({ post, type: 'queue' })}>✕</button>
-                  </div>
-                </div>
-              ))}
-            </div>
+            <DraggableQueue
+              posts={queuedPosts}
+              clientId={selectedClient}
+              onRefresh={loadPosts}
+              onPublish={handlePublish}
+              onDelete={(post) => setDeleteModal({ post, type: 'queue' })}
+              loading={loading}
+            />
           </div>
         )}
 
@@ -701,6 +709,7 @@ export default function App({ user, onLogout }) {
                     onClick={() => setAnalyticsRange(d)}>{d}d</button>
                 ))}
                 <button className="btn-ghost btn-sm" onClick={loadAnalytics}>↻</button>
+                <AnalyticsPdfExport clientId={selectedClient} clientName={currentClient?.name} range={analyticsRange} />
               </div>
             </div>
 

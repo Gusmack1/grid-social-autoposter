@@ -1,5 +1,5 @@
 // Admin API v4 — Modular, uses shared lib
-import { db } from './lib/db/index.mjs';
+import { db, DB_BACKEND } from './lib/db/index.mjs';
 import { verifyJWT } from './lib/crypto/jwt.mjs';
 import { encrypt, decrypt } from './lib/crypto/encryption.mjs';
 import { publishToAll, deleteFromPlatforms } from './lib/publisher.mjs';
@@ -33,11 +33,11 @@ export default async (req) => {
   const clientId = url.searchParams.get('clientId');
 
   // Permission checks
-  const writeActions = ['add-post', 'update-post', 'delete-post', 'publish-now', 'post-now', 'upload-image', 'delete-from-platform', 'bulk-import'];
+  const writeActions = ['add-post', 'update-post', 'delete-post', 'publish-now', 'post-now', 'upload-image', 'delete-from-platform', 'bulk-import', 'save-template', 'delete-template'];
   if (user.role !== 'admin' && clientId && writeActions.includes(action)) {
     if (!user.assignedClients.includes(clientId)) return forbidden("You don't have permission for this client");
   }
-  const adminActions = ['add-client', 'update-client', 'delete-client', 'migrate-tokens', 'generate-invite', 'check-token-health', 'generate-approval-link', 'set-approval-mode', 'set-approval-status'];
+  const adminActions = ['add-client', 'update-client', 'delete-client', 'migrate-tokens', 'generate-invite', 'check-token-health', 'generate-approval-link', 'set-approval-mode', 'set-approval-status', 'migrate-to-supabase', 'reorder-queue'];
   if (user.role !== 'admin' && adminActions.includes(action)) return forbidden('Admin access required');
 
   try {
@@ -297,6 +297,8 @@ export default async (req) => {
         hasEncryptionKey: !!process.env.ENCRYPTION_KEY,
         hasQStash: !!process.env.QSTASH_TOKEN,
         hasR2: !!process.env.R2_BUCKET,
+        hasSupabase: !!(process.env.SUPABASE_URL && process.env.SUPABASE_ANON_KEY),
+        dbBackend: DB_BACKEND,
         user: { email: user.email, name: user.name, role: user.role, assignedClients: user.assignedClients },
       });
     }
@@ -373,6 +375,127 @@ export default async (req) => {
         results.push(health);
       }
       return json(results);
+    }
+
+    // ── TEMPLATES ──
+    if (action === 'get-templates') {
+      const templates = await db.getTemplates(clientId || null);
+      return json(templates);
+    }
+
+    if (action === 'save-template' && req.method === 'POST') {
+      const body = await req.json();
+      if (!body.name) return badRequest('Template name required');
+      const template = {
+        id: body.id || 'tpl_' + Date.now(),
+        clientId: clientId || null,
+        name: body.name,
+        caption: body.caption || '',
+        platforms: body.platforms || ['facebook', 'instagram'],
+        postType: body.postType || 'feed',
+        imageUrl: body.imageUrl || null,
+        tags: body.tags || [],
+        createdBy: user.email,
+        createdAt: body.createdAt || new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      await db.saveTemplate(template);
+      logger.info('Template saved', { id: template.id, name: template.name });
+      return json({ success: true, template });
+    }
+
+    if (action === 'delete-template' && req.method === 'DELETE') {
+      const body = await req.json();
+      if (!body.templateId) return badRequest('templateId required');
+      if (db.deleteTemplate.length === 2) {
+        await db.deleteTemplate(body.templateId, clientId || null);
+      } else {
+        await db.deleteTemplate(body.templateId);
+      }
+      return json({ success: true });
+    }
+
+    // ── QUEUE REORDER ──
+    if (action === 'reorder-queue' && req.method === 'PUT') {
+      const body = await req.json();
+      if (!clientId || !Array.isArray(body.order)) return badRequest('clientId and order[] required');
+      const list = await db.getPosts(clientId);
+      // body.order = ['post_123', 'post_456', ...] — new order of queued post IDs
+      const orderMap = {};
+      body.order.forEach((id, i) => { orderMap[id] = i; });
+      for (const post of list) {
+        if (orderMap[post.id] !== undefined) {
+          post.sortOrder = orderMap[post.id];
+        }
+      }
+      await db.savePosts(clientId, list);
+      logger.info('Queue reordered', { clientId, count: body.order.length });
+      return json({ success: true });
+    }
+
+    // ── MIGRATE TO SUPABASE ──
+    if (action === 'migrate-to-supabase' && req.method === 'POST') {
+      if (!process.env.SUPABASE_URL || !process.env.SUPABASE_ANON_KEY) {
+        return badRequest('SUPABASE_URL and SUPABASE_ANON_KEY env vars required');
+      }
+      const { migrateToSupabase } = await import('./lib/migrate-supabase.mjs');
+      const result = await migrateToSupabase();
+      return json({ success: true, ...result });
+    }
+
+    // ── ANALYTICS PDF EXPORT ──
+    if (action === 'export-analytics') {
+      if (!clientId) return badRequest('clientId required');
+      const clients = await db.getClients();
+      const client = clients.find(c => c.id === clientId);
+      const allPosts = await db.getPosts(clientId);
+      const range = parseInt(url.searchParams.get('range') || '30');
+      const since = new Date(Date.now() - range * 86400000);
+
+      const published = allPosts.filter(p => p.status === 'published' && p.publishedAt && new Date(p.publishedAt) >= since);
+      const queued = allPosts.filter(p => p.status === 'queued' || p.status === 'scheduled');
+      const failed = allPosts.filter(p => p.status === 'failed');
+
+      const platformBreakdown = {};
+      for (const p of published) {
+        for (const plat of (p.platforms || [])) {
+          if (!platformBreakdown[plat]) platformBreakdown[plat] = { success: 0, failed: 0 };
+          const r = p.results?.[plat];
+          if (r?.success) platformBreakdown[plat].success++;
+          else platformBreakdown[plat].failed++;
+        }
+      }
+
+      const postsByDay = {};
+      for (const p of published) {
+        const day = new Date(p.publishedAt).toISOString().split('T')[0];
+        postsByDay[day] = (postsByDay[day] || 0) + 1;
+      }
+
+      const report = {
+        clientName: client?.name || clientId,
+        range,
+        generatedAt: new Date().toISOString(),
+        summary: {
+          totalPublished: published.length,
+          queued: queued.length,
+          failed: failed.length,
+          successRate: published.length > 0 ? Math.round((published.filter(p => {
+            const results = p.results || {};
+            return Object.values(results).some(r => r?.success);
+          }).length / published.length) * 100) : 0,
+        },
+        platformBreakdown,
+        postsByDay,
+        recentPosts: published.slice(0, 20).map(p => ({
+          caption: (p.caption || '').substring(0, 100),
+          platforms: p.platforms,
+          publishedAt: p.publishedAt,
+          postType: p.postType,
+        })),
+      };
+
+      return json(report);
     }
 
     return badRequest('Unknown action: ' + action);
