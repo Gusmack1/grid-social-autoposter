@@ -84,6 +84,25 @@ export default function App({ user, onLogout }) {
   const [clientModal, setClientModal] = useState(null);
   const [linkModal, setLinkModal] = useState(null); // { type, clientName, url, loading }
 
+  // Theme state
+  const [theme, setTheme] = useState('dark');
+
+  // Analytics share modal
+  const [shareAnalyticsModal, setShareAnalyticsModal] = useState(null); // { shareUrl, loading }
+
+  // Evergreen library state
+  const [evergreen, setEvergreen] = useState([]);
+  const [showEvergreenLibrary, setShowEvergreenLibrary] = useState(false);
+
+  // Time slot picker
+  const TIME_SLOTS = [
+    { name: 'Morning (9:00 AM)', time: '09:00' },
+    { name: 'Lunch (12:00 PM)', time: '12:00' },
+    { name: 'Afternoon (3:00 PM)', time: '15:00' },
+    { name: 'Evening (6:00 PM)', time: '18:00' },
+    { name: 'Prime Time (8:00 PM)', time: '20:00' },
+  ];
+
   const isAdmin = user?.role === 'admin';
 
   const loadClients = useCallback(async () => {
@@ -143,6 +162,25 @@ export default function App({ user, onLogout }) {
   }, []);
   useEffect(() => { checkApiKey(); }, []);
 
+  // Load theme from localStorage
+  useEffect(() => {
+    const savedTheme = localStorage.getItem('theme') || 'dark';
+    setTheme(savedTheme);
+    document.documentElement.setAttribute('data-theme', savedTheme);
+  }, []);
+
+  // Load evergreen posts
+  const loadEvergreen = useCallback(async () => {
+    if (!selectedClient) return;
+    try {
+      const data = await apiGet(`/admin?action=get-evergreen&clientId=${selectedClient}`);
+      setEvergreen(Array.isArray(data) ? data : []);
+    } catch (e) { console.error('Load evergreen:', e); }
+  }, [selectedClient]);
+
+  useEffect(() => { loadEvergreen(); }, [selectedClient]);
+
+
   const handleSaveApiKey = async () => {
     if (!apiKeyInput.trim() || !apiKeyInput.startsWith('sk-ant-')) {
       alert('Please enter a valid Anthropic API key (starts with sk-ant-)');
@@ -170,6 +208,93 @@ export default function App({ user, onLogout }) {
       setAiUsingOwnKey(false);
     } catch (e) { alert('Failed: ' + e.message); }
   };
+
+  // Theme toggle
+  const handleThemeToggle = () => {
+    const newTheme = theme === 'dark' ? 'light' : 'dark';
+    setTheme(newTheme);
+    document.documentElement.setAttribute('data-theme', newTheme);
+    localStorage.setItem('theme', newTheme);
+  };
+
+  // Share analytics
+  const handleShareAnalytics = async () => {
+    setShareAnalyticsModal({ shareUrl: null, loading: true });
+    try {
+      const data = await apiPost('/admin?action=generate-share-link', { clientId: selectedClient });
+      setShareAnalyticsModal({ shareUrl: data.shareUrl, loading: false });
+    } catch (e) {
+      alert('Failed to generate share link: ' + e.message);
+      setShareAnalyticsModal(null);
+    }
+  };
+
+  const handleCopyShareLink = () => {
+    if (shareAnalyticsModal?.shareUrl) {
+      navigator.clipboard.writeText(shareAnalyticsModal.shareUrl);
+      alert('Link copied to clipboard!');
+    }
+  };
+
+  // Mark/unmark evergreen
+  const handleMarkEvergreen = async (postId) => {
+    try {
+      await apiPost(`/admin?action=mark-evergreen&clientId=${selectedClient}`, { postId });
+      loadEvergreen();
+      loadPosts();
+    } catch (e) { alert('Failed: ' + e.message); }
+  };
+
+  const handleUnmarkEvergreen = async (postId) => {
+    try {
+      await apiPost(`/admin?action=unmark-evergreen&clientId=${selectedClient}`, { postId });
+      loadEvergreen();
+      loadPosts();
+    } catch (e) { alert('Failed: ' + e.message); }
+  };
+
+  // Recycle post
+  const handleRecyclePost = async (postId, scheduledFor) => {
+    try {
+      await apiPost(`/admin?action=recycle-post&clientId=${selectedClient}`, { postId, scheduledFor });
+      loadEvergreen();
+      loadPosts();
+      alert('Post recycled!');
+    } catch (e) { alert('Failed: ' + e.message); }
+  };
+
+  // Export calendar
+  const handleExportCalendar = async () => {
+    try {
+      const response = await fetch(`/api/calendar-export?clientId=${selectedClient}`, {
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
+      });
+      if (!response.ok) throw new Error('Export failed');
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${currentClient.name.replace(/[^a-z0-9]/gi, '_')}_queue.ics`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (e) { alert('Failed to export: ' + e.message); }
+  };
+
+  // Apply time slot to scheduledFor
+  const handleTimeSlotSelect = (slot) => {
+    let date = new Date(scheduledFor);
+    if (isNaN(date.getTime())) {
+      date = new Date();
+      date.setDate(date.getDate() + 1); // default to tomorrow
+    }
+    const [hours, minutes] = slot.time.split(':');
+    date.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+    const iso = date.toISOString().slice(0, 16);
+    setScheduledFor(iso);
+  };
+
 
   // Clear selection when switching client or tab
   useEffect(() => { setSelectedQueueIds([]); }, [selectedClient, tab]);
@@ -549,6 +674,10 @@ export default function App({ user, onLogout }) {
           <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>
             {user?.email} ({user?.role})
           </div>
+          <button className="btn-ghost btn-sm" style={{ width: '100%', marginBottom: 8 }}
+            onClick={handleThemeToggle} title="Toggle dark/light theme">
+            {theme === 'dark' ? '☀️' : '🌙'} Theme
+          </button>
           <button className="btn-ghost btn-sm" style={{ width: '100%' }}
             onClick={() => { clearToken(); onLogout(); }}>Sign Out</button>
         </div>
@@ -657,10 +786,21 @@ export default function App({ user, onLogout }) {
               </div>
 
               {/* Schedule */}
-              <div style={{ display: 'flex', gap: 8, marginBottom: 16, alignItems: 'center' }}>
-                <input type="datetime-local" value={scheduledFor}
-                  onChange={e => setScheduledFor(e.target.value)} style={{ flex: 1 }} />
-                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>UK time</span>
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
+                  <input type="datetime-local" value={scheduledFor}
+                    onChange={e => setScheduledFor(e.target.value)} style={{ flex: 1 }} />
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>UK time</span>
+                </div>
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                  {TIME_SLOTS.map(slot => (
+                    <button key={slot.time} className="btn-ghost btn-sm"
+                      onClick={() => handleTimeSlotSelect(slot)}
+                      style={{ fontSize: 11, padding: '4px 8px' }}>
+                      {slot.name}
+                    </button>
+                  ))}
+                </div>
               </div>
 
               {/* Approval mode warning */}
@@ -932,6 +1072,7 @@ export default function App({ user, onLogout }) {
                     else setCalMonth(calMonth + 1);
                     setCalSelectedDay(null);
                   }}>▶</button>
+                  <button className="btn-ghost btn-sm" onClick={handleExportCalendar} title="Export to iCal">📥</button>
                 </div>
               </div>
 
@@ -1083,6 +1224,11 @@ export default function App({ user, onLogout }) {
                     </div>
                   </div>
                   <div className="post-actions" style={{ display: 'flex', gap: 4 }}>
+                    <button className="btn-ghost btn-sm" onClick={() => post.evergreen ? handleUnmarkEvergreen(post.id) : handleMarkEvergreen(post.id)} 
+                      title={post.evergreen ? 'Unmark evergreen' : 'Mark evergreen'}
+                      style={{ background: post.evergreen ? 'rgba(34, 197, 94, 0.2)' : '' }}>
+                      ♻️
+                    </button>
                     <button className="btn-ghost btn-sm" onClick={() => handleDuplicate(post.id)} title="Duplicate post">⎘</button>
                     <button className="btn-danger btn-sm" onClick={() => setDeleteModal({ post, type: 'published' })}>✕</button>
                   </div>
@@ -1105,6 +1251,7 @@ export default function App({ user, onLogout }) {
                     onClick={() => setAnalyticsRange(d)}>{d}d</button>
                 ))}
                 <button className="btn-ghost btn-sm" onClick={loadAnalytics}>↻</button>
+                <button className="btn-ghost btn-sm" onClick={handleShareAnalytics} title="Share analytics with client">🔗</button>
                 <AnalyticsPdfExport clientId={selectedClient} clientName={currentClient?.name} range={analyticsRange} />
               </div>
             </div>
@@ -1715,6 +1862,42 @@ export default function App({ user, onLogout }) {
             ) : null}
             <div className="modal-actions">
               <button className="btn-ghost" onClick={() => setLinkModal(null)}>Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Share Analytics Modal */}
+      {shareAnalyticsModal && (
+        <div className="modal-overlay" onClick={() => setShareAnalyticsModal(null)}>
+          <div className="modal">
+            <h2>🔗 Share Analytics</h2>
+            {shareAnalyticsModal.loading ? (
+              <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>Generating link...</p>
+            ) : shareAnalyticsModal.shareUrl ? (
+              <>
+                <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 12 }}>
+                  Share this link with your client for read-only analytics access (valid for 7 days).
+                </p>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <input
+                    readOnly
+                    value={shareAnalyticsModal.shareUrl}
+                    onClick={e => e.target.select()}
+                    style={{
+                      flex: 1, background: 'var(--bg-input)', border: '1px solid var(--border)',
+                      borderRadius: 8, padding: '10px 12px', color: 'var(--text)',
+                      fontSize: 12, fontFamily: 'monospace', cursor: 'text',
+                    }}
+                  />
+                  <button className="btn-primary btn-sm" onClick={handleCopyShareLink} style={{ whiteSpace: 'nowrap' }}>
+                    Copy
+                  </button>
+                </div>
+              </>
+            ) : null}
+            <div className="modal-actions">
+              <button className="btn-ghost" onClick={() => setShareAnalyticsModal(null)}>Close</button>
             </div>
           </div>
         </div>

@@ -144,6 +144,18 @@
   to = "/.netlify/functions/approval-portal/:splat"
   status = 200
 
+# Client analytics (public, JWT-authenticated)
+[[redirects]]
+  from = "/api/client-analytics"
+  to = "/.netlify/functions/client-analytics"
+  status = 200
+
+# Calendar export (iCal)
+[[redirects]]
+  from = "/api/calendar-export"
+  to = "/.netlify/functions/calendar-export"
+  status = 200
+
 # Static media — serve uploaded images, don't fall through to SPA
 [[redirects]]
   from = "/media/*"

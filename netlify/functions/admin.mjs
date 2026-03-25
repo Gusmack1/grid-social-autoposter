@@ -34,9 +34,9 @@ export default async (req) => {
   const clientId = url.searchParams.get('clientId');
 
   // Permission checks
-  const writeActions = ['add-post', 'update-post', 'delete-post', 'publish-now', 'post-now', 'upload-image', 'delete-from-platform', 'bulk-import', 'save-template', 'delete-template', 'duplicate-post', 'bulk-delete', 'bulk-publish', 'bulk-reschedule'];
+  const writeActions = ['add-post', 'update-post', 'delete-post', 'publish-now', 'post-now', 'upload-image', 'delete-from-platform', 'bulk-import', 'save-template', 'delete-template', 'duplicate-post', 'bulk-delete', 'bulk-publish', 'bulk-reschedule', 'mark-evergreen', 'unmark-evergreen', 'recycle-post'];
   const publishActions = ['publish-now', 'post-now', 'bulk-publish', 'delete-from-platform'];
-  const readOnlyActions = ['get-clients', 'get-posts', 'config', 'get-templates', 'check-token-health', 'export-analytics', 'plan-usage', 'check-api-key'];
+  const readOnlyActions = ['get-clients', 'get-posts', 'config', 'get-templates', 'check-token-health', 'export-analytics', 'plan-usage', 'check-api-key', 'get-evergreen', 'generate-share-link'];
   const selfServiceActions = ['save-api-key', 'remove-api-key', 'check-api-key'];
 
   // Viewer role = read-only
@@ -689,6 +689,93 @@ export default async (req) => {
         hasKey: !!(userData?.anthropicApiKey),
         setAt: userData?.apiKeySetAt || null,
       });
+    }
+
+
+    // ── MARK EVERGREEN ──
+    if (action === 'mark-evergreen' && req.method === 'POST') {
+      const body = await req.json();
+      if (!body.postId) return badRequest('postId required');
+      const list = await db.getPosts(clientId);
+      const idx = list.findIndex(p => p.id === body.postId);
+      if (idx === -1) return notFound('Post not found');
+      list[idx].evergreen = true;
+      await db.savePosts(clientId, list);
+      logger.info('Marked post as evergreen', { clientId, postId: body.postId });
+      return json({ success: true });
+    }
+
+    // ── UNMARK EVERGREEN ──
+    if (action === 'unmark-evergreen' && req.method === 'POST') {
+      const body = await req.json();
+      if (!body.postId) return badRequest('postId required');
+      const list = await db.getPosts(clientId);
+      const idx = list.findIndex(p => p.id === body.postId);
+      if (idx === -1) return notFound('Post not found');
+      list[idx].evergreen = false;
+      await db.savePosts(clientId, list);
+      logger.info('Unmarked post as evergreen', { clientId, postId: body.postId });
+      return json({ success: true });
+    }
+
+    // ── GET EVERGREEN ──
+    if (action === 'get-evergreen') {
+      const list = await db.getPosts(clientId);
+      const evergreen = list.filter(p => p.evergreen === true);
+      return json(evergreen);
+    }
+
+    // ── RECYCLE POST ──
+    if (action === 'recycle-post' && req.method === 'POST') {
+      const body = await req.json();
+      if (!body.postId || !body.scheduledFor) return badRequest('postId and scheduledFor required');
+      const list = await db.getPosts(clientId);
+      const original = list.find(p => p.id === body.postId);
+      if (!original) return notFound('Post not found');
+      const newPost = {
+        id: 'post_' + Date.now(),
+        clientId,
+        caption: original.caption,
+        imageUrl: original.imageUrl || null,
+        videoUrl: original.videoUrl || null,
+        imageUrls: original.imageUrls || null,
+        postType: original.postType || 'feed',
+        platforms: original.platforms || [],
+        status: 'scheduled',
+        scheduledFor: body.scheduledFor,
+        approvalStatus: original.approvalStatus,
+        approvalMode: original.approvalMode,
+        evergreen: original.evergreen || false,
+        createdAt: new Date().toISOString(),
+        publishedAt: null,
+        results: null,
+      };
+      list.push(newPost);
+      await db.savePosts(clientId, list);
+      logger.info('Recycled post', { clientId, originalPostId: body.postId, newPostId: newPost.id });
+      return json({ success: true, post: newPost });
+    }
+
+    // ── GENERATE SHARE LINK ──
+    if (action === 'generate-share-link' && req.method === 'POST') {
+      const { signJWT } = await import('./lib/crypto/jwt.mjs');
+      const body = await req.json();
+      if (!body.clientId) return badRequest('clientId required');
+      const clients = await db.getClients();
+      const client = clients.find(c => c.id === body.clientId);
+      if (!client) return notFound('Client not found');
+      const jwtSecret = process.env.JWT_SECRET || 'gridsocial-jwt-secret-2026';
+      const payload = {
+        clientId: client.id,
+        clientName: client.name,
+        iat: Math.floor(Date.now() / 1000),
+        exp: Math.floor(Date.now() / 1000) + (7 * 24 * 3600), // 7 days
+      };
+      const token = await signJWT(payload, jwtSecret);
+      const url = new URL(req.url);
+      const shareUrl = `${url.origin}/api/client-analytics?token=${token}`;
+      logger.info('Generated share link', { clientId: client.id, expiresIn: '7 days' });
+      return json({ success: true, shareUrl, token, expiresAt: new Date(payload.exp * 1000).toISOString() });
     }
 
     return badRequest('Unknown action: ' + action);

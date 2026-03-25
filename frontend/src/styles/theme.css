@@ -254,3 +254,16 @@ textarea { resize: vertical; min-height: 80px; }
   .grid-2, .grid-3 { grid-template-columns: 1fr; }
   .header { flex-direction: column; gap: 12px; align-items: flex-start; }
 }
+
+/* Light theme override */
+[data-theme="light"] {
+  --bg: #f8fafc;
+  --bg-card: #ffffff;
+  --bg-input: #f1f5f9;
+  --text: #0f172a;
+  --text-muted: #64748b;
+  --accent: #3b82f6;
+  --accent-hover: #2563eb;
+  --border: #e2e8f0;
+  --shadow: 0 4px 6px -1px rgba(0,0,0,0.07);
+}
