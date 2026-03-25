@@ -1,5 +1,5 @@
 [build]
-  command = "npm install && cd frontend && npm install && npm run build && cp -r ../public/assets dist/assets 2>/dev/null || true"
+  command = "npm install && cd frontend && npm install && npm run build && mkdir -p dist/media && cp ../public/assets/* dist/media/ 2>/dev/null || true"
   publish = "frontend/dist"
   functions = "netlify/functions"
 
@@ -144,10 +144,10 @@
   to = "/.netlify/functions/approval-portal/:splat"
   status = 200
 
-# Static assets — serve files, don't fall through to SPA
+# Static media — serve uploaded images, don't fall through to SPA
 [[redirects]]
-  from = "/assets/*"
-  to = "/assets/:splat"
+  from = "/media/*"
+  to = "/media/:splat"
   status = 200
 
 # SPA fallback
