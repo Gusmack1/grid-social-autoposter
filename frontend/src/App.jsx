@@ -168,6 +168,26 @@ export default function App({ user, onLogout }) {
     const file = e.target.files?.[0];
     if (!file) return;
     setUploading(true);
+    try {
+      // Compress client-side
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      const img = new Image();
+      img.src = URL.createObjectURL(file);
+      await new Promise(r => img.onload = r);
+      const max = 1200;
+      let w = img.width, h = img.height;
+      if (w > max || h > max) { const s = max / Math.max(w, h); w *= s; h *= s; }
+      canvas.width = w; canvas.height = h;
+      ctx.drawImage(img, 0, 0, w, h);
+      const b64 = canvas.toDataURL('image/jpeg', 0.75).split(',')[1];
+      const data = await apiPost(`/admin?action=upload-image&clientId=${selectedClient}`, {
+        filename: file.name, content: b64,
+      });
+      if (data.url) setImageUrl(data.url);
+    } catch (e) { alert('Upload failed: ' + e.message); }
+    setUploading(false);
+  };
 
   const handleCsvImport = async (e) => {
     const file = e.target.files?.[0];
@@ -227,26 +247,6 @@ export default function App({ user, onLogout }) {
       e.target.value = '';
     } catch (err) { alert('Import failed: ' + err.message); }
     setCsvImporting(false);
-  };
-    try {
-      // Compress client-side
-      const canvas = document.createElement('canvas');
-      const ctx = canvas.getContext('2d');
-      const img = new Image();
-      img.src = URL.createObjectURL(file);
-      await new Promise(r => img.onload = r);
-      const max = 1200;
-      let w = img.width, h = img.height;
-      if (w > max || h > max) { const s = max / Math.max(w, h); w *= s; h *= s; }
-      canvas.width = w; canvas.height = h;
-      ctx.drawImage(img, 0, 0, w, h);
-      const b64 = canvas.toDataURL('image/jpeg', 0.75).split(',')[1];
-      const data = await apiPost(`/admin?action=upload-image&clientId=${selectedClient}`, {
-        filename: file.name, content: b64,
-      });
-      if (data.url) setImageUrl(data.url);
-    } catch (e) { alert('Upload failed: ' + e.message); }
-    setUploading(false);
   };
 
   // ── TEMPLATE HANDLER ──
