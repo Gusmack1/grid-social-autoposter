@@ -86,11 +86,24 @@
 
 ---
 
-## NEXT BUILD SESSION (Phase 8)
+## COMPLETED THIS SESSION (Phase 8a — AI Writer Upgrades + Stripe)
+
+- [x] 7 tone presets: professional, casual, humorous, Scottish, inspirational, sales, storytelling
+- [x] Platform-aware hashtag generation (auto-adjusts count per platform rules)
+- [x] Hashtag mode selector: auto/minimal/none
+- [x] Claude Vision image analysis (describe image → suggest captions, tone, hashtags)
+- [x] Clickable caption ideas from image analysis
+- [x] Hashtag regeneration on existing captions
+- [x] Image-aware caption writing (sends image to Claude for context)
+- [x] Stripe SaaS products created: Starter £15/mo, Agency £59/mo, Agency Pro £119/mo
+- [x] Stripe price ID env vars set on Netlify (STRIPE_PRICE_STARTER, STRIPE_PRICE_AGENCY, STRIPE_PRICE_AGENCY_PRO)
+
+---
+
+## NEXT BUILD SESSION (Phase 8b)
 
 - [ ] Real-time notifications (webhook → dashboard push)
 - [ ] Team chat / notes per client
-- [ ] AI auto-caption improvements (tone selection, hashtag gen, image analysis)
 - [ ] Webhook integrations (Zapier, n8n, Make) — outgoing webhooks on publish/fail
 - [ ] Client-facing analytics dashboard (read-only, branded, shareable link)
 - [ ] Scheduling time slots (preset times per client, auto-fill)
@@ -102,6 +115,6 @@
 
 ## ENV VARS
 
-**Set:** ADMIN_KEY, META_APP_ID, META_APP_SECRET, GITHUB_TOKEN, JWT_SECRET, ENCRYPTION_KEY, ANTHROPIC_API_KEY, RESEND_API_KEY
+**Set:** ADMIN_KEY, META_APP_ID, META_APP_SECRET, GITHUB_TOKEN, JWT_SECRET, ENCRYPTION_KEY, ANTHROPIC_API_KEY, RESEND_API_KEY, STRIPE_PRICE_STARTER, STRIPE_PRICE_AGENCY, STRIPE_PRICE_AGENCY_PRO
 
-**Need:** SUPABASE_URL, SUPABASE_ANON_KEY, TIKTOK_CLIENT_KEY, TIKTOK_CLIENT_SECRET, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, LINKEDIN_CLIENT_ID, LINKEDIN_CLIENT_SECRET, STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, STRIPE_PRICE_STARTER, STRIPE_PRICE_AGENCY, STRIPE_PRICE_AGENCY_PRO, PINTEREST_APP_ID, PINTEREST_APP_SECRET
+**Need:** STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, SUPABASE_URL, SUPABASE_ANON_KEY, TIKTOK_CLIENT_KEY, TIKTOK_CLIENT_SECRET, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, LINKEDIN_CLIENT_ID, LINKEDIN_CLIENT_SECRET, PINTEREST_APP_ID, PINTEREST_APP_SECRET
