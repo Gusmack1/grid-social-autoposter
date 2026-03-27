@@ -1,7 +1,7 @@
 // QStash per-post scheduling — falls back to cron if QSTASH_TOKEN not set
 import { logger } from './logger.mjs';
 
-const QSTASH_URL = 'https://qstash.upstash.io/v2/publish';
+const QSTASH_URL = `${process.env.QSTASH_URL || 'https://qstash.upstash.io'}/v2/publish`;
 
 export function isQStashEnabled() {
   return !!process.env.QSTASH_TOKEN;
