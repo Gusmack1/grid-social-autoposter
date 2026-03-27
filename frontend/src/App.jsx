@@ -8,6 +8,7 @@ import PostPreview from './components/PostPreview.jsx';
 import TemplatePicker from './components/TemplatePicker.jsx';
 import DraggableQueue from './components/DraggableQueue.jsx';
 import AnalyticsPdfExport from './components/AnalyticsPdfExport.jsx';
+import { useRealtime, isRealtimeEnabled } from './hooks/useRealtime.js';
 
 const TABS = [
   { id: 'compose', name: 'Create Post', icon: '✏️' },
@@ -129,6 +130,16 @@ export default function App({ user, onLogout }) {
   useEffect(() => { loadClients(); }, []);
   useEffect(() => { loadPosts(); }, [selectedClient]);
   useEffect(() => { if (tab === 'team' || tab === 'billing') loadUsers(); }, [tab]);
+
+  // Supabase Realtime — auto-refresh posts when DB changes
+  useRealtime('posts', 'client_id', selectedClient, useCallback(() => {
+    loadPosts();
+  }, [loadPosts]));
+
+  // Supabase Realtime — auto-refresh clients when DB changes
+  useRealtime('clients', null, selectedClient || '_all', useCallback(() => {
+    loadClients();
+  }, [loadClients]));
 
   const loadAnalytics = useCallback(async () => {
     if (!selectedClient) return;
