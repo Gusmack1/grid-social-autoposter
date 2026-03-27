@@ -20,7 +20,8 @@ async function authenticate(req) {
   if (token === adminKey) return { role: 'admin', email: 'admin', plan: 'enterprise', assignedClients: [] };
   const payload = await verifyJWT(token, jwtSecret);
   if (!payload) return null;
-  return { id: payload.sub, email: payload.email, name: payload.name, role: payload.role, plan: payload.plan || 'free', assignedClients: payload.assignedClients || [] };
+  const effectivePlan = payload.role === 'admin' ? 'enterprise' : (payload.plan || 'free');
+  return { id: payload.sub, email: payload.email, name: payload.name, role: payload.role, plan: effectivePlan, assignedClients: payload.assignedClients || [] };
 }
 
 export default async (req) => {

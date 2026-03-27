@@ -1000,6 +1000,20 @@ export default function App({ user, onLogout }) {
                   </span>
                 )}
                 <span style={{ fontSize: 11, color: 'var(--text-muted)', alignSelf: 'center' }}>⠿ Drag to reorder</span>
+                {queuedPosts.length > 0 && (
+                  <button className="btn-danger btn-sm" onClick={async () => {
+                    if (!confirm(`Delete ALL ${queuedPosts.length} queued posts? This cannot be undone.`)) return;
+                    setBulkActionLoading(true);
+                    try {
+                      await apiPost(`/admin?action=bulk-delete&clientId=${selectedClient}`, { postIds: queuedPosts.map(p => p.id) });
+                      setSelectedQueueIds([]);
+                      await loadPosts();
+                    } catch (e) { alert(e.message); }
+                    setBulkActionLoading(false);
+                  }} disabled={bulkActionLoading}>
+                    🗑 Delete All
+                  </button>
+                )}
                 <button className="btn-ghost btn-sm" onClick={loadPosts}>Refresh</button>
               </div>
             </div>
