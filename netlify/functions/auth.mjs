@@ -5,17 +5,15 @@ import { signJWT, verifyJWT } from './lib/crypto/jwt.mjs';
 import { checkRateLimit } from './lib/rate-limiter.mjs';
 import { json, cors, unauthorized, badRequest } from './lib/http.mjs';
 import { logger } from './lib/logger.mjs';
-
-function emailKey(email) {
-  return email.toLowerCase().trim().replace(/[^a-z0-9@._-]/g, '_');
-}
+import { emailKey } from './lib/email-key.mjs';
 
 export default async function handler(req) {
   if (req.method === 'OPTIONS') return cors();
 
   const url = new URL(req.url);
   const action = url.searchParams.get('action');
-  const JWT_SECRET = process.env.JWT_SECRET || 'gridsocial-jwt-secret-2026';
+  const JWT_SECRET = process.env.JWT_SECRET;
+  if (!JWT_SECRET) return json({ error: 'Server misconfiguration: JWT_SECRET not set' }, 500);
 
   try {
     // ── REGISTER ──
@@ -27,7 +25,7 @@ export default async function handler(req) {
       const existing = await db.getUser(key);
       if (existing) return json({ error: 'An account with this email already exists' }, 409);
       const user = {
-        id: `user_${Date.now()}`, email: email.toLowerCase().trim(), name: name.trim(),
+        id: `user_${crypto.randomUUID()}`, email: email.toLowerCase().trim(), name: name.trim(),
         password: await hashPassword(password), role: 'member', status: 'pending',
         assignedClients: [], createdAt: new Date().toISOString(),
       };
@@ -55,14 +53,15 @@ export default async function handler(req) {
       if (user.status === 'declined') return json({ error: 'Your account request was declined. Contact the admin.' }, 403);
       if (user.status !== 'active') return json({ error: 'Account not active' }, 403);
 
+      const effectivePlan = user.role === 'admin' ? 'enterprise' : (user.plan || 'free');
       const token = await signJWT({
         sub: user.id, email: user.email, name: user.name,
-        role: user.role, plan: user.plan || 'free', assignedClients: user.assignedClients,
+        role: user.role, plan: effectivePlan, assignedClients: user.assignedClients,
         exp: Math.floor(Date.now() / 1000) + 7 * 24 * 3600,
       }, JWT_SECRET);
 
       logger.info('User logged in', { email: user.email, role: user.role });
-      return json({ success: true, token, user: { id: user.id, email: user.email, name: user.name, role: user.role, plan: user.plan || 'free', assignedClients: user.assignedClients } });
+      return json({ success: true, token, user: { id: user.id, email: user.email, name: user.name, role: user.role, plan: effectivePlan, assignedClients: user.assignedClients } });
     }
 
     // ── VERIFY TOKEN ──
@@ -71,7 +70,8 @@ export default async function handler(req) {
       if (!auth) return unauthorized();
       const payload = await verifyJWT(auth, JWT_SECRET);
       if (!payload) return json({ error: 'Invalid or expired token' }, 401);
-      return json({ valid: true, user: { id: payload.sub, email: payload.email, name: payload.name, role: payload.role, plan: payload.plan || 'free', assignedClients: payload.assignedClients } });
+      const verifyPlan = payload.role === 'admin' ? 'enterprise' : (payload.plan || 'free');
+      return json({ valid: true, user: { id: payload.sub, email: payload.email, name: payload.name, role: payload.role, plan: verifyPlan, assignedClients: payload.assignedClients } });
     }
 
     // ── FORGOT PASSWORD ──
