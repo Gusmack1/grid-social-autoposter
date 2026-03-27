@@ -156,11 +156,20 @@ export const supabaseDb = {
       return row;
     });
 
+    // Normalise keys — PostgREST requires all batch rows to have identical keys
+    const allKeys = new Set();
+    for (const r of rows) Object.keys(r).forEach(k => allKeys.add(k));
+    const normalised = rows.map(r => {
+      const out = {};
+      for (const k of allKeys) out[k] = r[k] ?? null;
+      return out;
+    });
+
     // Insert in chunks of 50
-    for (let i = 0; i < rows.length; i += 50) {
+    for (let i = 0; i < normalised.length; i += 50) {
       await supabase('posts', {
         method: 'POST',
-        body: rows.slice(i, i + 50),
+        body: normalised.slice(i, i + 50),
       });
     }
   },
@@ -227,8 +236,17 @@ export const supabaseDb = {
     });
     if (list.length === 0) return;
     const rows = list.map(h => keysToSnake({ ...h, clientId }));
-    for (let i = 0; i < rows.length; i += 50) {
-      await supabase('history', { method: 'POST', body: rows.slice(i, i + 50) });
+    // Normalise keys for PostgREST batch insert
+    const allKeys = new Set();
+    for (const r of rows) Object.keys(r).forEach(k => allKeys.add(k));
+    const normalised = rows.map(r => {
+      const out = {};
+      for (const k of allKeys) out[k] = r[k] ?? null;
+      return out;
+    });
+    const rows_ = normalised;
+    for (let i = 0; i < rows_.length; i += 50) {
+      await supabase('history', { method: 'POST', body: rows_.slice(i, i + 50) });
     }
   },
 

@@ -4,6 +4,33 @@ import { getStore } from '@netlify/blobs';
 import { supabaseDb } from './db/supabase.mjs';
 import { logger } from './logger.mjs';
 
+// Sanitise client objects: rename/remove fields that don't match the Supabase schema
+function sanitiseClient(c) {
+  const copy = { ...c };
+  // Rename 'logo' → 'logoUrl' (schema column is logo_url)
+  if ('logo' in copy && !('logoUrl' in copy)) {
+    copy.logoUrl = copy.logo;
+  }
+  delete copy.logo;
+  // Strip any fields not in the schema to avoid PGRST204 errors
+  const ALLOWED = new Set([
+    'id','name','clientEmail','fbPageId','igUserId','pageAccessToken',
+    'twitterApiKey','twitterApiSecret','twitterAccessToken','twitterAccessSecret',
+    'linkedinAccessToken','linkedinRefreshToken','linkedinId',
+    'gbpAccessToken','gbpRefreshToken','gbpLocationId',
+    'tiktokAccessToken','tiktokRefreshToken',
+    'threadsUserId','threadsAccessToken',
+    'blueskyIdentifier','blueskyAppPassword',
+    'pinterestAccessToken','pinterestRefreshToken','pinterestBoardId',
+    'approvalMode','passiveApprovalHours','brandName','brandColor',
+    'logoUrl','customDomain','tokenHealth','createdAt','updatedAt',
+  ]);
+  for (const key of Object.keys(copy)) {
+    if (!ALLOWED.has(key)) delete copy[key];
+  }
+  return copy;
+}
+
 export async function migrateToSupabase() {
   const results = { clients: 0, posts: 0, users: 0, history: 0, errors: [] };
 
@@ -13,7 +40,8 @@ export async function migrateToSupabase() {
     const clientsStore = getStore('clients');
     const clientsList = await clientsStore.get('list', { type: 'json' }).catch(() => []) || [];
     if (clientsList.length > 0) {
-      await supabaseDb.saveClients(clientsList);
+      const cleaned = clientsList.map(sanitiseClient);
+      await supabaseDb.saveClients(cleaned);
       results.clients = clientsList.length;
       logger.info(`Migration: ${clientsList.length} clients migrated`);
     }
