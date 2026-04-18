@@ -1,6 +1,11 @@
-// Publish webhook — called by QStash for per-post scheduling
+// Publish webhook — called by QStash for per-post scheduling.
+//
+// Voice gate (task #48): publishToAll returns a VOICE_REJECTED sentinel when
+// the pre-publish rubric fails. We persist status='voice_rejected' with the
+// rubric failure reasons and return 200 — Meta is never called for a rejected
+// caption.
 import { db } from './lib/db/index.mjs';
-import { publishToAll } from './lib/publisher.mjs';
+import { publishToAll, VOICE_REJECTED } from './lib/publisher.mjs';
 import { logger } from './lib/logger.mjs';
 
 // Verify QStash signature using HMAC-SHA256
@@ -71,11 +76,30 @@ export default async (req) => {
       return new Response(JSON.stringify({ message: 'Already published' }), { status: 200 });
     }
 
-    // Publish
+    // Publish — the publisher runs the fail-closed voice gate first.
     const results = await publishToAll(client, post);
 
-    // Update
     const idx = postList.findIndex(p => p.id === postId);
+
+    if (results && results[VOICE_REJECTED]) {
+      // Voice gate rejected — do NOT mark as published and do NOT log to history.
+      postList[idx].status = 'voice_rejected';
+      postList[idx].voiceRejectedAt = new Date().toISOString();
+      postList[idx].error = results.error;
+      postList[idx].voiceFailures = results.failuresByPlatform;
+      await db.savePosts(clientId, postList);
+      logger.warn('Webhook voice-rejected post', {
+        postId,
+        clientId,
+        error: results.error,
+      });
+      return new Response(
+        JSON.stringify({ success: false, voiceRejected: true, error: results.error }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      );
+    }
+
+    // Update
     postList[idx].status = 'published';
     postList[idx].publishedAt = new Date().toISOString();
     postList[idx].results = results;

@@ -1,4 +1,9 @@
-// Unified publisher — routes posts to platform modules via Promise.allSettled
+// Unified publisher — routes posts to platform modules via Promise.allSettled.
+//
+// Pre-publish voice gate (task #48): before dispatching any Meta Graph call
+// we re-run the voice rubric against the caption for each platform this post
+// targets. If ANY platform fails, the publish is aborted fail-closed and the
+// caller must mark status='voice_rejected'. See lib/voice-gate.mjs.
 import * as facebook from './platforms/facebook.mjs';
 import * as instagram from './platforms/instagram.mjs';
 import { postTweet, deleteTweet } from './platforms/twitter.mjs';
@@ -10,8 +15,59 @@ import { postBluesky, deleteBlueskyPost } from './platforms/bluesky.mjs';
 import { postPinterest, deletePinterestPin } from './platforms/pinterest.mjs';
 import { notifyAdminPublishFailure } from './email.mjs';
 import { logger } from './logger.mjs';
+import { checkVoice } from './voice-gate.mjs';
+
+// Sentinel returned when the voice gate rejects a post.
+// Callers (scheduled-post.mjs, publish-webhook.mjs) detect this and set
+// post.status = 'voice_rejected' instead of 'published', and do NOT call Meta.
+export const VOICE_REJECTED = Symbol.for('grid-social.voice-rejected');
+
+// Platforms the voice spec covers. Others are passed through (spec is FB+IG only).
+const VOICE_GATED_PLATFORMS = new Set(['facebook', 'instagram']);
+
+/**
+ * Run the voice gate against every platform this post targets.
+ * Returns { pass, failuresByPlatform, combinedError }.
+ * Fail-closed: any platform failing → overall fail.
+ */
+function gateCaption(post) {
+  const failuresByPlatform = {};
+  let pass = true;
+  for (const platform of post.platforms || []) {
+    if (!VOICE_GATED_PLATFORMS.has(platform)) continue;
+    const result = checkVoice(post.caption, platform);
+    if (!result.pass) {
+      failuresByPlatform[platform] = result.failures;
+      pass = false;
+    }
+  }
+  const combinedError = pass
+    ? null
+    : Object.entries(failuresByPlatform)
+        .map(([p, f]) => `${p}: ${f.join(', ')}`)
+        .join(' | ');
+  return { pass, failuresByPlatform, combinedError };
+}
 
 export async function publishToAll(client, post) {
+  // ── PRE-PUBLISH VOICE GATE (fail-closed) ──
+  // Runs on every post regardless of source (generator / manual / import).
+  const gate = gateCaption(post);
+  if (!gate.pass) {
+    logger.warn('Voice gate rejected post — not publishing', {
+      postId: post.id,
+      clientId: post.clientId,
+      platforms: post.platforms,
+      failures: gate.failuresByPlatform,
+    });
+    return {
+      [VOICE_REJECTED]: true,
+      voiceRejected: true,
+      error: gate.combinedError,
+      failuresByPlatform: gate.failuresByPlatform,
+    };
+  }
+
   const pt = post.postType || 'feed';
   const tasks = [];
 

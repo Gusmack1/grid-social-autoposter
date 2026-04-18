@@ -13,6 +13,7 @@ jobs:
         with:
           node-version: '20'
       - run: npm install
+      - run: node --test netlify/functions/lib/__tests__/
       - run: cd frontend && npm install
       - run: cd frontend && npm run build
       - run: ls -la frontend/dist/ && echo "Build size:" $(du -sh frontend/dist/ | cut -f1)

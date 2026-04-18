@@ -1,7 +1,11 @@
 // Scheduled auto-poster v4 — delegates to publisher module
-// Runs every 15 minutes so per-post scheduledFor timestamps actually fire on time
+// Runs every 15 minutes so per-post scheduledFor timestamps actually fire on time.
+//
+// Voice gate (task #48): publishToAll returns a VOICE_REJECTED sentinel when the
+// pre-publish rubric fails. We mark the post status='voice_rejected', log the
+// failure reasons in post.error, and do NOT mark it as published.
 import { db } from './lib/db/index.mjs';
-import { publishToAll } from './lib/publisher.mjs';
+import { publishToAll, VOICE_REJECTED } from './lib/publisher.mjs';
 import { logger } from './lib/logger.mjs';
 
 export default async (req) => {
@@ -70,11 +74,34 @@ export default async (req) => {
       caption: nextPost.caption.substring(0, 50),
     });
 
-    // Publish via unified publisher (parallel, with retry)
+    // Publish via unified publisher (parallel, with retry). The publisher runs
+    // the fail-closed voice gate first and will short-circuit with a sentinel
+    // if the caption fails the rubric.
     const postResults = await publishToAll(client, nextPost);
 
-    // Update post status
     const idx = postList.findIndex(p => p.id === nextPost.id);
+    if (postResults && postResults[VOICE_REJECTED]) {
+      // Voice gate rejected — do NOT mark as published and do NOT log to history.
+      postList[idx].status = 'voice_rejected';
+      postList[idx].voiceRejectedAt = new Date().toISOString();
+      postList[idx].error = postResults.error;
+      postList[idx].voiceFailures = postResults.failuresByPlatform;
+      await db.savePosts(client.id, postList);
+      logger.warn('Post voice-rejected', {
+        client: client.name,
+        postId: nextPost.id,
+        error: postResults.error,
+      });
+      results.push({
+        client: client.name,
+        status: 'voice_rejected',
+        postId: nextPost.id,
+        error: postResults.error,
+      });
+      continue;
+    }
+
+    // Update post status
     postList[idx].status = 'published';
     postList[idx].publishedAt = new Date().toISOString();
     postList[idx].results = postResults;
