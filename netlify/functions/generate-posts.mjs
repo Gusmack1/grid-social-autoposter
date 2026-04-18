@@ -238,6 +238,7 @@ async function insertPost({ clientId, caption, platform, scheduledFor }) {
     scheduled_for: scheduledFor,
     post_type: "feed",
     sort_order: 0,
+    source: "generator",
     created_at: new Date().toISOString(),
     results: { ai_generated: true, source: "generator" },
   };
@@ -274,6 +275,7 @@ async function insertPost({ clientId, caption, platform, scheduledFor }) {
     scheduledFor,
     postType: "feed",
     sortOrder: existing.length,
+    source: "generator",
     createdAt: row.created_at,
     results: { ai_generated: true, source: "generator" },
   };
