@@ -47,7 +47,8 @@ async function createAndPublish(igUserId, token, containerParams, { pollInterval
 }
 
 export async function postFeed(client, caption, imageUrl) {
-  if (!client.igUserId || !client.pageAccessToken || !imageUrl) return null;
+  if (!client.igUserId || !client.pageAccessToken) return null;
+  if (!imageUrl) throw new Error('instagram.postFeed requires imageUrl');
   const token = decrypt(client.pageAccessToken);
 
   return withRetry(async () => {
@@ -56,7 +57,8 @@ export async function postFeed(client, caption, imageUrl) {
 }
 
 export async function postStory(client, caption, imageUrl) {
-  if (!client.igUserId || !client.pageAccessToken || !imageUrl) return null;
+  if (!client.igUserId || !client.pageAccessToken) return null;
+  if (!imageUrl) throw new Error('instagram.postStory requires imageUrl');
   const token = decrypt(client.pageAccessToken);
 
   return withRetry(async () => {
@@ -65,7 +67,8 @@ export async function postStory(client, caption, imageUrl) {
 }
 
 export async function postReel(client, caption, videoUrl) {
-  if (!client.igUserId || !client.pageAccessToken || !videoUrl) return null;
+  if (!client.igUserId || !client.pageAccessToken) return null;
+  if (!videoUrl) throw new Error('instagram.postReel requires videoUrl');
   const token = decrypt(client.pageAccessToken);
 
   return withRetry(async () => {

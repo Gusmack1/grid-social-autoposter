@@ -8,6 +8,7 @@ import { postTikTok } from './platforms/tiktok.mjs';
 import { postThreads } from './platforms/threads.mjs';
 import { postBluesky, deleteBlueskyPost } from './platforms/bluesky.mjs';
 import { postPinterest, deletePinterestPin } from './platforms/pinterest.mjs';
+import { notifyAdminPublishFailure } from './email.mjs';
 import { logger } from './logger.mjs';
 
 export async function publishToAll(client, post) {
@@ -106,6 +107,24 @@ export async function publishToAll(client, post) {
     successes: Object.entries(results).filter(([, r]) => r?.success).map(([p]) => p),
     failures: Object.entries(results).filter(([, r]) => r && !r.success).map(([p, r]) => `${p}: ${r.error}`),
   });
+
+  // Alert admin if any platform failed — guard so Resend errors don't cascade
+  const failures = Object.entries(results)
+    .filter(([, r]) => r && r.success === false)
+    .map(([platform, r]) => ({ platform, error: r?.error || 'Unknown error' }));
+  if (failures.length > 0) {
+    const adminEmail = process.env.ADMIN_EMAIL || 'gridsocial.agency@gmail.com';
+    try {
+      await notifyAdminPublishFailure({
+        adminEmail,
+        clientName: client?.name || client?.id || 'unknown client',
+        postId: post.id,
+        failures,
+      });
+    } catch (e) {
+      logger.error('Admin failure-notification email errored', { postId: post.id, error: e.message });
+    }
+  }
 
   return results;
 }
