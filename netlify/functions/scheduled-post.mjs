@@ -1,5 +1,5 @@
 // Scheduled auto-poster v4 — delegates to publisher module
-// Runs daily at 10:00 UTC (11:00 BST)
+// Runs every 15 minutes so per-post scheduledFor timestamps actually fire on time
 import { db } from './lib/db/index.mjs';
 import { publishToAll } from './lib/publisher.mjs';
 import { logger } from './lib/logger.mjs';
@@ -105,5 +105,5 @@ export default async (req) => {
 };
 
 export const config = {
-  schedule: '0 10 * * *',
+  schedule: '*/15 * * * *',
 };
