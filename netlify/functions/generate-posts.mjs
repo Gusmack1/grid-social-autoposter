@@ -6,6 +6,11 @@
 // Voice spec: /sessions/brave-eloquent-dijkstra/mnt/Claude Improved/grid-social-post-voice.md
 // System prompt (Section 6) and 5-point rubric (Section 8) are enforced verbatim.
 //
+// Generator v2 phase 1: before the Haiku call, pull the client's last-30d
+// top-15 posts by reactions from public.client_assets and prepend them as a
+// CLIENT CONTEXT block so captions stay grounded in the client's real
+// products, offers, dates and locations. Populated by harvest-client-pages.mjs.
+//
 // Force-run locally: netlify functions:invoke generate-posts --no-identity
 
 import { db } from './lib/db/index.mjs';
@@ -93,14 +98,62 @@ function seasonalHook() {
   return hooks[month];
 }
 
+// ── GENERATOR V2: CLIENT CONTEXT FETCH ──
+// Pulls up to 15 highest-reaction posts from the last 30 days in
+// public.client_assets for this client. Returns array of compact rows.
+async function fetchClientContext(clientId) {
+  const SUPABASE_URL = process.env.SUPABASE_URL;
+  const SUPABASE_KEY = process.env.SUPABASE_ANON_KEY;
+  if (!SUPABASE_URL || !SUPABASE_KEY) return [];
+  const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+  const params = new URLSearchParams({
+    select: 'message,created_time,reactions_count,comments_count',
+    client_id: `eq.${clientId}`,
+    created_time: `gte.${since}`,
+    order: 'reactions_count.desc',
+    limit: '15',
+  });
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/client_assets?${params.toString()}`, {
+      headers: {
+        apikey: SUPABASE_KEY,
+        Authorization: `Bearer ${SUPABASE_KEY}`,
+      },
+    });
+    if (!res.ok) return [];
+    const rows = await res.json();
+    return Array.isArray(rows) ? rows : [];
+  } catch {
+    return [];
+  }
+}
+
+function buildClientContextBlock(rows) {
+  if (!rows.length) return '';
+  const lines = rows
+    .map(r => {
+      const date = (r.created_time || '').slice(0, 10);
+      const caption = (r.message || '').replace(/\s+/g, ' ').trim().slice(0, 180);
+      if (!caption) return null;
+      return `${date} · ${caption} · reactions=${r.reactions_count ?? 0} comments=${r.comments_count ?? 0}`;
+    })
+    .filter(Boolean);
+  if (!lines.length) return '';
+  return `CLIENT CONTEXT — the client's top-performing recent Facebook posts (last 30 days, ordered by reactions):\n${lines.join('\n')}\n\n`;
+}
+
+const CONTEXT_INSTRUCTION = 'Use only facts that appear in CLIENT CONTEXT. Do not invent products, offers, locations, or dates. If CLIENT CONTEXT is empty, write a single generic post referencing the client\'s industry only.';
+
 // ── BUILD SYSTEM PROMPT ──
-function buildSystemPrompt({ platform, business_name, business_type, location, recent_news_or_product }) {
-  return SYSTEM_PROMPT_TEMPLATE
+function buildSystemPrompt({ platform, business_name, business_type, location, recent_news_or_product, clientContextBlock }) {
+  const base = SYSTEM_PROMPT_TEMPLATE
     .replace("{platform}", platform)
     .replace("{business_name}", business_name || "this business")
     .replace("{business_type}", business_type || "small business")
     .replace("{location}", location || "the UK")
     .replace("{recent_news_or_product}", recent_news_or_product || seasonalHook());
+  const prefix = clientContextBlock || '';
+  return `${prefix}${base}\n\n${CONTEXT_INSTRUCTION}`;
 }
 
 // ── CALL CLAUDE (mirrors ai-writer.mjs:122-145 callClaude helper) ──
@@ -189,13 +242,14 @@ function validateCaption(caption, platform) {
 }
 
 // ── GENERATE ONE CAPTION (with 1 retry + model fallback) ──
-async function generateCaption({ apiKey, platform, client, topic }) {
+async function generateCaption({ apiKey, platform, client, topic, clientContextBlock }) {
   const system = buildSystemPrompt({
     platform,
     business_name: client.name || client.brandName,
     business_type: client.businessType || client.brand_type || "small business",
     location: client.location || "the UK",
     recent_news_or_product: topic,
+    clientContextBlock,
   });
   const userMessage = `Write the ${platform} post now. Output the caption only.`;
 
@@ -343,10 +397,15 @@ export default async function handler() {
 
     const topic = client.contentNotes || client.lastNews || client.brandNotes || null;
 
+    // Generator v2: pull CLIENT CONTEXT once per client (shared by FB + IG)
+    const contextRows = await fetchClientContext(client.id);
+    const clientContextBlock = buildClientContextBlock(contextRows);
+    result.context_rows = contextRows.length;
+
     // Facebook
     if (hasFb) {
       try {
-        const r = await generateCaption({ apiKey, platform: "Facebook", client, topic });
+        const r = await generateCaption({ apiKey, platform: "Facebook", client, topic, clientContextBlock });
         result.retries += r.retries;
         if (r.caption) {
           const id = await insertPost({
@@ -370,7 +429,7 @@ export default async function handler() {
     // Instagram
     if (hasIg) {
       try {
-        const r = await generateCaption({ apiKey, platform: "Instagram", client, topic });
+        const r = await generateCaption({ apiKey, platform: "Instagram", client, topic, clientContextBlock });
         result.retries += r.retries;
         if (r.caption) {
           const id = await insertPost({
