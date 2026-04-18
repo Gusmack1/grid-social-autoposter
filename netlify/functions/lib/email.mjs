@@ -84,6 +84,26 @@ export async function notifyAdminPostRejected({ adminEmail, clientName, postCapt
   });
 }
 
+export async function notifyAdminPublishFailure({ adminEmail, clientName, postId, failures }) {
+  // failures: array of { platform, error }
+  const rows = (failures || []).map(f =>
+    `<tr><td style="padding:6px 10px;color:#f87171;font-weight:600;">${escapeHtml(f.platform)}</td><td style="padding:6px 10px;color:#d1d5db;">${escapeHtml(f.error || 'Unknown error')}</td></tr>`
+  ).join('');
+  return sendEmail({
+    to: adminEmail,
+    subject: `[Grid Social] Publish failure: ${clientName} · post ${postId}`,
+    html: emailTemplate({
+      heading: 'Publish failure',
+      body: `One or more platforms failed to publish for <strong>${escapeHtml(clientName)}</strong> (post <code>${escapeHtml(String(postId))}</code>):<br><br>
+        <table cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;background:#0f1117;border:1px solid #1e2028;border-radius:8px;">
+          <thead><tr><th style="text-align:left;padding:8px 10px;color:#9ca3af;font-size:12px;">Platform</th><th style="text-align:left;padding:8px 10px;color:#9ca3af;font-size:12px;">Error</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>`,
+      footer: 'Check the Netlify function logs for the full stack trace. The post has been marked published; failed platforms will not retry automatically.',
+    }),
+  });
+}
+
 export async function notifyClientTokenExpiring({ clientEmail, clientName, platform, daysUntilExpiry }) {
   return sendEmail({
     to: clientEmail,
