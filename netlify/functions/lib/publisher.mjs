@@ -4,6 +4,13 @@
 // we re-run the voice rubric against the caption for each platform this post
 // targets. If ANY platform fails, the publish is aborted fail-closed and the
 // caller must mark status='voice_rejected'. See lib/voice-gate.mjs.
+//
+// Pre-publish image HEAD-check (task #49): after the voice gate passes and
+// before Meta Graph dispatch, we HEAD-request the post's image_url (or
+// video_url for Reels) with a 3s timeout. Non-2xx, content-length=0, or a
+// mime type outside [image/jpeg, image/png, image/webp, image/gif, video/mp4]
+// returns a sentinel IMAGE_REJECTED and the caller marks
+// status='image_rejected'. See lib/image-check.mjs.
 import * as facebook from './platforms/facebook.mjs';
 import * as instagram from './platforms/instagram.mjs';
 import { postTweet, deleteTweet } from './platforms/twitter.mjs';
@@ -16,11 +23,70 @@ import { postPinterest, deletePinterestPin } from './platforms/pinterest.mjs';
 import { notifyAdminPublishFailure } from './email.mjs';
 import { logger } from './logger.mjs';
 import { checkVoice } from './voice-gate.mjs';
+import { checkImage } from './image-check.mjs';
 
 // Sentinel returned when the voice gate rejects a post.
 // Callers (scheduled-post.mjs, publish-webhook.mjs) detect this and set
 // post.status = 'voice_rejected' instead of 'published', and do NOT call Meta.
 export const VOICE_REJECTED = Symbol.for('grid-social.voice-rejected');
+
+// Sentinel returned when the pre-publish image HEAD-check rejects a post
+// (task #49). Callers set post.status = 'image_rejected' and do NOT call Meta.
+export const IMAGE_REJECTED = Symbol.for('grid-social.image-rejected');
+
+// Platforms that rely on Meta Graph media ingestion and require a reachable
+// public image/video URL before the Graph call is made.
+const META_PLATFORMS = new Set(['facebook', 'instagram']);
+
+/**
+ * Run the image HEAD-check against the media URL(s) this post will send to
+ * Meta. Fail-closed: any failing URL → overall fail.
+ *
+ * Returns { pass, reason, contentType, contentLength, mediaUrl }.
+ */
+async function gateMedia(post) {
+  const postType = (post.postType || 'feed').toLowerCase();
+  const targetsMeta =
+    Array.isArray(post.platforms) &&
+    post.platforms.some(p => META_PLATFORMS.has(p));
+
+  // Only gate posts that will actually call Meta Graph with media.
+  if (!targetsMeta) {
+    return { pass: true, reason: 'skipped-no-meta-platforms', contentType: '', contentLength: 0, mediaUrl: '' };
+  }
+
+  if (postType === 'reel') {
+    const url = post.videoUrl || post.imageUrl || '';
+    const r = await checkImage(url, 'reel');
+    return { ...r, mediaUrl: url };
+  }
+
+  if (postType === 'carousel' && Array.isArray(post.imageUrls) && post.imageUrls.length > 1) {
+    // Fail on the first bad URL in the carousel.
+    for (const url of post.imageUrls) {
+      const r = await checkImage(url, 'feed');
+      if (!r.pass) return { ...r, mediaUrl: url };
+    }
+    return { pass: true, reason: 'ok-carousel', contentType: 'image/*', contentLength: 0, mediaUrl: post.imageUrls[0] };
+  }
+
+  // Stories always require media; feed posts with an image_url also require it.
+  // Feed posts without an image_url are treated as text-only on FB and skip the
+  // check; IG single-image posts only dispatch when post.imageUrl is set, so a
+  // missing url there is handled by the existing downstream guard.
+  const url = post.imageUrl || '';
+  if (postType === 'story') {
+    const r = await checkImage(url, 'feed');
+    return { ...r, mediaUrl: url };
+  }
+
+  if (!url) {
+    return { pass: true, reason: 'skipped-text-post', contentType: '', contentLength: 0, mediaUrl: '' };
+  }
+
+  const r = await checkImage(url, 'feed');
+  return { ...r, mediaUrl: url };
+}
 
 // Platforms the voice spec covers. Others are passed through (spec is FB+IG only).
 const VOICE_GATED_PLATFORMS = new Set(['facebook', 'instagram']);
@@ -65,6 +131,34 @@ export async function publishToAll(client, post) {
       voiceRejected: true,
       error: gate.combinedError,
       failuresByPlatform: gate.failuresByPlatform,
+    };
+  }
+
+  // ── PRE-PUBLISH IMAGE HEAD-CHECK (task #49, fail-closed) ──
+  // After voice gate, before Meta Graph dispatch: HEAD-request the media URL
+  // and block on non-2xx / zero-length / unsupported mime / 3s timeout.
+  const mediaGate = await gateMedia(post);
+  if (!mediaGate.pass) {
+    logger.warn('Image gate rejected post — not publishing', {
+      postId: post.id,
+      clientId: post.clientId,
+      platforms: post.platforms,
+      postType: post.postType || 'feed',
+      mediaUrl: mediaGate.mediaUrl,
+      reason: mediaGate.reason,
+      contentType: mediaGate.contentType,
+      contentLength: mediaGate.contentLength,
+    });
+    return {
+      [IMAGE_REJECTED]: true,
+      imageRejected: true,
+      error: mediaGate.reason,
+      imageFailure: {
+        reason: mediaGate.reason,
+        contentType: mediaGate.contentType,
+        contentLength: mediaGate.contentLength,
+        mediaUrl: mediaGate.mediaUrl,
+      },
     };
   }
 
