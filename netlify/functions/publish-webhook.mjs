@@ -4,8 +4,13 @@
 // the pre-publish rubric fails. We persist status='voice_rejected' with the
 // rubric failure reasons and return 200 — Meta is never called for a rejected
 // caption.
+//
+// Image gate (task #49): publishToAll returns an IMAGE_REJECTED sentinel when
+// the pre-publish HEAD-check fails (non-2xx / zero-length / bad mime / 3s
+// timeout). We persist status='image_rejected' plus post.imageFailure JSON
+// addendum and return 200 — Meta is never called for a rejected media URL.
 import { db } from './lib/db/index.mjs';
-import { publishToAll, VOICE_REJECTED } from './lib/publisher.mjs';
+import { publishToAll, VOICE_REJECTED, IMAGE_REJECTED } from './lib/publisher.mjs';
 import { logger } from './lib/logger.mjs';
 
 // Verify QStash signature using HMAC-SHA256
@@ -95,6 +100,30 @@ export default async (req) => {
       });
       return new Response(
         JSON.stringify({ success: false, voiceRejected: true, error: results.error }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      );
+    }
+
+    if (results && results[IMAGE_REJECTED]) {
+      // Image gate rejected — do NOT mark as published and do NOT log to history.
+      postList[idx].status = 'image_rejected';
+      postList[idx].imageRejectedAt = new Date().toISOString();
+      postList[idx].error = results.error;
+      postList[idx].imageFailure = results.imageFailure;
+      await db.savePosts(clientId, postList);
+      logger.warn('Webhook image-rejected post', {
+        postId,
+        clientId,
+        error: results.error,
+        imageFailure: results.imageFailure,
+      });
+      return new Response(
+        JSON.stringify({
+          success: false,
+          imageRejected: true,
+          error: results.error,
+          imageFailure: results.imageFailure,
+        }),
         { status: 200, headers: { 'Content-Type': 'application/json' } },
       );
     }
