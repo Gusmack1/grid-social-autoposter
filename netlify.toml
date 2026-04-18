@@ -9,6 +9,9 @@
 [functions."scheduled-post"]
   schedule = "*/15 * * * *"
 
+[functions."generate-posts"]
+  schedule = "0 8 * * *"
+
 [[headers]]
   for = "/*"
   [headers.values]
