@@ -176,7 +176,7 @@ export const supabaseDb = {
 
   // ── Users ──
   async getUser(emailKey) {
-    const email = emailKey.replace(/_/g, '.').replace(/\-at\-/g, '@');
+    const _i = emailKey.indexOf('_'); const email = _i === -1 ? emailKey : emailKey.slice(0,_i) + '@' + emailKey.slice(_i+1).replace(/_/g, '.');
     const rows = await supabase('users', {
       query: `email=eq.${encodeURIComponent(email)}&limit=1`,
     });
@@ -189,7 +189,7 @@ export const supabaseDb = {
   },
 
   async saveUser(emailKey, userData) {
-    const email = emailKey.replace(/_/g, '.').replace(/\-at\-/g, '@');
+    const _i = emailKey.indexOf('_'); const email = _i === -1 ? emailKey : emailKey.slice(0,_i) + '@' + emailKey.slice(_i+1).replace(/_/g, '.');
     const row = keysToSnake({ ...userData, email });
     if (typeof row.assigned_clients === 'object' && Array.isArray(row.assigned_clients)) {
       // Keep as array for JSONB
@@ -202,7 +202,7 @@ export const supabaseDb = {
   },
 
   async deleteUser(emailKey) {
-    const email = emailKey.replace(/_/g, '.').replace(/\-at\-/g, '@');
+    const _i = emailKey.indexOf('_'); const email = _i === -1 ? emailKey : emailKey.slice(0,_i) + '@' + emailKey.slice(_i+1).replace(/_/g, '.');
     await supabase('users', {
       method: 'DELETE',
       query: `email=eq.${encodeURIComponent(email)}`,
