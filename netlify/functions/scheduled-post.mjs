@@ -57,10 +57,28 @@ export default async (req) => {
       logger.info('Passive approval auto-approved posts', { client: client.name, count: passiveApproved });
     }
 
-    // Find next queued or due scheduled post that is approved (or has no approval status = legacy)
+    // Client-level auto-post kill switch (see fact #282, Gus directive 2026-04-19).
+    // If the clients row has auto_post=false, skip the entire client. A null /
+    // undefined value is treated as "auto-post on" so existing clients continue
+    // to work without explicit migration backfill.
+    if (client.autoPost === false) {
+      logger.info('Client auto-post disabled, skipping', { client: client.name, clientId: client.id });
+      results.push({ client: client.name, status: 'skipped', reason: 'auto_post disabled' });
+      continue;
+    }
+
+    // Find next queued or due scheduled post that is approved (or has no approval status = legacy).
+    //
+    // BUG FIX 2026-04-19: previously `p.status === 'queued'` fired immediately
+    // regardless of `scheduledFor`, which is how the generator shipped 4 posts
+    // on Grid Social 1h44m–8h44m before their scheduled time. We now always
+    // respect `scheduledFor` when it's set, for any status. A post with no
+    // scheduledFor is treated as "publish ASAP" (legacy behaviour).
     const nextPost = postList.find(p => {
-      const isReady = p.status === 'queued' || (p.status === 'scheduled' && p.scheduledFor && new Date(p.scheduledFor) <= now);
-      if (!isReady) return false;
+      const statusReady = p.status === 'queued' || p.status === 'scheduled';
+      if (!statusReady) return false;
+      // Gate on scheduledFor — if set and in the future, skip.
+      if (p.scheduledFor && new Date(p.scheduledFor) > now) return false;
       // Approval gate: only publish approved posts (or legacy posts without approval status)
       const isApproved = !p.approvalStatus || p.approvalStatus === 'approved';
       return isApproved;
