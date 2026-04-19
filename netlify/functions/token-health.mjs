@@ -379,7 +379,4 @@ export default async (req) => {
   }), { status: 200, headers: { 'Content-Type': 'application/json' } });
 };
 
-// Run daily at 6:00 UTC (7:00 BST) — before the 10:00 scheduled posts
-export const config = {
-  schedule: '0 6 * * *',
-};
+// Schedule defined in netlify.toml
