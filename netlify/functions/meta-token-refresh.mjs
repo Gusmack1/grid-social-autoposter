@@ -98,7 +98,4 @@ export default async (req) => {
   }), { status: 200, headers: { 'Content-Type': 'application/json' } });
 };
 
-// Weekly — Sundays 03:00 UTC. Meta long-lived tokens last ~60 days so weekly is plenty.
-export const config = {
-  schedule: '0 3 * * 0',
-};
+// Schedule defined in netlify.toml
