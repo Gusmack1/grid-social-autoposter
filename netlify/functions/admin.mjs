@@ -1,16 +1,13 @@
 // Admin API v4 — Modular, uses shared lib
 import { db } from './lib/db/index.mjs';
 import { verifyJWT } from './lib/crypto/jwt.mjs';
-import { encrypt, decrypt } from './lib/crypto/encryption.mjs';
 import { publishToAll, deleteFromPlatforms } from './lib/publisher.mjs';
-import { uploadMedia } from './lib/r2.mjs';
-import { migrateTokens } from './lib/migrate-tokens.mjs';
 import { generateInviteLink } from './lib/invites.mjs';
 import { notifyClientPostsReady } from './lib/email.mjs';
 import { json, cors, unauthorized, forbidden, badRequest, notFound, serverError } from './lib/http.mjs';
 import { logger } from './lib/logger.mjs';
 import { checkPlanLimit, countMonthlyPosts } from './lib/plan-limits.mjs';
-// Phase-1 refactor: extracted handlers live under lib/admin/. Router dispatches
+// Phase-1/2/3 refactor: extracted handlers live under lib/admin/. Router dispatches
 // here. Do not inline these action bodies again — keep them in their modules.
 import { handleConfig } from './lib/admin/meta.mjs';
 import { handlePlanUsage } from './lib/admin/billing.mjs';
@@ -20,6 +17,9 @@ import { handleGetTemplates, handleSaveTemplate, handleDeleteTemplate } from './
 import { handleMarkEvergreen, handleUnmarkEvergreen, handleGetEvergreen, handleRecyclePost } from './lib/admin/evergreen.mjs';
 import { handleSaveApiKey, handleRemoveApiKey, handleCheckApiKey } from './lib/admin/user-keys.mjs';
 import { handleSetApprovalMode, handleSetApprovalStatus, handleGenerateApprovalLink } from './lib/admin/approvals.mjs';
+import { handleUploadImage } from './lib/admin/media.mjs';
+import { handleMigrateTokens, handleMigrateToSupabase } from './lib/admin/migration.mjs';
+import { handleGetClients, handleAddClient, handleUpdateClient, handleDeleteClient } from './lib/admin/clients.mjs';
 
 // Authenticate request — returns user object or null
 async function authenticate(req) {
@@ -70,85 +70,11 @@ export default async (req) => {
   const ctx = { user, url, clientId, userId: user.id };
 
   try {
-    // ── CLIENT MANAGEMENT ──
-    if (action === 'get-clients') {
-      const clients = await db.getClients();
-      // Strip decrypted tokens from response (show only whether they exist)
-      return json(clients.map(c => ({
-        ...c,
-        pageAccessToken: c.pageAccessToken ? '••••' + (decrypt(c.pageAccessToken) || '').slice(-6) : null,
-        twitterApiKey: c.twitterApiKey ? '••••' : null,
-        twitterApiSecret: c.twitterApiSecret ? '••••' : null,
-        twitterAccessToken: c.twitterAccessToken ? '••••' : null,
-        twitterAccessSecret: c.twitterAccessSecret ? '••••' : null,
-        linkedinAccessToken: c.linkedinAccessToken ? '••••' : null,
-        gbpAccessToken: c.gbpAccessToken ? '••••' : null,
-        tiktokAccessToken: c.tiktokAccessToken ? '••••' : null,
-        threadsAccessToken: c.threadsAccessToken ? '••••' : null,
-        blueskyAppPassword: c.blueskyAppPassword ? '••••' : null,
-        linkedinRefreshToken: c.linkedinRefreshToken ? '••••' : null,
-        pinterestAccessToken: c.pinterestAccessToken ? '••••' : null,
-        pinterestRefreshToken: c.pinterestRefreshToken ? '••••' : null,
-        _hasTokens: !!(c.pageAccessToken || c.twitterAccessToken || c.linkedinAccessToken || c.gbpAccessToken || c.tiktokAccessToken || c.threadsAccessToken || c.blueskyAppPassword || c.pinterestAccessToken),
-      })));
-    }
-
-    if (action === 'add-client' && req.method === 'POST') {
-      const body = await req.json();
-      if (!body.name) return badRequest('Client name required');
-      const list = await db.getClients();
-
-      // Plan limit check
-      const userPlan = user.plan || 'free';
-      const limitCheck = await checkPlanLimit(userPlan, 'add-client', { clientCount: list.length });
-      if (!limitCheck.allowed) return json({ error: limitCheck.reason, usage: limitCheck.usage }, 403);
-
-      // Encrypt tokens on save
-      const nc = { id: 'client_' + Date.now(), ...body, createdAt: new Date().toISOString() };
-      if (nc.pageAccessToken) nc.pageAccessToken = encrypt(nc.pageAccessToken);
-      if (nc.twitterApiKey) nc.twitterApiKey = encrypt(nc.twitterApiKey);
-      if (nc.twitterApiSecret) nc.twitterApiSecret = encrypt(nc.twitterApiSecret);
-      if (nc.twitterAccessToken) nc.twitterAccessToken = encrypt(nc.twitterAccessToken);
-      if (nc.twitterAccessSecret) nc.twitterAccessSecret = encrypt(nc.twitterAccessSecret);
-      if (nc.linkedinAccessToken) nc.linkedinAccessToken = encrypt(nc.linkedinAccessToken);
-      if (nc.gbpAccessToken) nc.gbpAccessToken = encrypt(nc.gbpAccessToken);
-      if (nc.tiktokAccessToken) nc.tiktokAccessToken = encrypt(nc.tiktokAccessToken);
-      if (nc.threadsAccessToken) nc.threadsAccessToken = encrypt(nc.threadsAccessToken);
-      if (nc.blueskyAppPassword) nc.blueskyAppPassword = encrypt(nc.blueskyAppPassword);
-      if (nc.linkedinRefreshToken) nc.linkedinRefreshToken = encrypt(nc.linkedinRefreshToken);
-      if (nc.pinterestAccessToken) nc.pinterestAccessToken = encrypt(nc.pinterestAccessToken);
-      if (nc.pinterestRefreshToken) nc.pinterestRefreshToken = encrypt(nc.pinterestRefreshToken);
-      list.push(nc);
-      await db.saveClients(list);
-      return json({ success: true, client: nc });
-    }
-
-    if (action === 'update-client' && req.method === 'PUT') {
-      const body = await req.json();
-      const list = await db.getClients();
-      const idx = list.findIndex(c => c.id === body.id);
-      if (idx === -1) return notFound('Client not found');
-      // Encrypt any new token values (skip masked values)
-      const tokenFields = ['pageAccessToken', 'twitterApiKey', 'twitterApiSecret', 'twitterAccessToken', 'twitterAccessSecret', 'linkedinAccessToken', 'linkedinRefreshToken', 'gbpAccessToken', 'tiktokAccessToken', 'threadsAccessToken', 'blueskyAppPassword', 'pinterestAccessToken', 'pinterestRefreshToken'];
-      for (const f of tokenFields) {
-        if (body[f] && !body[f].startsWith('••••') && !body[f].startsWith('enc:')) {
-          body[f] = encrypt(body[f]);
-        } else if (body[f]?.startsWith('••••')) {
-          delete body[f]; // Don't overwrite with masked value
-        }
-      }
-      list[idx] = { ...list[idx], ...body, updatedAt: new Date().toISOString() };
-      await db.saveClients(list);
-      return json({ success: true, client: list[idx] });
-    }
-
-    if (action === 'delete-client' && req.method === 'DELETE') {
-      const body = await req.json();
-      let list = await db.getClients();
-      list = list.filter(c => c.id !== body.id);
-      await db.saveClients(list);
-      return json({ success: true });
-    }
+    // ── CLIENT MANAGEMENT ── (handler: lib/admin/clients.mjs)
+    if (action === 'get-clients') return handleGetClients(req, ctx);
+    if (action === 'add-client' && req.method === 'POST') return handleAddClient(req, ctx);
+    if (action === 'update-client' && req.method === 'PUT') return handleUpdateClient(req, ctx);
+    if (action === 'delete-client' && req.method === 'DELETE') return handleDeleteClient(req, ctx);
 
     // ── POST MANAGEMENT ──
     if (!clientId && ['get-posts', 'add-post', 'update-post', 'delete-post', 'publish-now', 'post-now', 'delete-from-platform'].includes(action)) {
@@ -334,27 +260,14 @@ export default async (req) => {
       return json({ success: true, imported });
     }
 
-    // ── IMAGE UPLOAD ──
-    if (action === 'upload-image' && req.method === 'POST') {
-      let body;
-      try { body = await req.json(); } catch { return json({ error: 'Request body too large or invalid JSON. Try a smaller image.' }, 413); }
-      if (!body.filename || !body.content) return badRequest('filename and content required');
-      const estSize = Math.round(body.content.length * 0.75 / 1024);
-      if (body.content.length > 6 * 1024 * 1024) return json({ error: `Image too large (${estSize}KB). Max ~4MB after compression.` }, 413);
-      try {
-        const result = await uploadMedia(body.filename, body.content);
-        return json({ success: true, url: result.url, path: result.path, size: `${estSize}KB`, provider: result.provider });
-      } catch (e) { return serverError(e.message); }
-    }
+    // ── IMAGE UPLOAD ── (handler: lib/admin/media.mjs)
+    if (action === 'upload-image' && req.method === 'POST') return handleUploadImage(req, ctx);
 
     // ── CONFIG ── (handler: lib/admin/meta.mjs)
     if (action === 'config') return handleConfig(req, ctx);
 
-    // ── TOKEN MIGRATION (one-time admin action) ──
-    if (action === 'migrate-tokens' && req.method === 'POST') {
-      const result = await migrateTokens();
-      return json({ success: true, ...result });
-    }
+    // ── TOKEN MIGRATION (one-time admin action) ── (handler: lib/admin/migration.mjs)
+    if (action === 'migrate-tokens' && req.method === 'POST') return handleMigrateTokens(req, ctx);
 
     // ── GENERATE INVITE LINK ──
     if (action === 'generate-invite' && req.method === 'POST') {
@@ -399,15 +312,8 @@ export default async (req) => {
       return json({ success: true });
     }
 
-    // ── MIGRATE TO SUPABASE ──
-    if (action === 'migrate-to-supabase' && req.method === 'POST') {
-      if (!process.env.SUPABASE_URL || !process.env.SUPABASE_ANON_KEY) {
-        return badRequest('SUPABASE_URL and SUPABASE_ANON_KEY env vars required');
-      }
-      const { migrateToSupabase } = await import('./lib/migrate-supabase.mjs');
-      const result = await migrateToSupabase();
-      return json({ success: true, ...result });
-    }
+    // ── MIGRATE TO SUPABASE ── (handler: lib/admin/migration.mjs)
+    if (action === 'migrate-to-supabase' && req.method === 'POST') return handleMigrateToSupabase(req, ctx);
 
     // ── ANALYTICS PDF EXPORT ── (handler: lib/admin/analytics.mjs)
     if (action === 'export-analytics') return handleExportAnalytics(req, ctx);
