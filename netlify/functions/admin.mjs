@@ -5,7 +5,7 @@ import { encrypt, decrypt } from './lib/crypto/encryption.mjs';
 import { publishToAll, deleteFromPlatforms } from './lib/publisher.mjs';
 import { uploadMedia } from './lib/r2.mjs';
 import { migrateTokens } from './lib/migrate-tokens.mjs';
-import { generateInviteLink, generateApprovalLink } from './lib/invites.mjs';
+import { generateInviteLink } from './lib/invites.mjs';
 import { notifyClientPostsReady } from './lib/email.mjs';
 import { json, cors, unauthorized, forbidden, badRequest, notFound, serverError } from './lib/http.mjs';
 import { logger } from './lib/logger.mjs';
@@ -18,6 +18,8 @@ import { handleExportAnalytics } from './lib/admin/analytics.mjs';
 import { handleCheckTokenHealth } from './lib/admin/tokens.mjs';
 import { handleGetTemplates, handleSaveTemplate, handleDeleteTemplate } from './lib/admin/templates.mjs';
 import { handleMarkEvergreen, handleUnmarkEvergreen, handleGetEvergreen, handleRecyclePost } from './lib/admin/evergreen.mjs';
+import { handleSaveApiKey, handleRemoveApiKey, handleCheckApiKey } from './lib/admin/user-keys.mjs';
+import { handleSetApprovalMode, handleSetApprovalStatus, handleGenerateApprovalLink } from './lib/admin/approvals.mjs';
 
 // Authenticate request — returns user object or null
 async function authenticate(req) {
@@ -366,50 +368,10 @@ export default async (req) => {
       return json({ success: true, ...invite });
     }
 
-    // ── GENERATE APPROVAL LINK ──
-    if (action === 'generate-approval-link' && req.method === 'POST') {
-      const body = await req.json();
-      if (!body.clientId) return badRequest('clientId required');
-      const clients = await db.getClients();
-      const client = clients.find(c => c.id === body.clientId);
-      if (!client) return notFound('Client not found');
-      const url = new URL(req.url);
-      const approval = await generateApprovalLink(body.clientId, client.name, url.origin);
-      return json({ success: true, ...approval });
-    }
-
-    // ── SET CLIENT APPROVAL MODE ──
-    if (action === 'set-approval-mode' && req.method === 'PUT') {
-      const body = await req.json();
-      if (!body.clientId || !body.approvalMode) return badRequest('clientId and approvalMode required');
-      const validModes = ['auto', 'manual', 'passive'];
-      if (!validModes.includes(body.approvalMode)) return badRequest('approvalMode must be: auto, manual, or passive');
-      const clients = await db.getClients();
-      const idx = clients.findIndex(c => c.id === body.clientId);
-      if (idx === -1) return notFound('Client not found');
-      clients[idx].approvalMode = body.approvalMode;
-      clients[idx].passiveApprovalHours = body.passiveApprovalHours || 72;
-      await db.saveClients(clients);
-      return json({ success: true, approvalMode: body.approvalMode });
-    }
-
-    // ── SET POST APPROVAL STATUS ──
-    if (action === 'set-approval-status' && req.method === 'PUT') {
-      const body = await req.json();
-      if (!clientId || !body.postId || !body.approvalStatus) return badRequest('clientId, postId, and approvalStatus required');
-      const validStatuses = ['pending', 'approved', 'changes_requested'];
-      if (!validStatuses.includes(body.approvalStatus)) return badRequest('Invalid approval status');
-      const posts = await db.getPosts(clientId);
-      const idx = posts.findIndex(p => p.id === body.postId);
-      if (idx === -1) return notFound('Post not found');
-      posts[idx].approvalStatus = body.approvalStatus;
-      if (body.approvalStatus === 'approved') {
-        posts[idx].approvedAt = new Date().toISOString();
-        posts[idx].approvedBy = user.email;
-      }
-      await db.savePosts(clientId, posts);
-      return json({ success: true, post: posts[idx] });
-    }
+    // ── APPROVALS ── (handler: lib/admin/approvals.mjs)
+    if (action === 'generate-approval-link' && req.method === 'POST') return handleGenerateApprovalLink(req, ctx);
+    if (action === 'set-approval-mode' && req.method === 'PUT') return handleSetApprovalMode(req, ctx);
+    if (action === 'set-approval-status' && req.method === 'PUT') return handleSetApprovalStatus(req, ctx);
 
     // ── CHECK TOKEN HEALTH (manual trigger) ── (handler: lib/admin/tokens.mjs)
     if (action === 'check-token-health') return handleCheckTokenHealth(req, ctx);
@@ -544,43 +506,10 @@ export default async (req) => {
     // ── PLAN USAGE ── (handler: lib/admin/billing.mjs)
     if (action === 'plan-usage') return handlePlanUsage(req, ctx);
 
-    // ── SAVE USER API KEY (Anthropic) ──
-    if (action === 'save-api-key' && req.method === 'POST') {
-      const body = await req.json();
-      const { apiKey } = body;
-      if (!apiKey || !apiKey.startsWith('sk-ant-')) {
-        return badRequest('Invalid Anthropic API key. It should start with sk-ant-');
-      }
-      const emailKey = user.email.toLowerCase().replace(/[^a-z0-9]/g, '_');
-      const userData = await db.getUser(emailKey) || { email: user.email };
-      userData.anthropicApiKey = encrypt(apiKey);
-      userData.apiKeySetAt = new Date().toISOString();
-      await db.saveUser(emailKey, userData);
-      logger.info('User saved Anthropic API key', { email: user.email });
-      return json({ success: true, hasKey: true });
-    }
-
-    // ── REMOVE USER API KEY ──
-    if (action === 'remove-api-key' && req.method === 'DELETE') {
-      const emailKey = user.email.toLowerCase().replace(/[^a-z0-9]/g, '_');
-      const userData = await db.getUser(emailKey);
-      if (userData) {
-        delete userData.anthropicApiKey;
-        delete userData.apiKeySetAt;
-        await db.saveUser(emailKey, userData);
-      }
-      return json({ success: true, hasKey: false });
-    }
-
-    // ── CHECK IF USER HAS API KEY ──
-    if (action === 'check-api-key') {
-      const emailKey = user.email.toLowerCase().replace(/[^a-z0-9]/g, '_');
-      const userData = await db.getUser(emailKey);
-      return json({
-        hasKey: !!(userData?.anthropicApiKey),
-        setAt: userData?.apiKeySetAt || null,
-      });
-    }
+    // ── USER API KEYS ── (handler: lib/admin/user-keys.mjs)
+    if (action === 'save-api-key' && req.method === 'POST') return handleSaveApiKey(req, ctx);
+    if (action === 'remove-api-key' && req.method === 'DELETE') return handleRemoveApiKey(req, ctx);
+    if (action === 'check-api-key') return handleCheckApiKey(req, ctx);
 
 
     // ── EVERGREEN ── (handler: lib/admin/evergreen.mjs)
