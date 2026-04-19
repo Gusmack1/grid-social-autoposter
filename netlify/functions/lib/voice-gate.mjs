@@ -35,6 +35,22 @@ const BANNED_PHRASES = [
   { id: 'got-you-covered', pattern: /we'?ve got you covered/i },
   { id: 'stay-tuned', pattern: /stay tuned\b/i },
   { id: 'proud-to-serve', pattern: /proud to serve\b/i },
+  // ── Seasonal / holiday references (added 2026-04-19) ──
+  // The generator shipped Easter-themed content twice AFTER Easter Sunday 2026-04-05
+  // ("Easter week's here" on 2026-04-18 and 2026-04-19). Haiku cannot ground
+  // temporal references without a "valid until" timestamp. Until a valid-until
+  // mechanism is wired into the generator, reject any named-holiday / seasonal
+  // mention at the gate — full-stop. See claude_brain fact #282.
+  { id: 'seasonal-easter', pattern: /\beaster\b/i },
+  { id: 'seasonal-christmas', pattern: /\bchristmas\b/i },
+  { id: 'seasonal-bank-holiday', pattern: /\bbank holiday\b/i },
+  { id: 'seasonal-halloween', pattern: /\bhalloween\b/i },
+  { id: 'seasonal-valentine', pattern: /\bvalentine/i },
+  { id: 'seasonal-new-year', pattern: /\bnew year/i },
+  { id: 'seasonal-bonfire-night', pattern: /\bbonfire night\b/i },
+  { id: 'seasonal-burns-night', pattern: /\bburns night\b/i },
+  { id: 'seasonal-mothers-day', pattern: /\bmother.{0,4}day\b/i },
+  { id: 'seasonal-fathers-day', pattern: /\bfather.{0,4}day\b/i },
 ];
 
 // ── STRUCTURAL RULES (§1 items 21–25) ──

@@ -386,6 +386,16 @@ export default async function handler() {
       reasons: [],
     };
 
+    // Client-level auto-post kill switch (see fact #282, Gus directive 2026-04-19).
+    // Generator must NOT create posts for clients that have been flipped off.
+    // NULL / undefined is treated as on (default) so existing clients keep working.
+    if (client.autoPost === false) {
+      result.reasons.push('auto_post_disabled');
+      logger.info('client skipped (auto_post=false)', result);
+      summary.push(result);
+      continue;
+    }
+
     const hasFb = !!(client.fbPageId && client.pageAccessToken);
     const hasIg = !!(client.igUserId && client.pageAccessToken);
     if (!hasFb && !hasIg) {
@@ -461,6 +471,19 @@ export default async function handler() {
   });
 }
 
-export const config = {
-  schedule: "0 8 * * *",
-};
+// ── CRON DISABLED 2026-04-19 ──
+// The daily generator has shipped out-of-season content twice (Easter content
+// posted 2026-04-18 and again 2026-04-19, two weeks after Easter Sunday
+// 2026-04-05) and the resulting queue bypassed `scheduled_for` in
+// scheduled-post.mjs, firing 1h44m–8h44m early. Rather than continue to leak
+// seasonal content + misfire on schedule, the cron is removed site-wide.
+//
+// The handler is still callable manually (admin-keyed entry point) for
+// testing, but no automated schedule runs. Re-enable only after:
+//   (a) scheduled_for bypass is fixed in scheduled-post.mjs (done in this PR),
+//   (b) voice-gate rejects all named-holiday references (done in this PR),
+//   (c) a "valid-until" timestamp mechanism is added to topical captions.
+//
+// export const config = {
+//   schedule: "0 8 * * *",
+// };

@@ -52,10 +52,12 @@ const GOOD_FIXTURES = [
   },
   {
     // §7 After — Plumber / Facebook (55 words). Tweaked to add no abstraction words.
+    // 2026-04-19: removed the "Christmas" reference to stay compatible with the
+    // new seasonal-content ban in voice-gate.mjs.
     name: 'plumber FB — Didsbury drain specific',
     platform: 'facebook',
     caption:
-      "A customer in Didsbury had the same slow drain for two years before calling us out. Fixed in 40 minutes, part cost £6. Sometimes it really is that simple. Worth booking a check before winter — the pipes get brittle when the first frost hits, and a blocked run over Christmas is nobody's idea of festive fun.",
+      "A customer in Didsbury had the same slow drain for two years before calling us out. Fixed in 40 minutes, part cost £6. Sometimes it really is that simple. Worth booking a check before winter — the pipes get brittle when the first frost hits, and a blocked run in January is nobody's idea of fun.",
   },
 ];
 
@@ -105,4 +107,27 @@ test('hashtag overflow on instagram', () => {
   const r = checkVoice(cap, 'instagram');
   assert.equal(r.pass, false);
   assert.ok(r.failures.some(f => f.startsWith('hashtag-count:')));
+});
+
+// ── Seasonal-content gate (added 2026-04-19 after Easter misfire) ────────────
+
+test('REJECT: Easter-themed caption (out-of-season risk)', () => {
+  // This is exactly the shape of caption the generator shipped to Grid Social
+  // on 2026-04-19, two weeks after Easter Sunday 2026-04-05.
+  const cap =
+    "Easter week's here and the evenings are finally getting longer, which means more time to finish that kitchen job on Tuesday before 7pm.";
+  const r = checkVoice(cap, 'facebook');
+  assert.equal(r.pass, false, `expected pass=false, got failures=${r.failures.join(', ')}`);
+  assert.ok(
+    r.failures.some(f => f === 'banned-phrase:seasonal-easter'),
+    `expected seasonal-easter failure, got: ${r.failures.join(', ')}`,
+  );
+});
+
+test('PASS: kitchen finish caption (no seasonal)', () => {
+  const cap =
+    "Finished a kitchen today in Didsbury for £2,400 including the new sink, which landed on Tuesday morning. The old taps had been dripping for eighteen months before the owner finally booked a proper look, and the whole job took four hours start to finish.";
+  const r = checkVoice(cap, 'facebook');
+  assert.equal(r.pass, true, `expected pass=true, got failures=${r.failures.join(', ')}`);
+  assert.equal(r.score, 5, `expected score=5, got ${r.score}`);
 });
