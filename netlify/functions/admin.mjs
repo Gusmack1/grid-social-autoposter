@@ -1,5 +1,5 @@
 // Admin API v4 — Modular, uses shared lib
-import { db, DB_BACKEND } from './lib/db/index.mjs';
+import { db } from './lib/db/index.mjs';
 import { verifyJWT } from './lib/crypto/jwt.mjs';
 import { encrypt, decrypt } from './lib/crypto/encryption.mjs';
 import { publishToAll, deleteFromPlatforms } from './lib/publisher.mjs';
@@ -9,7 +9,15 @@ import { generateInviteLink, generateApprovalLink } from './lib/invites.mjs';
 import { notifyClientPostsReady } from './lib/email.mjs';
 import { json, cors, unauthorized, forbidden, badRequest, notFound, serverError } from './lib/http.mjs';
 import { logger } from './lib/logger.mjs';
-import { getPlanLimits, checkPlanLimit, countMonthlyPosts } from './lib/plan-limits.mjs';
+import { checkPlanLimit, countMonthlyPosts } from './lib/plan-limits.mjs';
+// Phase-1 refactor: extracted handlers live under lib/admin/. Router dispatches
+// here. Do not inline these action bodies again — keep them in their modules.
+import { handleConfig } from './lib/admin/meta.mjs';
+import { handlePlanUsage } from './lib/admin/billing.mjs';
+import { handleExportAnalytics } from './lib/admin/analytics.mjs';
+import { handleCheckTokenHealth } from './lib/admin/tokens.mjs';
+import { handleGetTemplates, handleSaveTemplate, handleDeleteTemplate } from './lib/admin/templates.mjs';
+import { handleMarkEvergreen, handleUnmarkEvergreen, handleGetEvergreen, handleRecyclePost } from './lib/admin/evergreen.mjs';
 
 // Authenticate request — returns user object or null
 async function authenticate(req) {
@@ -55,6 +63,9 @@ export default async (req) => {
   }
   const adminActions = ['add-client', 'update-client', 'delete-client', 'migrate-tokens', 'generate-invite', 'check-token-health', 'generate-approval-link', 'set-approval-mode', 'set-approval-status', 'migrate-to-supabase', 'reorder-queue'];
   if (user.role !== 'admin' && adminActions.includes(action) && !selfServiceActions.includes(action)) return forbidden('Admin access required');
+
+  // Shared context passed to lib/admin/* handlers (Phase-1 refactor).
+  const ctx = { user, url, clientId, userId: user.id };
 
   try {
     // ── CLIENT MANAGEMENT ──
@@ -334,20 +345,8 @@ export default async (req) => {
       } catch (e) { return serverError(e.message); }
     }
 
-    // ── CONFIG ──
-    if (action === 'config') {
-      return json({
-        metaAppId: process.env.META_APP_ID || '',
-        hasSecret: !!process.env.META_APP_SECRET,
-        hasGithubToken: !!process.env.GITHUB_TOKEN,
-        hasEncryptionKey: !!process.env.ENCRYPTION_KEY,
-        hasQStash: !!process.env.QSTASH_TOKEN,
-        hasR2: !!process.env.R2_BUCKET,
-        hasSupabase: !!(process.env.SUPABASE_URL && process.env.SUPABASE_ANON_KEY),
-        dbBackend: DB_BACKEND,
-        user: { email: user.email, name: user.name, role: user.role, plan: user.plan || 'free', assignedClients: user.assignedClients },
-      });
-    }
+    // ── CONFIG ── (handler: lib/admin/meta.mjs)
+    if (action === 'config') return handleConfig(req, ctx);
 
     // ── TOKEN MIGRATION (one-time admin action) ──
     if (action === 'migrate-tokens' && req.method === 'POST') {
@@ -412,54 +411,13 @@ export default async (req) => {
       return json({ success: true, post: posts[idx] });
     }
 
-    // ── CHECK TOKEN HEALTH (manual trigger) ──
-    if (action === 'check-token-health') {
-      const clients = await db.getClients();
-      const results = [];
-      for (const client of clients) {
-        const health = { clientId: client.id, name: client.name, tokenHealth: client.tokenHealth || null };
-        results.push(health);
-      }
-      return json(results);
-    }
+    // ── CHECK TOKEN HEALTH (manual trigger) ── (handler: lib/admin/tokens.mjs)
+    if (action === 'check-token-health') return handleCheckTokenHealth(req, ctx);
 
-    // ── TEMPLATES ──
-    if (action === 'get-templates') {
-      const templates = await db.getTemplates(clientId || null);
-      return json(templates);
-    }
-
-    if (action === 'save-template' && req.method === 'POST') {
-      const body = await req.json();
-      if (!body.name) return badRequest('Template name required');
-      const template = {
-        id: body.id || 'tpl_' + Date.now(),
-        clientId: clientId || null,
-        name: body.name,
-        caption: body.caption || '',
-        platforms: body.platforms || ['facebook', 'instagram'],
-        postType: body.postType || 'feed',
-        imageUrl: body.imageUrl || null,
-        tags: body.tags || [],
-        createdBy: user.email,
-        createdAt: body.createdAt || new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
-      await db.saveTemplate(template);
-      logger.info('Template saved', { id: template.id, name: template.name });
-      return json({ success: true, template });
-    }
-
-    if (action === 'delete-template' && req.method === 'DELETE') {
-      const body = await req.json();
-      if (!body.templateId) return badRequest('templateId required');
-      if (db.deleteTemplate.length === 2) {
-        await db.deleteTemplate(body.templateId, clientId || null);
-      } else {
-        await db.deleteTemplate(body.templateId);
-      }
-      return json({ success: true });
-    }
+    // ── TEMPLATES ── (handler: lib/admin/templates.mjs)
+    if (action === 'get-templates') return handleGetTemplates(req, ctx);
+    if (action === 'save-template' && req.method === 'POST') return handleSaveTemplate(req, ctx);
+    if (action === 'delete-template' && req.method === 'DELETE') return handleDeleteTemplate(req, ctx);
 
     // ── QUEUE REORDER ──
     if (action === 'reorder-queue' && req.method === 'PUT') {
@@ -489,60 +447,8 @@ export default async (req) => {
       return json({ success: true, ...result });
     }
 
-    // ── ANALYTICS PDF EXPORT ──
-    if (action === 'export-analytics') {
-      if (!clientId) return badRequest('clientId required');
-      const clients = await db.getClients();
-      const client = clients.find(c => c.id === clientId);
-      const allPosts = await db.getPosts(clientId);
-      const range = parseInt(url.searchParams.get('range') || '30');
-      const since = new Date(Date.now() - range * 86400000);
-
-      const published = allPosts.filter(p => p.status === 'published' && p.publishedAt && new Date(p.publishedAt) >= since);
-      const queued = allPosts.filter(p => p.status === 'queued' || p.status === 'scheduled');
-      const failed = allPosts.filter(p => p.status === 'failed');
-
-      const platformBreakdown = {};
-      for (const p of published) {
-        for (const plat of (p.platforms || [])) {
-          if (!platformBreakdown[plat]) platformBreakdown[plat] = { success: 0, failed: 0 };
-          const r = p.results?.[plat];
-          if (r?.success) platformBreakdown[plat].success++;
-          else platformBreakdown[plat].failed++;
-        }
-      }
-
-      const postsByDay = {};
-      for (const p of published) {
-        const day = new Date(p.publishedAt).toISOString().split('T')[0];
-        postsByDay[day] = (postsByDay[day] || 0) + 1;
-      }
-
-      const report = {
-        clientName: client?.name || clientId,
-        range,
-        generatedAt: new Date().toISOString(),
-        summary: {
-          totalPublished: published.length,
-          queued: queued.length,
-          failed: failed.length,
-          successRate: published.length > 0 ? Math.round((published.filter(p => {
-            const results = p.results || {};
-            return Object.values(results).some(r => r?.success);
-          }).length / published.length) * 100) : 0,
-        },
-        platformBreakdown,
-        postsByDay,
-        recentPosts: published.slice(0, 20).map(p => ({
-          caption: (p.caption || '').substring(0, 100),
-          platforms: p.platforms,
-          publishedAt: p.publishedAt,
-          postType: p.postType,
-        })),
-      };
-
-      return json(report);
-    }
+    // ── ANALYTICS PDF EXPORT ── (handler: lib/admin/analytics.mjs)
+    if (action === 'export-analytics') return handleExportAnalytics(req, ctx);
 
     // ── DUPLICATE POST ──
     if (action === 'duplicate-post' && req.method === 'POST') {
@@ -635,24 +541,8 @@ export default async (req) => {
       return json({ success: true, updated });
     }
 
-    // ── PLAN USAGE ──
-    if (action === 'plan-usage') {
-      const clients = await db.getClients();
-      const userPlan = user.plan || 'free';
-      const limits = getPlanLimits(userPlan);
-      const allClientIds = clients.map(c => c.id);
-      const monthlyPosts = await countMonthlyPosts(db.getPosts.bind(db), allClientIds);
-      const users = user.role === 'admin' ? await db.listUsers() : [];
-      return json({
-        plan: userPlan,
-        limits,
-        usage: {
-          postsThisMonth: monthlyPosts,
-          clients: clients.length,
-          users: users.length || 1,
-        },
-      });
-    }
+    // ── PLAN USAGE ── (handler: lib/admin/billing.mjs)
+    if (action === 'plan-usage') return handlePlanUsage(req, ctx);
 
     // ── SAVE USER API KEY (Anthropic) ──
     if (action === 'save-api-key' && req.method === 'POST') {
@@ -693,69 +583,11 @@ export default async (req) => {
     }
 
 
-    // ── MARK EVERGREEN ──
-    if (action === 'mark-evergreen' && req.method === 'POST') {
-      const body = await req.json();
-      if (!body.postId) return badRequest('postId required');
-      const list = await db.getPosts(clientId);
-      const idx = list.findIndex(p => p.id === body.postId);
-      if (idx === -1) return notFound('Post not found');
-      list[idx].evergreen = true;
-      await db.savePosts(clientId, list);
-      logger.info('Marked post as evergreen', { clientId, postId: body.postId });
-      return json({ success: true });
-    }
-
-    // ── UNMARK EVERGREEN ──
-    if (action === 'unmark-evergreen' && req.method === 'POST') {
-      const body = await req.json();
-      if (!body.postId) return badRequest('postId required');
-      const list = await db.getPosts(clientId);
-      const idx = list.findIndex(p => p.id === body.postId);
-      if (idx === -1) return notFound('Post not found');
-      list[idx].evergreen = false;
-      await db.savePosts(clientId, list);
-      logger.info('Unmarked post as evergreen', { clientId, postId: body.postId });
-      return json({ success: true });
-    }
-
-    // ── GET EVERGREEN ──
-    if (action === 'get-evergreen') {
-      const list = await db.getPosts(clientId);
-      const evergreen = list.filter(p => p.evergreen === true);
-      return json(evergreen);
-    }
-
-    // ── RECYCLE POST ──
-    if (action === 'recycle-post' && req.method === 'POST') {
-      const body = await req.json();
-      if (!body.postId || !body.scheduledFor) return badRequest('postId and scheduledFor required');
-      const list = await db.getPosts(clientId);
-      const original = list.find(p => p.id === body.postId);
-      if (!original) return notFound('Post not found');
-      const newPost = {
-        id: 'post_' + Date.now(),
-        clientId,
-        caption: original.caption,
-        imageUrl: original.imageUrl || null,
-        videoUrl: original.videoUrl || null,
-        imageUrls: original.imageUrls || null,
-        postType: original.postType || 'feed',
-        platforms: original.platforms || [],
-        status: 'scheduled',
-        scheduledFor: body.scheduledFor,
-        approvalStatus: original.approvalStatus,
-        approvalMode: original.approvalMode,
-        evergreen: original.evergreen || false,
-        createdAt: new Date().toISOString(),
-        publishedAt: null,
-        results: null,
-      };
-      list.push(newPost);
-      await db.savePosts(clientId, list);
-      logger.info('Recycled post', { clientId, originalPostId: body.postId, newPostId: newPost.id });
-      return json({ success: true, post: newPost });
-    }
+    // ── EVERGREEN ── (handler: lib/admin/evergreen.mjs)
+    if (action === 'mark-evergreen' && req.method === 'POST') return handleMarkEvergreen(req, ctx);
+    if (action === 'unmark-evergreen' && req.method === 'POST') return handleUnmarkEvergreen(req, ctx);
+    if (action === 'get-evergreen') return handleGetEvergreen(req, ctx);
+    if (action === 'recycle-post' && req.method === 'POST') return handleRecyclePost(req, ctx);
 
     // ── GENERATE SHARE LINK ──
     if (action === 'generate-share-link' && req.method === 'POST') {
