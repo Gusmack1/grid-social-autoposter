@@ -12,6 +12,12 @@
 [functions."generate-posts"]
   schedule = "0 8 * * *"
 
+[functions."meta-token-refresh"]
+  schedule = "0 3 * * *"
+
+[functions."token-health"]
+  schedule = "0 */6 * * *"
+
 [[headers]]
   for = "/*"
   [headers.values]

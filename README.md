@@ -1,15 +1,22 @@
 # Grid Social Auto-Poster
 
-Automated social media posting for Grid Social clients.  
-Posts to **Facebook Pages** + **Instagram Business** via Meta Graph API.  
-Scheduled via Netlify Functions (Mon/Wed/Fri at 10am UK).
+Hand-crafted, approved-before-posting social publishing for Grid Social clients.  
+9 live platform adapters: **Facebook**, **Instagram**, **X/Twitter**, **LinkedIn**, **TikTok**, **Threads**, **Bluesky**, **Pinterest**, **Google Business Profile**.  
+Scheduled via Netlify Functions.
 
 ## Architecture
 
 ```
-Admin Dashboard → Netlify Blobs (post queue) → Scheduled Function → Meta Graph API
+Admin Dashboard → Netlify Blobs (post queue) → Scheduled Function → Platform APIs
                                                                   ├── Facebook Page
-                                                                  └── Instagram Business
+                                                                  ├── Instagram Business
+                                                                  ├── X / Twitter
+                                                                  ├── LinkedIn
+                                                                  ├── TikTok
+                                                                  ├── Threads
+                                                                  ├── Bluesky
+                                                                  ├── Pinterest
+                                                                  └── Google Business Profile
 ```
 
 ## Quick Start
